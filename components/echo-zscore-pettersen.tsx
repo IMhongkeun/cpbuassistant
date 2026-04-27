@@ -69,6 +69,15 @@ const PETTERSEN_COEFF: Record<string, PettersenCoeff> = {
     description: "좌폐동맥 (Left Pulmonary Artery)"
   },
   // Valve Annuli
+  PV: {
+    name: "PV",
+    beta0: -0.761,
+    beta1: 2.774,
+    beta2: -1.808,
+    beta3: 0.436,
+    mse: 0.023,
+    description: "폐동맥판륜 (Pulmonary Valve Annulus)"
+  },
   AoV: {
     name: "AoV",
     beta0: -0.874,
@@ -156,7 +165,7 @@ export default function EchoZScorePettersen() {
   const BSA_LIMIT = 2.0
   const isBlocked = bsa > BSA_LIMIT
 
-  const structures = ["MPA", "RPA", "LPA", "AoV", "MV", "TV"] as const
+  const structures = ["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const
 
   // Compute results for a structure
   const compute = (s: string) => {

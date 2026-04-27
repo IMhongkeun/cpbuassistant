@@ -227,11 +227,12 @@ interface Coeff {
   ref: string
 }
 
-const COEFF: Record<"MPA" | "RPA" | "LPA" | "AoV" | "MV" | "TV", Coeff> = {
+const COEFF: Record<"MPA" | "RPA" | "LPA" | "PV" | "AoV" | "MV" | "TV", Coeff> = {
   // PA branches
   MPA: { type: "power", indexed_mean: 1.82, alpha: 0.5, sd: 0.24, ref: "Lopez 2017 PHN (Table 2)" },
   RPA: { type: "power", indexed_mean: 1.07, alpha: 0.5, sd: 0.18, ref: "Lopez 2017 PHN (Table 2)" },
   LPA: { type: "power", indexed_mean: 1.1, alpha: 0.5, sd: 0.18, ref: "Lopez 2017 PHN (Table 2)" },
+  PV: { type: "power", indexed_mean: 1.91, alpha: 0.5, sd: 0.24, ref: "Lopez 2017 PHN (Table 2, PV SAX)" },
   // Annuli (LAT for MV/TV)
   AoV: { type: "power", indexed_mean: 1.48, alpha: 0.5, sd: 0.14, ref: "Lopez 2017 PHN (Table 2)" },
   MV: { type: "power", indexed_mean: 2.23, alpha: 0.5, sd: 0.22, ref: "Lopez 2017 PHN (Table 2, MV LAT)" },
@@ -287,7 +288,7 @@ export default function EchoZScoreTool() {
   const isBlocked = bsa > BSA_LIMIT
   const isHighBSA = !isBlocked && bsa >= BSA_WARN
 
-  const structures = ["MPA", "RPA", "LPA", "AoV", "MV", "TV"] as const
+  const structures = ["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const
   type Structure = (typeof structures)[number]
 
   const compute = (s: Structure) => {
@@ -427,7 +428,7 @@ export default function EchoZScoreTool() {
       </Card>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        {(["MPA", "RPA", "LPA", "AoV", "MV", "TV"] as const).map((s) => {
+        {(["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const).map((s) => {
           const info = compute(s)
           return (
             <Card key={s} className="relative overflow-hidden">
@@ -549,6 +550,13 @@ export default function EchoZScoreTool() {
                       <td className="p-2 text-muted-foreground">좌폐동맥</td>
                       <td className="text-center p-2 font-mono">1.10</td>
                       <td className="text-center p-2 font-mono">0.18</td>
+                      <td className="text-center p-2 font-mono">0.5</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="p-2 font-semibold">PV</td>
+                      <td className="p-2 text-muted-foreground">폐동맥판륜 (SAX)</td>
+                      <td className="text-center p-2 font-mono">1.91</td>
+                      <td className="text-center p-2 font-mono">0.24</td>
                       <td className="text-center p-2 font-mono">0.5</td>
                     </tr>
                     <tr className="border-b">
