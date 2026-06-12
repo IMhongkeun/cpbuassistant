@@ -5,6 +5,7 @@ import { Clock, Timer } from "lucide-react"
 import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
 import ScmpFlowCalculator from "../components/scmp-flow-calculator"
+import BloodHemodilutionCalculator from "../components/blood-hemodilution-calculator"
 import GDPCalculator from "../components/gdp-calculator" // Import the GDPCalculator component
 
 // Helper function to convert HH:MM string (allowing HH > 23) to total minutes from midnight
@@ -22,7 +23,7 @@ const timeToMinutes = (timeStr) => {
 const CPBUassistant = () => {
   // State to manage the active tab (lung, heart, pediatric, cpb, or gdp)
   const [activeTab, setActiveTab] = useState("lung")
-  // State to manage PCS sub-tabs (echo or scmp)
+  // State to manage PCS sub-tabs (echo, scmp, or blood)
   const [pcsSubTab, setPcsSubTab] = useState("echo")
 
   // State for Lung Transplant data
@@ -877,11 +878,22 @@ const CPBUassistant = () => {
             >
               SCMP Flow
             </button>
+            <button
+              onClick={() => setPcsSubTab("blood")}
+              className={`flex-1 py-2 px-4 rounded-md transition-all duration-200 ${
+                pcsSubTab === "blood"
+                  ? "bg-white text-green-700 shadow-sm font-semibold"
+                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Blood / Hemodilution
+            </button>
           </div>
 
           {/* Sub-tab Content */}
           {pcsSubTab === "echo" && <EchoZScoreTool />}
           {pcsSubTab === "scmp" && <ScmpFlowCalculator />}
+          {pcsSubTab === "blood" && <BloodHemodilutionCalculator />}
         </div>
       )}
 
