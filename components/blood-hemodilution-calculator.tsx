@@ -80,6 +80,11 @@ const getPresetLabel = (preset: (typeof PRIMING_VOLUME_PRESETS)[number]) =>
 
 const parseInputNumber = (value: string) => Number.parseFloat(value)
 
+const parseOptionalVolume = (value: string) => {
+  const trimmedValue = value.trim()
+  return trimmedValue === "" ? 0 : parseInputNumber(trimmedValue)
+}
+
 const formatNumber = (value: number, decimals = 0) => {
   if (!Number.isFinite(value)) return "-"
   return value.toLocaleString("en-US", {
@@ -303,8 +308,9 @@ export default function BloodHemodilutionCalculator() {
     const coefficient = parseInputNumber(bloodVolumeCoefficient)
     const prime = parseInputNumber(primeVolume)
     const patientPreHct = parseInputNumber(preHct)
-    const addedVolume = parseInputNumber(addedCrystalloidVolume)
-    const removedVolume = parseInputNumber(removedFluidVolume)
+    // Added/removed fluid are optional intraoperative fields. Blank means 0 ml so results still calculate.
+    const addedVolume = parseOptionalVolume(addedCrystalloidVolume)
+    const removedVolume = parseOptionalVolume(removedFluidVolume)
     const targetPercent = parseInputNumber(desiredHct)
     const rbcHct = parseInputNumber(rbcProductHct)
     const unitVolume = parseInputNumber(rbcUnitVolume)
@@ -442,8 +448,8 @@ export default function BloodHemodilutionCalculator() {
     weightKg,
   ])
 
-  const addedVolumePreview = parseInputNumber(addedCrystalloidVolume)
-  const removedVolumePreview = parseInputNumber(removedFluidVolume)
+  const addedVolumePreview = parseOptionalVolume(addedCrystalloidVolume)
+  const removedVolumePreview = parseOptionalVolume(removedFluidVolume)
   const reservoirLevelPreview = parseInputNumber(reservoirLevel)
   const canShowBalancePreview = isNonNegativeNumber(addedVolumePreview) && isNonNegativeNumber(removedVolumePreview)
   const netBalancePreview = canShowBalancePreview ? addedVolumePreview - removedVolumePreview : 0
