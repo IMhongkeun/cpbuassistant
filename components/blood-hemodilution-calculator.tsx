@@ -187,7 +187,7 @@ const InputBlock = ({
   step?: string
   helperText?: string
 }) => (
-  <div className="flex h-full flex-col space-y-2">
+  <div className="space-y-2">
     <Label htmlFor={id} className="flex min-h-8 items-end text-xs font-semibold uppercase tracking-wide text-muted-foreground">
       {label}
     </Label>
