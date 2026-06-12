@@ -101,6 +101,14 @@ const formatPercentFromFraction = (value: number) => {
 
 const isPositiveNumber = (value: number) => Number.isFinite(value) && value > 0
 const isNonNegativeNumber = (value: number) => Number.isFinite(value) && value >= 0
+const isPercentInRange = (value: string) => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue > 0 && numericValue <= 100
+}
+const isFractionInRange = (value: string) => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue > 0 && numericValue <= 1
+}
 const hasOptionalValue = (value: string) => value.trim() !== ""
 
 const getVolumeAction = (value: number): "add" | "remove" | "neutral" => {
@@ -341,11 +349,11 @@ export default function BloodHemodilutionCalculator() {
       !isPositiveNumber(weight) ||
       !isPositiveNumber(coefficient) ||
       !isPositiveNumber(prime) ||
-      !isPositiveNumber(patientPreHct) ||
+      !isPercentInRange(preHct) ||
       !isNonNegativeNumber(addedVolume) ||
       !isNonNegativeNumber(removedVolume) ||
-      !isPositiveNumber(targetPercent) ||
-      !isPositiveNumber(rbcHct) ||
+      !isPercentInRange(desiredHct) ||
+      !isFractionInRange(rbcProductHct) ||
       !isPositiveNumber(unitVolume) ||
       (hasReservoirLevel && !isNonNegativeNumber(currentReservoir as number)) ||
       (hasCautionLevel && !isPositiveNumber(cautionLevel as number))
@@ -353,13 +361,13 @@ export default function BloodHemodilutionCalculator() {
       return {
         status: "message",
         message:
-          "Enter valid positive values for patient, prime, target, RBC product Hct, and RBC-LF unit volume. Added/removed fluid and reservoir level must be 0 mL or greater.",
+          "Enter valid values: Pre-Hct and Desired Hct must be 0-100%, RBC product Hct must be a fraction from 0-1, and added/removed fluid must be 0 mL or greater.",
       }
     }
 
-    const target = targetPercent / 100
+    const targetFraction = targetPercent / 100
 
-    if (target >= rbcHct) {
+    if (targetFraction >= rbcHct) {
       return {
         status: "message",
         message: "Desired Hct must be lower than RBC product Hct.",
@@ -390,22 +398,22 @@ export default function BloodHemodilutionCalculator() {
     // Expected Hct (%) = Patient RBC volume / Total volume × 100
     const expectedHct = (patientRbcVolume / totalVolume) * 100
 
-    if (!Number.isFinite(expectedHct) || expectedHct < 0) {
+    if (!Number.isFinite(expectedHct) || expectedHct < 0 || expectedHct > 100) {
       return {
         status: "message",
-        message: "Expected Hct could not be calculated from the current inputs. Please recheck the entered volumes.",
+        message: "Expected Hct could not be calculated as a clinically valid 0-100% value. Please recheck the entered Hct and volume inputs.",
       }
     }
 
     // RBC transfusion volume mL = max(0, (Target × Total volume - Patient RBC volume) / (RBC_Hct - Target))
-    const rbcTransfusionVolume = Math.max(0, (target * totalVolume - patientRbcVolume) / (rbcHct - target))
+    const rbcTransfusionVolume = Math.max(0, (targetFraction * totalVolume - patientRbcVolume) / (rbcHct - targetFraction))
 
     // RBC unit count = RBC transfusion volume mL / RBC leukocyte-filtered unit volume
     const rbcUnitCount = rbcTransfusionVolume / unitVolume
 
     // Target total volume = Patient RBC volume / Target
     // Fluid adjustment volume = Target total volume - Total volume
-    const targetTotalVolume = patientRbcVolume / target
+    const targetTotalVolume = patientRbcVolume / targetFraction
     const fluidAdjustmentVolume = targetTotalVolume - totalVolume
 
     let fluidAdjustmentAction: "remove" | "add" | "none" = "none"
@@ -663,7 +671,14 @@ export default function BloodHemodilutionCalculator() {
 
                 <SectionCard title="Target" icon={<Syringe className="h-4 w-4" />}>
                   <InputBlock id="desired-hct" label="Desired Hct %" value={desiredHct} onChange={setDesiredHct} step="0.1" />
-                  <InputBlock id="rbc-product-hct" label="RBC product Hct" value={rbcProductHct} onChange={setRbcProductHct} step="0.01" />
+                  <InputBlock
+                    id="rbc-product-hct"
+                    label="RBC product Hct"
+                    value={rbcProductHct}
+                    onChange={setRbcProductHct}
+                    step="0.01"
+                    helperText="Enter as fraction, e.g. 0.66 for 66%."
+                  />
                   <InputBlock
                     id="rbc-unit-volume"
                     label="RBC leukocyte-filtered unit volume"
