@@ -76,7 +76,7 @@ const PRIMING_VOLUME_PRESETS = [
   },
 ]
 const getPresetLabel = (preset: (typeof PRIMING_VOLUME_PRESETS)[number]) =>
-  `${preset.name} · ${preset.oxygenator} · ${preset.configuration} — ${preset.primeVolumeMl} mL`
+  `${preset.name} · ${preset.oxygenator} · ${preset.configuration} — ${preset.primeVolumeMl} ml`
 
 const parseInputNumber = (value: string) => Number.parseFloat(value)
 
@@ -90,8 +90,8 @@ const formatNumber = (value: number, decimals = 0) => {
 
 const formatSignedMl = (value: number) => {
   if (!Number.isFinite(value)) return "-"
-  if (Math.abs(value) < FLUID_ADJUSTMENT_THRESHOLD_ML) return "0 mL"
-  return `${value > 0 ? "+" : "-"}${formatNumber(Math.abs(value))} mL`
+  if (Math.abs(value) < FLUID_ADJUSTMENT_THRESHOLD_ML) return "0 ml"
+  return `${value > 0 ? "+" : "-"}${formatNumber(Math.abs(value))} ml`
 }
 
 const formatPercentFromFraction = (value: number) => {
@@ -185,7 +185,7 @@ const InputBlock = ({
   step?: string
 }) => (
   <div className="space-y-2">
-    <Label htmlFor={id} className="flex min-h-8 items-end text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <Label htmlFor={id} className="flex min-h-8 items-end text-xs font-semibold tracking-wide text-muted-foreground">
       {label}
     </Label>
     <Input
@@ -223,7 +223,7 @@ const SectionCard = ({
 
 export default function BloodHemodilutionCalculator() {
   const [weightKg, setWeightKg] = useState("")
-  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("")
+  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("55")
   const [selectedPresetId, setSelectedPresetId] = useState("")
   const [primeVolume, setPrimeVolume] = useState("")
   const [preHct, setPreHct] = useState("")
@@ -231,8 +231,8 @@ export default function BloodHemodilutionCalculator() {
   const [removedFluidVolume, setRemovedFluidVolume] = useState("")
   const [reservoirLevel, setReservoirLevel] = useState("")
   const [desiredHct, setDesiredHct] = useState("")
-  const [rbcProductHct, setRbcProductHct] = useState("")
-  const [rbcUnitVolume, setRbcUnitVolume] = useState("")
+  const [rbcProductHct, setRbcProductHct] = useState("0.66")
+  const [rbcUnitVolume, setRbcUnitVolume] = useState("200")
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false)
 
   useEffect(() => {
@@ -326,7 +326,7 @@ export default function BloodHemodilutionCalculator() {
       return {
         status: "message",
         message:
-          "입력값을 확인해주세요. Hct는 0-100%, RBC 제제 Hct는 0-1 분율, 수액량은 0 mL 이상이어야 합니다.",
+          "입력값을 확인해주세요. Hct는 0-100%, RBC product Hct는 0-1 분율, fluid volume은 0 ml 이상이어야 합니다.",
       }
     }
 
@@ -335,7 +335,7 @@ export default function BloodHemodilutionCalculator() {
     if (targetFraction >= rbcHct) {
       return {
         status: "message",
-        message: "목표 Hct는 RBC 제제 Hct보다 낮아야 합니다.",
+        message: "목표 Hct는 RBC product Hct보다 낮아야 합니다.",
       }
     }
 
@@ -346,11 +346,11 @@ export default function BloodHemodilutionCalculator() {
     // Prime volume, added crystalloid, and reservoir level do not increase RBC volume.
     const patientRbcVolume = patientVolume * (patientPreHct / 100)
 
-    // 수액 balance = 추가 수액 volume - 제거 수액 volume
+    // Fluid balance = Added fluid volume - Removed fluid volume
     const netIntraoperativeVolume = addedVolume - removedVolume
 
-    // 총 volume = 환자 혈액량 + Prime volume + Reservoir level + 추가 수액 volume - 제거 수액 volume
-    // Reservoir level은 입력한 경우에만 포함하고, 비어 있으면 0 mL로 계산합니다.
+    // 총 volume = 환자 혈액량 + Prime volume + Reservoir level + Added fluid volume - Removed fluid volume
+    // Reservoir level은 입력한 경우에만 포함하고, 비어 있으면 0 ml로 계산합니다.
     const reservoirVolume = currentReservoir ?? 0
     const totalVolume = patientVolume + prime + reservoirVolume + netIntraoperativeVolume
 
@@ -371,14 +371,14 @@ export default function BloodHemodilutionCalculator() {
       }
     }
 
-    // RBC transfusion volume mL = max(0, (목표 × 총 volume - 환자 RBC volume) / (RBC_Hct - 목표))
+    // RBC transfusion volume ml = max(0, (목표 × 총 volume - 환자 RBC volume) / (RBC_Hct - 목표))
     const rbcTransfusionVolume = Math.max(0, (targetFraction * totalVolume - patientRbcVolume) / (rbcHct - targetFraction))
 
-    // RBC unit count = RBC transfusion volume mL / RBC-LF 1 unit 용량
+    // RBC unit count = RBC transfusion volume ml / RBC 1u ml
     const rbcUnitCount = rbcTransfusionVolume / unitVolume
 
     // 목표 total volume = 환자 RBC volume / 목표
-    // 수액 조절 volume = 목표 total volume - 총 volume
+    // Fluid adjustment volume = 목표 total volume - 총 volume
     const targetTotalVolume = patientRbcVolume / targetFraction
     const fluidAdjustmentVolume = targetTotalVolume - totalVolume
 
@@ -464,8 +464,8 @@ export default function BloodHemodilutionCalculator() {
 
     if (result.fluidAdjustmentAction === "remove") {
       return {
-        label: `제거 ${formatNumber(Math.abs(result.fluidAdjustmentVolume))} mL`,
-        badge: "제거",
+        label: `Remove ${formatNumber(Math.abs(result.fluidAdjustmentVolume))} ml`,
+        badge: "Remove",
         className: "text-rose-700 dark:text-rose-300",
         icon: MinusCircle,
       }
@@ -473,8 +473,8 @@ export default function BloodHemodilutionCalculator() {
 
     if (result.fluidAdjustmentAction === "add") {
       return {
-        label: `추가 ${formatNumber(result.fluidAdjustmentVolume)} mL`,
-        badge: "추가",
+        label: `Add ${formatNumber(result.fluidAdjustmentVolume)} ml`,
+        badge: "Add",
         className: "text-blue-700 dark:text-blue-300",
         icon: PlusCircle,
       }
@@ -498,22 +498,11 @@ export default function BloodHemodilutionCalculator() {
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="text-2xl font-bold tracking-tight">Hct predict</CardTitle>
-                <Badge variant="secondary" className="bg-white text-green-700 shadow-sm dark:bg-green-950/70 dark:text-green-200">
-                  PCS · 소아심장수술
-                </Badge>
               </div>
               <div className="text-sm font-semibold text-green-800 dark:text-green-200">CPB Hct 예측</div>
               <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-                CPB 중 혈액희석, RBC 필요량, 수액 조절량을 계산합니다.
+                CPB 중 혈액희석, RBC 필요량, Fluid adjustment량을 계산합니다.
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
-                RBC-LF 단위 용량
-              </Badge>
-              <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
-                수액 balance 반영
-              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -526,7 +515,7 @@ export default function BloodHemodilutionCalculator() {
                   <InputBlock id="blood-weight" label="체중 kg" value={weightKg} onChange={setWeightKg} step="0.1" />
                   <InputBlock
                     id="blood-volume-coefficient"
-                    label="혈액량 계수 mL/kg"
+                    label="Blood volume coefficient ml/kg"
                     value={bloodVolumeCoefficient}
                     onChange={setBloodVolumeCoefficient}
                   />
@@ -539,7 +528,7 @@ export default function BloodHemodilutionCalculator() {
 
               <SectionCard title="회로 / Prime" icon={<FlaskConical className="h-4 w-4" />}>
                 <div className="space-y-2">
-                  <Label htmlFor="tubing-set" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Label htmlFor="tubing-set" className="text-xs font-semibold tracking-wide text-muted-foreground">
                     튜빙 세트 선택
                   </Label>
                   <Select value={selectedPresetId} onValueChange={handlePresetChange}>
@@ -561,10 +550,10 @@ export default function BloodHemodilutionCalculator() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} />
+                  <InputBlock id="prime-volume" label="Prime volume ml" value={primeVolume} onChange={setPrimeVolume} />
                   <InputBlock
                     id="current-reservoir-level"
-                    label="Reservoir level mL"
+                    label="Reservoir level ml"
                     value={reservoirLevel}
                     onChange={setReservoirLevel}
                   />
@@ -589,32 +578,32 @@ export default function BloodHemodilutionCalculator() {
                   <InputBlock id="desired-hct" label="목표 Hct %" value={desiredHct} onChange={setDesiredHct} step="0.1" />
                   <InputBlock
                     id="rbc-product-hct"
-                    label="RBC 제제 Hct"
+                    label="RBC product Hct"
                     value={rbcProductHct}
                     onChange={setRbcProductHct}
                     step="0.01"
                   />
                   <InputBlock
                     id="rbc-unit-volume"
-                    label="RBC-LF 1 unit 용량"
+                    label="RBC 1u ml"
                     value={rbcUnitVolume}
                     onChange={setRbcUnitVolume}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">RBC 제제 Hct는 0.66처럼 분율로 입력합니다.</p>
+                <p className="text-xs text-muted-foreground">RBC product Hct는 0.66처럼 분율로 입력합니다.</p>
               </SectionCard>
 
-              <SectionCard title="수액 balance" icon={<Droplets className="h-4 w-4" />}>
+              <SectionCard title="Fluid balance" icon={<Droplets className="h-4 w-4" />}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <InputBlock
                     id="added-crystalloid-volume"
-                    label="추가 수액 mL"
+                    label="Added fluid ml"
                     value={addedCrystalloidVolume}
                     onChange={setAddedCrystalloidVolume}
                   />
                   <InputBlock
                     id="removed-fluid-volume"
-                    label="제거 수액 mL"
+                    label="Removed fluid ml"
                     value={removedFluidVolume}
                     onChange={setRemovedFluidVolume}
                   />
@@ -632,12 +621,12 @@ export default function BloodHemodilutionCalculator() {
                           : "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-200"
                       }
                     >
-                      예상 reservoir: {formatNumber(projectedReservoirPreview)} mL
+                      예상 reservoir: {formatNumber(projectedReservoirPreview)} ml
                     </Badge>
                   )}
                 </div>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  추가/제거 수액만 입력합니다. 혈액제제는 제외하세요.
+                  Added/removed fluid만 입력합니다. 혈액제제는 제외하세요.
                 </p>
               </SectionCard>
 
@@ -689,7 +678,7 @@ export default function BloodHemodilutionCalculator() {
                         <div className="mt-3 rounded-md bg-white/65 p-3 text-xs text-muted-foreground dark:bg-background/40">
                           <div className="font-semibold text-foreground">Balance: {formatSignedMl(result.netIntraoperativeVolume)}</div>
                           <div className="mt-1">
-                            추가 {formatNumber(result.addedCrystalloidVolume)} mL · 제거 {formatNumber(result.removedFluidVolume)} mL
+                            Added {formatNumber(result.addedCrystalloidVolume)} ml · Removed {formatNumber(result.removedFluidVolume)} ml
                           </div>
                         </div>
                       </CardContent>
@@ -706,12 +695,12 @@ export default function BloodHemodilutionCalculator() {
                               <span className="text-4xl font-bold tracking-tight text-red-900 dark:text-red-100">
                                 {formatNumber(result.rbcTransfusionVolume)}
                               </span>
-                              <span className="pb-1 text-lg font-semibold text-red-700 dark:text-red-200">mL</span>
+                              <span className="pb-1 text-lg font-semibold text-red-700 dark:text-red-200">ml</span>
                             </div>
                             <div className="mt-2 text-base font-semibold text-red-700 dark:text-red-200">≈ {formatNumber(result.rbcUnitCount, 1)} unit</div>
                           </>
                         )}
-                        <p className="mt-2 text-xs text-muted-foreground">RBC-LF 기준 {formatNumber(result.rbcUnitVolume)} mL/unit</p>
+                        <p className="mt-2 text-xs text-muted-foreground">RBC 기준 {formatNumber(result.rbcUnitVolume)} ml/unit</p>
                       </CardContent>
                     </Card>
 
@@ -719,7 +708,7 @@ export default function BloodHemodilutionCalculator() {
                       <CardContent className="p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-sm font-semibold text-muted-foreground">수액 조절</div>
+                            <div className="text-sm font-semibold text-muted-foreground">Fluid adjustment</div>
                             <div className={`mt-3 flex items-center gap-2 text-3xl font-bold tracking-tight ${fluidAdjustmentCopy.className}`}>
                               <FluidIcon className="h-7 w-7 shrink-0" />
                               <span>{fluidAdjustmentCopy.label}</span>
@@ -735,7 +724,7 @@ export default function BloodHemodilutionCalculator() {
                         {result.projectedReservoirAfterTargetAdjustment !== null && (
                           <div className="mt-3 rounded-md bg-white/65 p-3 text-xs text-muted-foreground dark:bg-background/40">
                             <div className="font-semibold text-foreground">
-                              예상 reservoir: {formatNumber(result.projectedReservoirAfterTargetAdjustment)} mL
+                              예상 reservoir: {formatNumber(result.projectedReservoirAfterTargetAdjustment)} ml
                             </div>
                             {result.targetReservoirWarning && (
                               <div className="mt-2 flex items-start gap-2 font-medium text-amber-700 dark:text-amber-300">
@@ -760,9 +749,9 @@ export default function BloodHemodilutionCalculator() {
                       <CardContent className="p-4 text-sm">
                         <div className="font-semibold text-foreground">Reservoir 참고</div>
                         <div className="mt-2 grid gap-1 text-muted-foreground">
-                          <div>현재 reservoir: {formatNumber(result.currentReservoirLevel)} mL</div>
+                          <div>현재 reservoir: {formatNumber(result.currentReservoirLevel)} ml</div>
                           <div>Balance: {formatSignedMl(result.netIntraoperativeVolume)}</div>
-                          <div>예상 reservoir: {formatNumber(result.projectedReservoirAfterBalance ?? 0)} mL</div>
+                          <div>예상 reservoir: {formatNumber(result.projectedReservoirAfterBalance ?? 0)} ml</div>
                         </div>
                         {result.balanceReservoirWarning && (
                           <div className="mt-3 flex items-start gap-2 text-xs font-medium text-amber-700 dark:text-amber-300">
@@ -780,55 +769,55 @@ export default function BloodHemodilutionCalculator() {
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                       <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">환자 혈액량 계수</span>
-                        <span className="font-medium">{bloodVolumeCoefficient || "-"} mL/kg</span>
+                        <span className="text-muted-foreground">Blood volume coefficient</span>
+                        <span className="font-medium">{bloodVolumeCoefficient || "-"} ml/kg</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-muted-foreground">환자 혈액량</span>
-                        <span className="font-medium">{formatNumber(result.patientVolume)} mL</span>
+                        <span className="font-medium">{formatNumber(result.patientVolume)} ml</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-muted-foreground">환자 RBC volume</span>
-                        <span className="font-medium">{formatNumber(result.patientRbcVolume)} mL</span>
+                        <span className="font-medium">{formatNumber(result.patientRbcVolume)} ml</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-muted-foreground">총 volume</span>
-                        <span className="font-medium">{formatNumber(result.totalVolume)} mL</span>
+                        <span className="font-medium">{formatNumber(result.totalVolume)} ml</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-muted-foreground">Prime 기준</span>
                         <span className="max-w-[55%] text-right font-medium">{primeSourceLabel}</span>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">추가 수액</span>
-                        <span className="font-medium">{formatNumber(result.addedCrystalloidVolume)} mL</span>
+                        <span className="text-muted-foreground">Added fluid</span>
+                        <span className="font-medium">{formatNumber(result.addedCrystalloidVolume)} ml</span>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">제거 수액</span>
-                        <span className="font-medium">{formatNumber(result.removedFluidVolume)} mL</span>
+                        <span className="text-muted-foreground">Removed fluid</span>
+                        <span className="font-medium">{formatNumber(result.removedFluidVolume)} ml</span>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">수액 balance</span>
+                        <span className="text-muted-foreground">Fluid balance</span>
                         <span className="font-medium">{formatSignedMl(result.netIntraoperativeVolume)}</span>
                       </div>
                       {result.currentReservoirLevel !== null && (
                         <>
                           <div className="flex justify-between gap-4">
                             <span className="text-muted-foreground">Reservoir</span>
-                            <span className="font-medium">{formatNumber(result.currentReservoirLevel)} mL</span>
+                            <span className="font-medium">{formatNumber(result.currentReservoirLevel)} ml</span>
                           </div>
                           <div className="flex justify-between gap-4">
                             <span className="text-muted-foreground">예상 reservoir</span>
-                            <span className="font-medium">{formatNumber(result.projectedReservoirAfterBalance ?? 0)} mL</span>
+                            <span className="font-medium">{formatNumber(result.projectedReservoirAfterBalance ?? 0)} ml</span>
                           </div>
                         </>
                       )}
                       <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">RBC-LF 단위 용량</span>
-                        <span className="font-medium">{formatNumber(result.rbcUnitVolume)} mL/unit</span>
+                        <span className="text-muted-foreground">RBC 1u ml</span>
+                        <span className="font-medium">{formatNumber(result.rbcUnitVolume)} ml/unit</span>
                       </div>
                       <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">RBC 제제 Hct</span>
+                        <span className="text-muted-foreground">RBC product Hct</span>
                         <span className="font-medium">{formatPercentFromFraction(result.rbcProductHct)}%</span>
                       </div>
                     </CardContent>
