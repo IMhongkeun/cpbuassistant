@@ -213,7 +213,7 @@ const SectionCard = ({
   icon: React.ReactNode
   children: React.ReactNode
 }) => (
-  <Card className="h-full border-border/70 bg-card/95 shadow-sm">
+  <Card className="border-border/70 bg-card/95 shadow-sm">
     <CardHeader className="pb-3">
       <CardTitle className="flex items-center gap-2 text-base">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300">
@@ -802,7 +802,7 @@ export default function BloodHemodilutionCalculator() {
                     </Card>
                   )}
 
-                  <Card className="h-full border-border/70 bg-card/95 shadow-sm">
+                  <Card className="border-border/70 bg-card/95 shadow-sm">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Calculation basis</CardTitle>
                     </CardHeader>
