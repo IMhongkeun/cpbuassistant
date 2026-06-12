@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const CALCULATOR_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCalculator"
+const PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
 const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
 
 const PRIMING_VOLUME_PRESETS = [
@@ -235,7 +236,10 @@ export default function BloodHemodilutionCalculator() {
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false)
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
     const savedState = window.localStorage.getItem(CALCULATOR_STORAGE_KEY)
+    const savedPrimeVolume = window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY)
 
     if (savedState) {
       try {
@@ -243,7 +247,7 @@ export default function BloodHemodilutionCalculator() {
         setWeightKg(parsedState.weightKg ?? "")
         setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
         setSelectedPresetId(parsedState.selectedPresetId ?? "")
-        setPrimeVolume(parsedState.primeVolume ?? "")
+        setPrimeVolume(parsedState.primeVolume ?? savedPrimeVolume ?? "")
         setPreHct(parsedState.preHct ?? "")
         setAddedCrystalloidVolume(parsedState.addedCrystalloidVolume ?? parsedState.additionalCrystalloidVolume ?? "0")
         setRemovedFluidVolume(parsedState.removedFluidVolume ?? "0")
@@ -255,13 +259,23 @@ export default function BloodHemodilutionCalculator() {
       } catch {
         window.localStorage.removeItem(CALCULATOR_STORAGE_KEY)
       }
+    } else if (savedPrimeVolume !== null) {
+      setPrimeVolume(savedPrimeVolume)
     }
 
     setHasLoadedSavedState(true)
   }, [])
 
   useEffect(() => {
-    if (!hasLoadedSavedState) return
+    if (!hasLoadedSavedState || typeof window === "undefined") return
+
+    const trimmedPrimeVolume = primeVolume.trim()
+
+    if (trimmedPrimeVolume === "") {
+      window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
+    } else {
+      window.localStorage.setItem(PRIME_VOLUME_STORAGE_KEY, primeVolume)
+    }
 
     const stateToSave: StoredCalculatorState = {
       weightKg,
