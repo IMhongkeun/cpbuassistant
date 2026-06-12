@@ -601,8 +601,15 @@ export default function BloodHemodilutionCalculator() {
                 )}
               </SectionCard>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <SectionCard title="Intraoperative volume balance" icon={<Droplets className="h-4 w-4" />}>
+              <SectionCard title="Intraoperative volume balance" icon={<Droplets className="h-4 w-4" />}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <InputBlock
+                    id="current-reservoir-level"
+                    label="Current reservoir level mL"
+                    value={reservoirLevel}
+                    onChange={setReservoirLevel}
+                    helperText="Optional. Added to total circulating volume when entered."
+                  />
                   <InputBlock
                     id="added-crystalloid-volume"
                     label="Added crystalloid volume mL"
@@ -617,39 +624,34 @@ export default function BloodHemodilutionCalculator() {
                     onChange={setRemovedFluidVolume}
                     helperText="Ultrafiltration, hemoconcentration, or fluid removed from the circuit/reservoir. Enter removal as a positive number."
                   />
-                  <InputBlock
-                    id="current-reservoir-level"
-                    label="Current reservoir level mL"
-                    value={reservoirLevel}
-                    onChange={setReservoirLevel}
-                    helperText="Optional. Included in total volume estimate when entered."
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className={getBalancePillClass(netBalanceAction)}>
-                      Net balance: {canShowBalancePreview ? formatSignedMl(netBalancePreview) : "-"}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className={getBalancePillClass(netBalanceAction)}>
+                    Net balance: {canShowBalancePreview ? formatSignedMl(netBalancePreview) : "-"}
+                  </Badge>
+                  {projectedReservoirPreview !== null && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        projectedReservoirPreview <= 0
+                          ? getBalancePillClass("remove")
+                          : "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-200"
+                      }
+                    >
+                      Projected reservoir: {formatNumber(projectedReservoirPreview)} mL
                     </Badge>
-                    {projectedReservoirPreview !== null && (
-                      <Badge
-                        variant="outline"
-                        className={
-                          projectedReservoirPreview <= 0
-                            ? getBalancePillClass("remove")
-                            : "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-200"
-                        }
-                      >
-                        Projected reservoir: {formatNumber(projectedReservoirPreview)} mL
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Enter added and removed crystalloid/fluid volumes to estimate Hct after intraoperative volume balance. Current reservoir level is included in total circulating volume when entered.
-                  </p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Hct estimate depends on accurate added/removed volume entry. Do not include blood products in added crystalloid volume.
-                  </p>
-                </SectionCard>
+                  )}
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Initial total volume starts from patient volume, circuit prime, and current reservoir level when entered. Added/removed crystalloid then adjusts that volume balance.
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Hct estimate depends on accurate reservoir and added/removed volume entry. Do not include blood products in added crystalloid volume.
+                </p>
+              </SectionCard>
 
-                <SectionCard title="Target" icon={<Syringe className="h-4 w-4" />}>
+              <SectionCard title="Target" icon={<Syringe className="h-4 w-4" />}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <InputBlock id="desired-hct" label="Desired Hct %" value={desiredHct} onChange={setDesiredHct} step="0.1" />
                   <InputBlock
                     id="rbc-product-hct"
@@ -666,8 +668,8 @@ export default function BloodHemodilutionCalculator() {
                     onChange={setRbcUnitVolume}
                     helperText="Department default: RBC-LF 1 unit = 200 mL"
                   />
-                </SectionCard>
-              </div>
+                </div>
+              </SectionCard>
 
               <p className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
                 For PCS CPB use. Prime volume can be selected from institutional tubing set presets. RBC-LF is calculated as 200 mL per unit by default.
