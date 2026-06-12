@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useMemo, useState } from "react"
-import { Droplets, FlaskConical, HeartPulse, MinusCircle, PlusCircle, Syringe } from "lucide-react"
+import { AlertTriangle, Droplets, FlaskConical, HeartPulse, MinusCircle, PlusCircle, Syringe } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -74,7 +74,6 @@ const PRIMING_VOLUME_PRESETS = [
     primeVolumeMl: 1200,
   },
 ]
-
 const getPresetLabel = (preset: (typeof PRIMING_VOLUME_PRESETS)[number]) =>
   `${preset.name} · ${preset.oxygenator} · ${preset.configuration} — ${preset.primeVolumeMl} mL`
 
@@ -88,6 +87,12 @@ const formatNumber = (value: number, decimals = 0) => {
   })
 }
 
+const formatSignedMl = (value: number) => {
+  if (!Number.isFinite(value)) return "-"
+  if (Math.abs(value) < FLUID_ADJUSTMENT_THRESHOLD_ML) return "0 mL"
+  return `${value > 0 ? "+" : "-"}${formatNumber(Math.abs(value))} mL`
+}
+
 const formatPercentFromFraction = (value: number) => {
   if (!Number.isFinite(value)) return "-"
   return formatNumber(value * 100, 0)
@@ -95,6 +100,23 @@ const formatPercentFromFraction = (value: number) => {
 
 const isPositiveNumber = (value: number) => Number.isFinite(value) && value > 0
 const isNonNegativeNumber = (value: number) => Number.isFinite(value) && value >= 0
+const hasOptionalValue = (value: string) => value.trim() !== ""
+
+const getVolumeAction = (value: number): "add" | "remove" | "neutral" => {
+  if (value > FLUID_ADJUSTMENT_THRESHOLD_ML) return "add"
+  if (value < -FLUID_ADJUSTMENT_THRESHOLD_ML) return "remove"
+  return "neutral"
+}
+
+const getBalancePillClass = (action: "add" | "remove" | "neutral") => {
+  if (action === "add") {
+    return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+  }
+  if (action === "remove") {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+  }
+  return "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200"
+}
 
 type CalculationResult =
   | {
@@ -106,9 +128,18 @@ type CalculationResult =
       desiredHct: number
       rbcProductHct: number
       rbcUnitVolume: number
+      addedCrystalloidVolume: number
+      removedFluidVolume: number
+      netIntraoperativeVolume: number
+      currentReservoirLevel: number | null
+      reservoirCautionLevel: number | null
+      projectedReservoirAfterBalance: number | null
+      balanceReservoirWarning: string | null
       rbcTransfusionVolume: number
       rbcUnitCount: number
       fluidAdjustmentVolume: number
+      projectedReservoirAfterTargetAdjustment: number | null
+      targetReservoirWarning: string | null
       targetProgress: number
       expectedHctAtTarget: boolean
       fluidAdjustmentAction: "remove" | "add" | "none"
@@ -125,6 +156,10 @@ type StoredCalculatorState = {
   primeVolume?: string
   preHct?: string
   additionalCrystalloidVolume?: string
+  addedCrystalloidVolume?: string
+  removedFluidVolume?: string
+  reservoirLevel?: string
+  reservoirCautionLevel?: string
   desiredHct?: string
   rbcProductHct?: string
   rbcUnitVolume?: string
@@ -190,7 +225,10 @@ export default function BloodHemodilutionCalculator() {
   const [selectedPresetId, setSelectedPresetId] = useState("")
   const [primeVolume, setPrimeVolume] = useState("")
   const [preHct, setPreHct] = useState("")
-  const [additionalCrystalloidVolume, setAdditionalCrystalloidVolume] = useState("0")
+  const [addedCrystalloidVolume, setAddedCrystalloidVolume] = useState("0")
+  const [removedFluidVolume, setRemovedFluidVolume] = useState("0")
+  const [reservoirLevel, setReservoirLevel] = useState("")
+  const [reservoirCautionLevel, setReservoirCautionLevel] = useState("")
   const [desiredHct, setDesiredHct] = useState("")
   const [rbcProductHct, setRbcProductHct] = useState("0.66")
   const [rbcUnitVolume, setRbcUnitVolume] = useState("200")
@@ -207,7 +245,10 @@ export default function BloodHemodilutionCalculator() {
         setSelectedPresetId(parsedState.selectedPresetId ?? "")
         setPrimeVolume(parsedState.primeVolume ?? "")
         setPreHct(parsedState.preHct ?? "")
-        setAdditionalCrystalloidVolume(parsedState.additionalCrystalloidVolume ?? "0")
+        setAddedCrystalloidVolume(parsedState.addedCrystalloidVolume ?? parsedState.additionalCrystalloidVolume ?? "0")
+        setRemovedFluidVolume(parsedState.removedFluidVolume ?? "0")
+        setReservoirLevel(parsedState.reservoirLevel ?? "")
+        setReservoirCautionLevel(parsedState.reservoirCautionLevel ?? "")
         setDesiredHct(parsedState.desiredHct ?? "")
         setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
         setRbcUnitVolume(parsedState.rbcUnitVolume ?? "200")
@@ -228,7 +269,10 @@ export default function BloodHemodilutionCalculator() {
       selectedPresetId,
       primeVolume,
       preHct,
-      additionalCrystalloidVolume,
+      addedCrystalloidVolume,
+      removedFluidVolume,
+      reservoirLevel,
+      reservoirCautionLevel,
       desiredHct,
       rbcProductHct,
       rbcUnitVolume,
@@ -236,7 +280,7 @@ export default function BloodHemodilutionCalculator() {
 
     window.localStorage.setItem(CALCULATOR_STORAGE_KEY, JSON.stringify(stateToSave))
   }, [
-    additionalCrystalloidVolume,
+    addedCrystalloidVolume,
     bloodVolumeCoefficient,
     desiredHct,
     hasLoadedSavedState,
@@ -244,6 +288,9 @@ export default function BloodHemodilutionCalculator() {
     primeVolume,
     rbcProductHct,
     rbcUnitVolume,
+    removedFluidVolume,
+    reservoirCautionLevel,
+    reservoirLevel,
     selectedPresetId,
     weightKg,
   ])
@@ -266,25 +313,33 @@ export default function BloodHemodilutionCalculator() {
     const coefficient = parseInputNumber(bloodVolumeCoefficient)
     const prime = parseInputNumber(primeVolume)
     const patientPreHct = parseInputNumber(preHct)
-    const crystalloid = parseInputNumber(additionalCrystalloidVolume)
+    const addedVolume = parseInputNumber(addedCrystalloidVolume)
+    const removedVolume = parseInputNumber(removedFluidVolume)
     const targetPercent = parseInputNumber(desiredHct)
     const rbcHct = parseInputNumber(rbcProductHct)
     const unitVolume = parseInputNumber(rbcUnitVolume)
+    const hasReservoirLevel = hasOptionalValue(reservoirLevel)
+    const currentReservoir = hasReservoirLevel ? parseInputNumber(reservoirLevel) : null
+    const hasCautionLevel = hasOptionalValue(reservoirCautionLevel)
+    const cautionLevel = hasCautionLevel ? parseInputNumber(reservoirCautionLevel) : null
 
     if (
       !isPositiveNumber(weight) ||
       !isPositiveNumber(coefficient) ||
       !isPositiveNumber(prime) ||
       !isPositiveNumber(patientPreHct) ||
-      !isNonNegativeNumber(crystalloid) ||
+      !isNonNegativeNumber(addedVolume) ||
+      !isNonNegativeNumber(removedVolume) ||
       !isPositiveNumber(targetPercent) ||
       !isPositiveNumber(rbcHct) ||
-      !isPositiveNumber(unitVolume)
+      !isPositiveNumber(unitVolume) ||
+      (hasReservoirLevel && !isNonNegativeNumber(currentReservoir as number)) ||
+      (hasCautionLevel && !isPositiveNumber(cautionLevel as number))
     ) {
       return {
         status: "message",
         message:
-          "Enter valid positive values for patient, prime, target, RBC product Hct, and RBC-LF unit volume. Additional crystalloid can be 0 mL or greater.",
+          "Enter valid positive values for patient, prime, target, RBC product Hct, and RBC-LF unit volume. Added/removed fluid and reservoir level must be 0 mL or greater.",
       }
     }
 
@@ -301,14 +356,32 @@ export default function BloodHemodilutionCalculator() {
     const patientVolume = weight * coefficient
 
     // Patient RBC volume = Patient volume × Pre-Hct / 100
-    // Prime volume and crystalloid do not increase RBC volume.
+    // Prime volume, added crystalloid, and reservoir level do not increase RBC volume.
     const patientRbcVolume = patientVolume * (patientPreHct / 100)
 
-    // Total volume = Patient volume + Prime volume + Additional crystalloid volume
-    const totalVolume = patientVolume + prime + crystalloid
+    // Net intraoperative volume change = Added crystalloid volume - Removed crystalloid / fluid volume
+    const netIntraoperativeVolume = addedVolume - removedVolume
+
+    // Total volume = Patient volume + Prime volume + Added crystalloid volume - Removed crystalloid / fluid volume
+    // Reservoir level is operational reference only and is not added to the Hct denominator to avoid double counting.
+    const totalVolume = patientVolume + prime + netIntraoperativeVolume
+
+    if (!isPositiveNumber(totalVolume)) {
+      return {
+        status: "message",
+        message: "Total volume is 0 mL or lower after entered add/remove balance. Recheck prime, added volume, and removed volume before calculating Hct.",
+      }
+    }
 
     // Expected Hct (%) = Patient RBC volume / Total volume × 100
     const expectedHct = (patientRbcVolume / totalVolume) * 100
+
+    if (!Number.isFinite(expectedHct) || expectedHct < 0) {
+      return {
+        status: "message",
+        message: "Expected Hct could not be calculated from the current inputs. Please recheck the entered volumes.",
+      }
+    }
 
     // RBC transfusion volume mL = max(0, (Target × Total volume - Patient RBC volume) / (RBC_Hct - Target))
     const rbcTransfusionVolume = Math.max(0, (target * totalVolume - patientRbcVolume) / (rbcHct - target))
@@ -328,6 +401,25 @@ export default function BloodHemodilutionCalculator() {
       fluidAdjustmentAction = "add"
     }
 
+    const projectedReservoirAfterBalance = currentReservoir === null ? null : currentReservoir + netIntraoperativeVolume
+    const projectedReservoirAfterTargetAdjustment =
+      currentReservoir === null ? null : currentReservoir + fluidAdjustmentVolume
+
+    const getReservoirWarning = (projectedLevel: number | null) => {
+      if (projectedLevel === null) return null
+      if (projectedLevel <= 0) return "Check reservoir level before removing volume."
+      if (cautionLevel !== null && projectedLevel < cautionLevel) {
+        return "Projected reservoir level may be too low. Recheck circuit volume before removal."
+      }
+      return null
+    }
+
+    const targetReservoirWarning = getReservoirWarning(projectedReservoirAfterTargetAdjustment)
+    const removalLimitedWarning =
+      fluidAdjustmentAction === "remove" && targetReservoirWarning
+        ? "Target Hct requires volume removal, but current reservoir level may limit safe removal."
+        : targetReservoirWarning
+
     return {
       status: "ready",
       patientVolume,
@@ -337,14 +429,44 @@ export default function BloodHemodilutionCalculator() {
       desiredHct: targetPercent,
       rbcProductHct: rbcHct,
       rbcUnitVolume: unitVolume,
+      addedCrystalloidVolume: addedVolume,
+      removedFluidVolume: removedVolume,
+      netIntraoperativeVolume,
+      currentReservoirLevel: currentReservoir,
+      reservoirCautionLevel: cautionLevel,
+      projectedReservoirAfterBalance,
+      balanceReservoirWarning: getReservoirWarning(projectedReservoirAfterBalance),
       rbcTransfusionVolume,
       rbcUnitCount,
       fluidAdjustmentVolume,
+      projectedReservoirAfterTargetAdjustment,
+      targetReservoirWarning: removalLimitedWarning,
       targetProgress: Math.min(100, Math.max(0, (expectedHct / targetPercent) * 100)),
       expectedHctAtTarget: expectedHct >= targetPercent,
       fluidAdjustmentAction,
     }
-  }, [additionalCrystalloidVolume, bloodVolumeCoefficient, desiredHct, preHct, primeVolume, rbcProductHct, rbcUnitVolume, weightKg])
+  }, [
+    addedCrystalloidVolume,
+    bloodVolumeCoefficient,
+    desiredHct,
+    preHct,
+    primeVolume,
+    rbcProductHct,
+    rbcUnitVolume,
+    removedFluidVolume,
+    reservoirCautionLevel,
+    reservoirLevel,
+    weightKg,
+  ])
+
+  const addedVolumePreview = parseInputNumber(addedCrystalloidVolume)
+  const removedVolumePreview = parseInputNumber(removedFluidVolume)
+  const reservoirLevelPreview = parseInputNumber(reservoirLevel)
+  const canShowBalancePreview = isNonNegativeNumber(addedVolumePreview) && isNonNegativeNumber(removedVolumePreview)
+  const netBalancePreview = canShowBalancePreview ? addedVolumePreview - removedVolumePreview : 0
+  const netBalanceAction = getVolumeAction(netBalancePreview)
+  const canShowReservoirPreview = canShowBalancePreview && hasOptionalValue(reservoirLevel) && isNonNegativeNumber(reservoirLevelPreview)
+  const projectedReservoirPreview = canShowReservoirPreview ? reservoirLevelPreview + netBalancePreview : null
 
   const handlePresetChange = (presetId: string) => {
     const preset = PRIMING_VOLUME_PRESETS[Number.parseInt(presetId, 10)]
@@ -407,7 +529,7 @@ export default function BloodHemodilutionCalculator() {
                 RBC-LF 1 unit = {rbcUnitVolume || "200"} mL
               </Badge>
               <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
-                Crystalloid only for added volume
+                Crystalloid balance affects total volume
               </Badge>
             </div>
           </div>
@@ -443,7 +565,11 @@ export default function BloodHemodilutionCalculator() {
                     </SelectTrigger>
                     <SelectContent className="max-w-[min(92vw,760px)]">
                       {PRIMING_VOLUME_PRESETS.map((preset, index) => (
-                        <SelectItem key={`${preset.name}-${preset.oxygenator}-${preset.configuration}-${preset.primeVolumeMl}`} value={String(index)} className="whitespace-normal py-2">
+                        <SelectItem
+                          key={`${preset.name}-${preset.oxygenator}-${preset.configuration}-${preset.primeVolumeMl}`}
+                          value={String(index)}
+                          className="whitespace-normal py-2"
+                        >
                           {getPresetLabel(preset)}
                         </SelectItem>
                       ))}
@@ -467,16 +593,57 @@ export default function BloodHemodilutionCalculator() {
               </SectionCard>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <SectionCard title="Intraoperative volume" icon={<Droplets className="h-4 w-4" />}>
+                <SectionCard title="Intraoperative volume balance" icon={<Droplets className="h-4 w-4" />}>
                   <InputBlock
-                    id="additional-crystalloid-volume"
-                    label="Additional crystalloid volume mL"
-                    value={additionalCrystalloidVolume}
-                    onChange={setAdditionalCrystalloidVolume}
-                    helperText="cardioplegia, crystalloid, and added fluid only"
+                    id="added-crystalloid-volume"
+                    label="Added crystalloid volume mL"
+                    value={addedCrystalloidVolume}
+                    onChange={setAddedCrystalloidVolume}
+                    helperText="Cardioplegia, crystalloid, and added fluid only."
                   />
+                  <InputBlock
+                    id="removed-fluid-volume"
+                    label="Removed crystalloid / fluid volume mL"
+                    value={removedFluidVolume}
+                    onChange={setRemovedFluidVolume}
+                    helperText="Ultrafiltration, hemoconcentration, or fluid removed from the circuit/reservoir. Enter removal as a positive number."
+                  />
+                  <InputBlock
+                    id="current-reservoir-level"
+                    label="Current reservoir level mL"
+                    value={reservoirLevel}
+                    onChange={setReservoirLevel}
+                    helperText="Optional. Used to estimate projected reservoir level after planned add/remove volume."
+                  />
+                  <InputBlock
+                    id="reservoir-caution-level"
+                    label="Reservoir caution level mL"
+                    value={reservoirCautionLevel}
+                    onChange={setReservoirCautionLevel}
+                    helperText="Optional threshold for low reservoir warning."
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className={getBalancePillClass(netBalanceAction)}>
+                      Net balance: {canShowBalancePreview ? formatSignedMl(netBalancePreview) : "-"}
+                    </Badge>
+                    {projectedReservoirPreview !== null && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          projectedReservoirPreview <= 0
+                            ? getBalancePillClass("remove")
+                            : "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-200"
+                        }
+                      >
+                        Projected reservoir: {formatNumber(projectedReservoirPreview)} mL
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Additional crystalloid volume should include cardioplegia and crystalloid fluid only. Do not include blood products here.
+                    Enter added and removed crystalloid/fluid volumes to estimate Hct after intraoperative volume balance. Reservoir level is used as an operational reference and is not directly added to total volume to avoid double counting.
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Hct estimate depends on accurate added/removed volume entry. Do not include blood products in added crystalloid volume.
                   </p>
                 </SectionCard>
 
@@ -538,6 +705,12 @@ export default function BloodHemodilutionCalculator() {
                         <div className="mt-2 text-xs text-muted-foreground">
                           {result.expectedHctAtTarget ? "At or above desired Hct" : "Below desired Hct"}
                         </div>
+                        <div className="mt-3 rounded-md bg-white/65 p-3 text-xs text-muted-foreground dark:bg-background/40">
+                          <div className="font-semibold text-foreground">Net balance: {formatSignedMl(result.netIntraoperativeVolume)}</div>
+                          <div className="mt-1">
+                            Added {formatNumber(result.addedCrystalloidVolume)} mL · Removed {formatNumber(result.removedFluidVolume)} mL
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -578,9 +751,47 @@ export default function BloodHemodilutionCalculator() {
                         {result.fluidAdjustmentAction !== "none" && (
                           <p className="mt-3 text-xs text-muted-foreground">To reach target Hct {formatNumber(result.desiredHct, 1)}%</p>
                         )}
+                        {result.projectedReservoirAfterTargetAdjustment !== null && (
+                          <div className="mt-3 rounded-md bg-white/65 p-3 text-xs text-muted-foreground dark:bg-background/40">
+                            <div className="font-semibold text-foreground">
+                              Projected reservoir: {formatNumber(result.projectedReservoirAfterTargetAdjustment)} mL
+                            </div>
+                            {result.targetReservoirWarning && (
+                              <div className="mt-2 flex items-start gap-2 font-medium text-amber-700 dark:text-amber-300">
+                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                <span>{result.targetReservoirWarning}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
+
+                  {result.currentReservoirLevel !== null && (
+                    <Card
+                      className={`shadow-sm ${
+                        result.balanceReservoirWarning
+                          ? "border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20"
+                          : "border-cyan-100 bg-cyan-50/70 dark:border-cyan-950/60 dark:bg-cyan-950/20"
+                      }`}
+                    >
+                      <CardContent className="p-4 text-sm">
+                        <div className="font-semibold text-foreground">Reservoir balance reference</div>
+                        <div className="mt-2 grid gap-1 text-muted-foreground">
+                          <div>Current reservoir level: {formatNumber(result.currentReservoirLevel)} mL</div>
+                          <div>Net volume change: {formatSignedMl(result.netIntraoperativeVolume)}</div>
+                          <div>Projected reservoir level: {formatNumber(result.projectedReservoirAfterBalance ?? 0)} mL</div>
+                        </div>
+                        {result.balanceReservoirWarning && (
+                          <div className="mt-3 flex items-start gap-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>{result.balanceReservoirWarning}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
 
                   <Card className="border-border/70 bg-card/95 shadow-sm">
                     <CardHeader className="pb-3">
@@ -604,20 +815,46 @@ export default function BloodHemodilutionCalculator() {
                         <span className="font-medium">{formatNumber(result.totalVolume)} mL</span>
                       </div>
                       <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Prime source</span>
+                        <span className="max-w-[55%] text-right font-medium">{primeSourceLabel}</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Added crystalloid</span>
+                        <span className="font-medium">{formatNumber(result.addedCrystalloidVolume)} mL</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Removed fluid</span>
+                        <span className="font-medium">{formatNumber(result.removedFluidVolume)} mL</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span className="text-muted-foreground">Net intraoperative volume</span>
+                        <span className="font-medium">{formatSignedMl(result.netIntraoperativeVolume)}</span>
+                      </div>
+                      {result.currentReservoirLevel !== null && (
+                        <>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Current reservoir level</span>
+                            <span className="font-medium">{formatNumber(result.currentReservoirLevel)} mL</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Projected reservoir level</span>
+                            <span className="font-medium">{formatNumber(result.projectedReservoirAfterBalance ?? 0)} mL</span>
+                          </div>
+                        </>
+                      )}
+                      {result.reservoirCautionLevel !== null && (
+                        <div className="flex justify-between gap-4">
+                          <span className="text-muted-foreground">Reservoir caution level</span>
+                          <span className="font-medium">{formatNumber(result.reservoirCautionLevel)} mL</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-4">
                         <span className="text-muted-foreground">RBC-LF unit volume</span>
                         <span className="font-medium">{formatNumber(result.rbcUnitVolume)} mL/unit</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-muted-foreground">RBC product Hct</span>
                         <span className="font-medium">{formatPercentFromFraction(result.rbcProductHct)}%</span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">Prime source</span>
-                        <span className="max-w-[55%] text-right font-medium">{primeSourceLabel}</span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span className="text-muted-foreground">Additional volume</span>
-                        <span className="font-medium">crystalloid only</span>
                       </div>
                     </CardContent>
                   </Card>
