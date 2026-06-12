@@ -545,7 +545,7 @@ export default function BloodHemodilutionCalculator() {
         </CardHeader>
 
         <CardContent className="p-4 md:p-6">
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+          <div className="space-y-5">
             <div className="space-y-4">
               <SectionCard title="Patient & baseline" icon={<HeartPulse className="h-4 w-4" />}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
@@ -586,8 +586,15 @@ export default function BloodHemodilutionCalculator() {
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                   <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} />
+                  <InputBlock
+                    id="current-reservoir-level"
+                    label="Current reservoir level mL"
+                    value={reservoirLevel}
+                    onChange={setReservoirLevel}
+                    helperText="Optional. Added to total circulating volume when entered."
+                  />
                   <Badge variant="outline" className="w-fit bg-background/80 text-xs">
                     {primeSourceLabel}
                   </Badge>
@@ -601,15 +608,29 @@ export default function BloodHemodilutionCalculator() {
                 )}
               </SectionCard>
 
-              <SectionCard title="Intraoperative volume balance" icon={<Droplets className="h-4 w-4" />}>
+              <SectionCard title="Target" icon={<Syringe className="h-4 w-4" />}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <InputBlock id="desired-hct" label="Desired Hct %" value={desiredHct} onChange={setDesiredHct} step="0.1" />
                   <InputBlock
-                    id="current-reservoir-level"
-                    label="Current reservoir level mL"
-                    value={reservoirLevel}
-                    onChange={setReservoirLevel}
-                    helperText="Optional. Added to total circulating volume when entered."
+                    id="rbc-product-hct"
+                    label="RBC product Hct"
+                    value={rbcProductHct}
+                    onChange={setRbcProductHct}
+                    step="0.01"
+                    helperText="Enter as fraction, e.g. 0.66 for 66%."
                   />
+                  <InputBlock
+                    id="rbc-unit-volume"
+                    label="RBC leukocyte-filtered unit volume"
+                    value={rbcUnitVolume}
+                    onChange={setRbcUnitVolume}
+                    helperText="Department default: RBC-LF 1 unit = 200 mL"
+                  />
+                </div>
+              </SectionCard>
+
+              <SectionCard title="Intraoperative volume balance" icon={<Droplets className="h-4 w-4" />}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <InputBlock
                     id="added-crystalloid-volume"
                     label="Added crystalloid volume mL"
@@ -650,33 +671,12 @@ export default function BloodHemodilutionCalculator() {
                 </p>
               </SectionCard>
 
-              <SectionCard title="Target" icon={<Syringe className="h-4 w-4" />}>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <InputBlock id="desired-hct" label="Desired Hct %" value={desiredHct} onChange={setDesiredHct} step="0.1" />
-                  <InputBlock
-                    id="rbc-product-hct"
-                    label="RBC product Hct"
-                    value={rbcProductHct}
-                    onChange={setRbcProductHct}
-                    step="0.01"
-                    helperText="Enter as fraction, e.g. 0.66 for 66%."
-                  />
-                  <InputBlock
-                    id="rbc-unit-volume"
-                    label="RBC leukocyte-filtered unit volume"
-                    value={rbcUnitVolume}
-                    onChange={setRbcUnitVolume}
-                    helperText="Department default: RBC-LF 1 unit = 200 mL"
-                  />
-                </div>
-              </SectionCard>
-
               <p className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
                 For PCS CPB use. Prime volume can be selected from institutional tubing set presets. RBC-LF is calculated as 200 mL per unit by default.
               </p>
             </div>
 
-            <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <div className="space-y-4">
               {result.status === "message" ? (
                 <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
                   <CardContent className="p-5">
@@ -686,7 +686,7 @@ export default function BloodHemodilutionCalculator() {
                 </Card>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                     <Card
                       className={`shadow-sm ${
                         result.expectedHctAtTarget
