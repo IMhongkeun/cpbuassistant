@@ -193,9 +193,8 @@ const InputBlock = ({
     </Label>
     <Input
       id={id}
-      type="number"
-      min="0"
-      step={step}
+      type="text"
+      inputMode="decimal"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       className="h-11 bg-background/80 text-base font-medium"
@@ -228,45 +227,24 @@ const SectionCard = ({
 
 export default function BloodHemodilutionCalculator() {
   const [weightKg, setWeightKg] = useState("")
-  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("55")
+  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("")
   const [selectedPresetId, setSelectedPresetId] = useState("")
   const [primeVolume, setPrimeVolume] = useState("")
   const [preHct, setPreHct] = useState("")
-  const [addedCrystalloidVolume, setAddedCrystalloidVolume] = useState("0")
-  const [removedFluidVolume, setRemovedFluidVolume] = useState("0")
+  const [addedCrystalloidVolume, setAddedCrystalloidVolume] = useState("")
+  const [removedFluidVolume, setRemovedFluidVolume] = useState("")
   const [reservoirLevel, setReservoirLevel] = useState("")
   const [desiredHct, setDesiredHct] = useState("")
-  const [rbcProductHct, setRbcProductHct] = useState("0.66")
-  const [rbcUnitVolume, setRbcUnitVolume] = useState("200")
+  const [rbcProductHct, setRbcProductHct] = useState("")
+  const [rbcUnitVolume, setRbcUnitVolume] = useState("")
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
 
-    const savedState = window.localStorage.getItem(CALCULATOR_STORAGE_KEY)
-    const savedPrimeVolume = window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY)
-
-    if (savedState) {
-      try {
-        const parsedState = JSON.parse(savedState) as StoredCalculatorState
-        setWeightKg(parsedState.weightKg ?? "")
-        setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
-        setSelectedPresetId(parsedState.selectedPresetId ?? "")
-        setPrimeVolume(parsedState.primeVolume ?? savedPrimeVolume ?? "")
-        setPreHct(parsedState.preHct ?? "")
-        setAddedCrystalloidVolume(parsedState.addedCrystalloidVolume ?? parsedState.additionalCrystalloidVolume ?? "0")
-        setRemovedFluidVolume(parsedState.removedFluidVolume ?? "0")
-        setReservoirLevel(parsedState.reservoirLevel ?? "")
-        setDesiredHct(parsedState.desiredHct ?? "")
-        setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
-        setRbcUnitVolume(parsedState.rbcUnitVolume ?? "200")
-      } catch {
-        window.localStorage.removeItem(CALCULATOR_STORAGE_KEY)
-      }
-    } else if (savedPrimeVolume !== null) {
-      setPrimeVolume(savedPrimeVolume)
-    }
-
+    // Start this clinical calculator with empty inputs so old localStorage values do not pre-fill the form.
+    window.localStorage.removeItem(CALCULATOR_STORAGE_KEY)
+    window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
     setHasLoadedSavedState(true)
   }, [])
 
@@ -535,7 +513,7 @@ export default function BloodHemodilutionCalculator() {
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
               <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
-                RBC-LF 1 unit = {rbcUnitVolume || "200"} mL
+                RBC-LF unit volume
               </Badge>
               <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
                 Crystalloid balance affects total volume
@@ -546,9 +524,9 @@ export default function BloodHemodilutionCalculator() {
 
         <CardContent className="p-4 md:p-6">
           <div className="space-y-5">
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <SectionCard title="Patient & baseline" icon={<HeartPulse className="h-4 w-4" />}>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} step="0.1" />
                   <InputBlock
                     id="blood-volume-coefficient"
@@ -671,7 +649,7 @@ export default function BloodHemodilutionCalculator() {
                 </p>
               </SectionCard>
 
-              <p className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+              <p className="rounded-lg border border-border/70 bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground lg:col-span-2">
                 For PCS CPB use. Prime volume can be selected from institutional tubing set presets. RBC-LF is calculated as 200 mL per unit by default.
               </p>
             </div>
