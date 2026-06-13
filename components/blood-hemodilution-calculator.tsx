@@ -141,6 +141,35 @@ const getResultTint = (tone: "green" | "amber" | "rose" | "blue" | "slate") => {
   if (tone === "blue") return "border-blue-200 bg-blue-50/75 dark:border-blue-900/60 dark:bg-blue-950/20"
   return "border-border/70 bg-card/95"
 }
+type CalculationResult =
+  | {
+      status: "ready"
+      patientVolume: number
+      patientRbcVolume: number
+      totalVolume: number
+      expectedHct: number
+      desiredHct: number
+      rbcProductHct: number
+      rbcUnitVolume: number
+      addedCrystalloidVolume: number
+      removedFluidVolume: number
+      netIntraoperativeVolume: number
+      currentReservoirLevel: number | null
+      projectedReservoirAfterBalance: number | null
+      balanceReservoirWarning: string | null
+      rbcTransfusionVolume: number
+      rbcUnitCount: number
+      fluidAdjustmentVolume: number
+      projectedReservoirAfterTargetAdjustment: number | null
+      targetReservoirWarning: string | null
+      targetProgress: number
+      expectedHctAtTarget: boolean
+      fluidAdjustmentAction: "remove" | "add" | "none"
+    }
+  | {
+      status: "message"
+      message: string
+    }
 
 type StoredCalculatorState = {
   weightKg?: string
