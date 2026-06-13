@@ -15,6 +15,36 @@ const CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilut
 const CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentTotalVolumeEdited"
 const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
 
+const safeLocalStorageGetItem = (key: string) => {
+  if (typeof window === "undefined") return null
+
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+const safeLocalStorageSetItem = (key: string, value: string) => {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // Persistence is optional. Ignore storage write failures.
+  }
+}
+
+const safeLocalStorageRemoveItem = (key: string) => {
+  if (typeof window === "undefined") return
+
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Persistence is optional. Ignore storage remove failures.
+  }
+}
+
 const PRIMING_VOLUME_PRESETS = [
   { name: "Neo (1/8)", oxygenator: "Kids 100", configuration: "1/8-3/16-3/16", primeVolumeMl: 130 },
   { name: "Neo (3/16)", oxygenator: "FX-05", configuration: "3/16-3/16-3/16", primeVolumeMl: 180 },
@@ -251,9 +281,9 @@ export default function BloodHemodilutionCalculator() {
     if (typeof window === "undefined") return
 
     try {
-      const savedState = window.localStorage.getItem(CALCULATOR_STORAGE_KEY)
-      const savedCurrentVolume = window.localStorage.getItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
-      const savedCurrentVolumeEdited = window.localStorage.getItem(CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY)
+      const savedState = safeLocalStorageGetItem(CALCULATOR_STORAGE_KEY)
+      const savedCurrentVolume = safeLocalStorageGetItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+      const savedCurrentVolumeEdited = safeLocalStorageGetItem(CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY)
 
       if (savedState) {
         const parsedState = JSON.parse(savedState) as StoredCalculatorState
@@ -262,7 +292,7 @@ export default function BloodHemodilutionCalculator() {
         setWeightKg(parsedState.weightKg ?? "")
         setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
         setSelectedPresetId(parsedState.selectedPresetId ?? "")
-        setPrimeVolume(parsedState.primeVolume ?? window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
+        setPrimeVolume(parsedState.primeVolume ?? safeLocalStorageGetItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
         setPreHct(parsedState.preHct ?? "")
         setPreDesiredHct(parsedState.preDesiredHct ?? "")
         setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
@@ -277,15 +307,15 @@ export default function BloodHemodilutionCalculator() {
         setIntraDesiredHct(parsedState.intraDesiredHct ?? "")
       } else {
         const restoredCurrentVolume = savedCurrentVolume ?? ""
-        setPrimeVolume(window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
+        setPrimeVolume(safeLocalStorageGetItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
         setCurrentEstimatedTotalVolume(restoredCurrentVolume)
         setCurrentTotalVolumeEdited(savedCurrentVolumeEdited === "true" || Boolean(restoredCurrentVolume.trim()))
       }
     } catch {
-      window.localStorage.removeItem(CALCULATOR_STORAGE_KEY)
-      window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
-      window.localStorage.removeItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
-      window.localStorage.removeItem(CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY)
+      safeLocalStorageRemoveItem(CALCULATOR_STORAGE_KEY)
+      safeLocalStorageRemoveItem(PRIME_VOLUME_STORAGE_KEY)
+      safeLocalStorageRemoveItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+      safeLocalStorageRemoveItem(CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY)
     }
 
     setHasLoadedSavedState(true)
@@ -296,9 +326,9 @@ export default function BloodHemodilutionCalculator() {
 
     const trimmedPrimeVolume = primeVolume.trim()
     if (trimmedPrimeVolume === "") {
-      window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
+      safeLocalStorageRemoveItem(PRIME_VOLUME_STORAGE_KEY)
     } else {
-      window.localStorage.setItem(PRIME_VOLUME_STORAGE_KEY, primeVolume)
+      safeLocalStorageSetItem(PRIME_VOLUME_STORAGE_KEY, primeVolume)
     }
 
     const stateToSave: StoredCalculatorState = {
@@ -319,7 +349,7 @@ export default function BloodHemodilutionCalculator() {
       intraDesiredHct,
     }
 
-    window.localStorage.setItem(CALCULATOR_STORAGE_KEY, JSON.stringify(stateToSave))
+    safeLocalStorageSetItem(CALCULATOR_STORAGE_KEY, JSON.stringify(stateToSave))
   }, [
     addedCrystalloidVolume,
     bloodVolumeCoefficient,
@@ -343,17 +373,17 @@ export default function BloodHemodilutionCalculator() {
     if (!hasLoadedSavedState || typeof window === "undefined") return
 
     if (currentEstimatedTotalVolume.trim() === "") {
-      window.localStorage.removeItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+      safeLocalStorageRemoveItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
       return
     }
 
-    window.localStorage.setItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY, currentEstimatedTotalVolume)
+    safeLocalStorageSetItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY, currentEstimatedTotalVolume)
   }, [currentEstimatedTotalVolume, hasLoadedSavedState])
 
   useEffect(() => {
     if (!hasLoadedSavedState || typeof window === "undefined") return
 
-    window.localStorage.setItem(
+    safeLocalStorageSetItem(
       CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY,
       currentTotalVolumeEdited ? "true" : "false",
     )
