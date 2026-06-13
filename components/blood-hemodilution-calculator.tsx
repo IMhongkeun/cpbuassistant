@@ -14,6 +14,9 @@ const PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
 const CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentEstimatedTotalVolume"
 const CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentTotalVolumeEdited"
 const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
+const DEFAULT_BLOOD_VOLUME_COEFFICIENT = "55"
+const DEFAULT_RBC_PRODUCT_HCT = "0.66"
+const DEFAULT_RBC_UNIT_VOLUME = "200"
 
 const safeLocalStorageGetItem = (key: string) => {
   if (typeof window === "undefined") return null
@@ -77,6 +80,8 @@ const parseStrictNumber = (value: string): number | null => {
 
 const parseOptionalVolume = (value: string) => (value.trim() === "" ? 0 : parseStrictNumber(value))
 const hasOptionalValue = (value: string) => value.trim() !== ""
+const defaultIfBlank = (value: string | null | undefined, defaultValue: string) =>
+  value?.trim() ? value : defaultValue
 
 const formatNumber = (value: number, decimals = 0) => {
   if (!Number.isFinite(value)) return "-"
@@ -312,13 +317,13 @@ const ResultCard = ({
 
 export default function BloodHemodilutionCalculator() {
   const [weightKg, setWeightKg] = useState("")
-  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("55")
+  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState(DEFAULT_BLOOD_VOLUME_COEFFICIENT)
   const [selectedPresetId, setSelectedPresetId] = useState("")
   const [primeVolume, setPrimeVolume] = useState("")
   const [preHct, setPreHct] = useState("")
   const [preDesiredHct, setPreDesiredHct] = useState("")
-  const [rbcProductHct, setRbcProductHct] = useState("0.66")
-  const [rbcUnitVolume, setRbcUnitVolume] = useState("200")
+  const [rbcProductHct, setRbcProductHct] = useState(DEFAULT_RBC_PRODUCT_HCT)
+  const [rbcUnitVolume, setRbcUnitVolume] = useState(DEFAULT_RBC_UNIT_VOLUME)
   const [currentHct, setCurrentHct] = useState("")
   const [currentEstimatedTotalVolume, setCurrentEstimatedTotalVolume] = useState("")
   const [currentReservoirLevel, setCurrentReservoirLevel] = useState("")
@@ -342,13 +347,13 @@ export default function BloodHemodilutionCalculator() {
         const restoredCurrentVolume = savedCurrentVolume ?? parsedState.currentEstimatedTotalVolume ?? ""
 
         setWeightKg(parsedState.weightKg ?? "")
-        setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
+        setBloodVolumeCoefficient(defaultIfBlank(parsedState.bloodVolumeCoefficient, DEFAULT_BLOOD_VOLUME_COEFFICIENT))
         setSelectedPresetId(parsedState.selectedPresetId ?? "")
         setPrimeVolume(parsedState.primeVolume ?? safeLocalStorageGetItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
         setPreHct(parsedState.preHct ?? "")
         setPreDesiredHct(parsedState.preDesiredHct ?? "")
-        setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
-        setRbcUnitVolume(parsedState.rbcUnitVolume ?? "200")
+        setRbcProductHct(defaultIfBlank(parsedState.rbcProductHct, DEFAULT_RBC_PRODUCT_HCT))
+        setRbcUnitVolume(defaultIfBlank(parsedState.rbcUnitVolume, DEFAULT_RBC_UNIT_VOLUME))
         setCurrentHct(parsedState.currentHct ?? "")
         setCurrentEstimatedTotalVolume(restoredCurrentVolume)
         setCurrentTotalVolumeEdited(savedCurrentVolumeEdited === "true" || Boolean(restoredCurrentVolume.trim()))
@@ -755,22 +760,7 @@ export default function BloodHemodilutionCalculator() {
                 helperText="Enter number only."
               />
               <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} helperText="Enter number only, e.g. 30 for 30%." />
-              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} helperText="Enter number only, without mL." />
-              <InputBlock
-                id="rbc-product-hct"
-                label="RBC product Hct"
-                value={rbcProductHct}
-                onChange={setRbcProductHct}
-                helperText="Enter as fraction, e.g. 0.66 for 66%."
-              />
-              <InputBlock
-                id="rbc-unit-volume"
-                label="RBC-LF unit volume mL/unit"
-                value={rbcUnitVolume}
-                onChange={setRbcUnitVolume}
-                helperText="Department default: 200 mL/unit. Enter number only."
-              />
-              <div className="space-y-1.5 md:col-span-3 xl:col-span-2">
+              <div className="space-y-1.5 md:col-span-3 xl:col-span-4">
                 <Label htmlFor="tubing-set" className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
                   Tubing set selector
                 </Label>
@@ -791,6 +781,21 @@ export default function BloodHemodilutionCalculator() {
                   </SelectContent>
                 </Select>
               </div>
+              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} helperText="Enter number only, without mL." />
+              <InputBlock
+                id="rbc-product-hct"
+                label="RBC product Hct"
+                value={rbcProductHct}
+                onChange={setRbcProductHct}
+                helperText="Enter as fraction, e.g. 0.66 for 66%."
+              />
+              <InputBlock
+                id="rbc-unit-volume"
+                label="RBC-LF unit volume mL/unit"
+                value={rbcUnitVolume}
+                onChange={setRbcUnitVolume}
+                helperText="Department default: 200 mL/unit. Enter number only."
+              />
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <Badge variant="outline" className="bg-background/80">
