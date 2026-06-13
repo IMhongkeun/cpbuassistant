@@ -518,8 +518,10 @@ export default function BloodHemodilutionCalculator() {
       return { status: "message", message: "Expected Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
     }
 
-    // RBC required mL = max(0, (Target × Base total volume - Patient RBC volume) / (RBC product Hct - Target))
-    const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / (rbcHct - target))
+    // RBC required mL = max(0, (Target × Base total volume - Patient RBC volume) / RBC product Hct)
+    // This targets the requested Hct against the patient + prime base volume,
+    // without adding RBC volume to the target denominator.
+    const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / rbcHct)
     const rbcUnitCount = rbcRequiredVolume / unitVolume
     const estimatedFinalVolume = baseTotalVolume + rbcRequiredVolume
 
