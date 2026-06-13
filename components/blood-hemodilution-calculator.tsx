@@ -1,0 +1,861 @@
+"use client"
+
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
+import { AlertTriangle, Droplets, FlaskConical, HeartPulse, MinusCircle, PlusCircle, Syringe } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const CALCULATOR_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCalculator"
+const PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
+const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
+
+const PRIMING_VOLUME_PRESETS = [
+  { name: "Neo (1/8)", oxygenator: "Kids 100", configuration: "1/8-3/16-3/16", primeVolumeMl: 130 },
+  { name: "Neo (3/16)", oxygenator: "FX-05", configuration: "3/16-3/16-3/16", primeVolumeMl: 180 },
+  { name: "Neo (1/4)", oxygenator: "FX-05", configuration: "3/16-1/4-1/4", primeVolumeMl: 230 },
+  { name: "Infant (1/4)", oxygenator: "FX-05", configuration: "1/4-1/4-1/4", primeVolumeMl: 250 },
+  { name: "Infant (3/8)", oxygenator: "Pixie", configuration: "1/4-3/8-3/8", primeVolumeMl: 450 },
+  { name: "Infant (3/8)", oxygenator: "Kids 101", configuration: "1/4-3/8-3/8", primeVolumeMl: 500 },
+  { name: "Infant FX15", oxygenator: "FX-15", configuration: "1/4-3/8-3/8", primeVolumeMl: 650 },
+  { name: "Pediatric", oxygenator: "FX-15", configuration: "3/8-3/8-3/8", primeVolumeMl: 800 },
+  { name: "Pediatric", oxygenator: "FX-15", configuration: "3/8-1/2-3/8", primeVolumeMl: 850 },
+  { name: "S adult (FX)", oxygenator: "FX-25", configuration: "3/8-1/2-1/2", primeVolumeMl: 1200 },
+]
+
+const getPresetLabel = (preset: (typeof PRIMING_VOLUME_PRESETS)[number]) =>
+  `${preset.name} · ${preset.oxygenator} · ${preset.configuration} — ${preset.primeVolumeMl} mL`
+
+const parseInputNumber = (value: string) => Number.parseFloat(value)
+const parseOptionalVolume = (value: string) => (value.trim() === "" ? 0 : parseInputNumber(value))
+const hasOptionalValue = (value: string) => value.trim() !== ""
+
+const formatNumber = (value: number, decimals = 0) => {
+  if (!Number.isFinite(value)) return "-"
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+}
+
+const formatSignedMl = (value: number) => {
+  if (!Number.isFinite(value)) return "-"
+  if (Math.abs(value) < FLUID_ADJUSTMENT_THRESHOLD_ML) return "0 mL"
+  return `${value > 0 ? "+" : "-"}${formatNumber(Math.abs(value))} mL`
+}
+
+const formatPercentFromFraction = (value: number) => {
+  if (!Number.isFinite(value)) return "-"
+  return formatNumber(value * 100, 0)
+}
+
+const isPositiveNumber = (value: number) => Number.isFinite(value) && value > 0
+const isNonNegativeNumber = (value: number) => Number.isFinite(value) && value >= 0
+const isPercentInRange = (value: string) => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue > 0 && numericValue <= 100
+}
+const isFractionInRange = (value: string) => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue > 0 && numericValue <= 1
+}
+
+const getVolumeAction = (value: number): "add" | "remove" | "neutral" => {
+  if (value > FLUID_ADJUSTMENT_THRESHOLD_ML) return "add"
+  if (value < -FLUID_ADJUSTMENT_THRESHOLD_ML) return "remove"
+  return "neutral"
+}
+
+const getBalancePillClass = (action: "add" | "remove" | "neutral") => {
+  if (action === "add") {
+    return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+  }
+  if (action === "remove") {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+  }
+  return "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200"
+}
+
+const getResultTint = (tone: "green" | "amber" | "rose" | "blue" | "slate") => {
+  if (tone === "green") return "border-emerald-200 bg-emerald-50/75 dark:border-emerald-900/60 dark:bg-emerald-950/20"
+  if (tone === "amber") return "border-amber-200 bg-amber-50/75 dark:border-amber-900/60 dark:bg-amber-950/20"
+  if (tone === "rose") return "border-rose-200 bg-rose-50/75 dark:border-rose-900/60 dark:bg-rose-950/20"
+  if (tone === "blue") return "border-blue-200 bg-blue-50/75 dark:border-blue-900/60 dark:bg-blue-950/20"
+  return "border-border/70 bg-card/95"
+}
+
+type StoredCalculatorState = {
+  weightKg?: string
+  bloodVolumeCoefficient?: string
+  selectedPresetId?: string
+  primeVolume?: string
+  preHct?: string
+  preDesiredHct?: string
+  rbcProductHct?: string
+  rbcUnitVolume?: string
+  currentHct?: string
+  currentEstimatedTotalVolume?: string
+  currentReservoirLevel?: string
+  plannedRbcAddition?: string
+  addedCrystalloidVolume?: string
+  removedFluidVolume?: string
+  intraDesiredHct?: string
+}
+
+type PreCpbResult =
+  | {
+      status: "ready"
+      patientVolume: number
+      patientRbcVolume: number
+      baseTotalVolume: number
+      expectedHctWithoutRbc: number
+      desiredHct: number
+      rbcRequiredVolume: number
+      rbcUnitCount: number
+      estimatedFinalVolume: number
+      estimatedFinalRbcVolume: number
+      estimatedFinalHct: number
+    }
+  | { status: "message"; message: string }
+
+type IntraoperativeResult =
+  | {
+      status: "ready"
+      currentHct: number
+      currentTotalVolume: number
+      currentRbcVolume: number
+      plannedRbcAddition: number
+      addedCrystalloidVolume: number
+      removedFluidVolume: number
+      netVolumeChange: number
+      newRbcVolume: number
+      newTotalVolume: number
+      predictedHct: number
+      hctDelta: number
+      desiredHct: number
+      rbcNeededVolume: number
+      rbcNeededUnitCount: number
+      fluidAdjustmentToTarget: number
+      fluidAdjustmentAction: "remove" | "add" | "none"
+      projectedReservoirLevel: number | null
+      projectedReservoirAfterTarget: number | null
+      reservoirWarning: string | null
+      targetReservoirWarning: string | null
+    }
+  | { status: "message"; message: string }
+
+const InputBlock = ({
+  id,
+  label,
+  value,
+  onChange,
+  helperText,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  helperText?: string
+}) => (
+  <div className="space-y-1.5">
+    <Label htmlFor={id} className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
+      {label}
+    </Label>
+    <Input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-10 bg-background/80 text-sm font-medium"
+    />
+    {helperText && <p className="text-[11px] leading-relaxed text-muted-foreground">{helperText}</p>}
+  </div>
+)
+
+const SectionCard = ({
+  title,
+  icon,
+  children,
+  description,
+}: {
+  title: string
+  icon: React.ReactNode
+  children: React.ReactNode
+  description?: string
+}) => (
+  <Card className="h-full border-border/70 bg-card/95 shadow-sm">
+    <CardHeader className="pb-3">
+      <CardTitle className="flex items-center gap-2 text-base">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300">
+          {icon}
+        </span>
+        {title}
+      </CardTitle>
+      {description && <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>}
+    </CardHeader>
+    <CardContent className="space-y-4">{children}</CardContent>
+  </Card>
+)
+
+const ResultCard = ({
+  label,
+  value,
+  unit,
+  detail,
+  tone = "slate",
+}: {
+  label: string
+  value: string
+  unit?: string
+  detail?: React.ReactNode
+  tone?: "green" | "amber" | "rose" | "blue" | "slate"
+}) => (
+  <Card className={`${getResultTint(tone)} shadow-sm`}>
+    <CardContent className="p-3">
+      <div className="text-xs font-semibold text-muted-foreground">{label}</div>
+      <div className="mt-1 flex items-end gap-1.5">
+        <span className="text-2xl font-bold tracking-tight">{value}</span>
+        {unit && <span className="pb-0.5 text-sm font-semibold text-muted-foreground">{unit}</span>}
+      </div>
+      {detail && <div className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{detail}</div>}
+    </CardContent>
+  </Card>
+)
+
+export default function BloodHemodilutionCalculator() {
+  const [weightKg, setWeightKg] = useState("")
+  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("55")
+  const [selectedPresetId, setSelectedPresetId] = useState("")
+  const [primeVolume, setPrimeVolume] = useState("")
+  const [preHct, setPreHct] = useState("")
+  const [preDesiredHct, setPreDesiredHct] = useState("")
+  const [rbcProductHct, setRbcProductHct] = useState("0.66")
+  const [rbcUnitVolume, setRbcUnitVolume] = useState("200")
+  const [currentHct, setCurrentHct] = useState("")
+  const [currentEstimatedTotalVolume, setCurrentEstimatedTotalVolume] = useState("")
+  const [currentReservoirLevel, setCurrentReservoirLevel] = useState("")
+  const [plannedRbcAddition, setPlannedRbcAddition] = useState("0")
+  const [addedCrystalloidVolume, setAddedCrystalloidVolume] = useState("0")
+  const [removedFluidVolume, setRemovedFluidVolume] = useState("0")
+  const [intraDesiredHct, setIntraDesiredHct] = useState("")
+  const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false)
+  const [currentTotalVolumeEdited, setCurrentTotalVolumeEdited] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const savedState = window.localStorage.getItem(CALCULATOR_STORAGE_KEY)
+      if (savedState) {
+        const parsedState = JSON.parse(savedState) as StoredCalculatorState
+        setWeightKg(parsedState.weightKg ?? "")
+        setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
+        setSelectedPresetId(parsedState.selectedPresetId ?? "")
+        setPrimeVolume(parsedState.primeVolume ?? window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
+        setPreHct(parsedState.preHct ?? "")
+        setPreDesiredHct(parsedState.preDesiredHct ?? "")
+        setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
+        setRbcUnitVolume(parsedState.rbcUnitVolume ?? "200")
+        setCurrentHct(parsedState.currentHct ?? "")
+        setCurrentEstimatedTotalVolume(parsedState.currentEstimatedTotalVolume ?? "")
+        setCurrentReservoirLevel(parsedState.currentReservoirLevel ?? "")
+        setPlannedRbcAddition(parsedState.plannedRbcAddition ?? "0")
+        setAddedCrystalloidVolume(parsedState.addedCrystalloidVolume ?? "0")
+        setRemovedFluidVolume(parsedState.removedFluidVolume ?? "0")
+        setIntraDesiredHct(parsedState.intraDesiredHct ?? "")
+      } else {
+        setPrimeVolume(window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
+      }
+    } catch {
+      window.localStorage.removeItem(CALCULATOR_STORAGE_KEY)
+      window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
+    }
+
+    setHasLoadedSavedState(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedSavedState || typeof window === "undefined") return
+
+    const trimmedPrimeVolume = primeVolume.trim()
+    if (trimmedPrimeVolume === "") {
+      window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
+    } else {
+      window.localStorage.setItem(PRIME_VOLUME_STORAGE_KEY, primeVolume)
+    }
+
+    const stateToSave: StoredCalculatorState = {
+      weightKg,
+      bloodVolumeCoefficient,
+      selectedPresetId,
+      primeVolume,
+      preHct,
+      preDesiredHct,
+      rbcProductHct,
+      rbcUnitVolume,
+      currentHct,
+      currentEstimatedTotalVolume,
+      currentReservoirLevel,
+      plannedRbcAddition,
+      addedCrystalloidVolume,
+      removedFluidVolume,
+      intraDesiredHct,
+    }
+
+    window.localStorage.setItem(CALCULATOR_STORAGE_KEY, JSON.stringify(stateToSave))
+  }, [
+    addedCrystalloidVolume,
+    bloodVolumeCoefficient,
+    currentEstimatedTotalVolume,
+    currentHct,
+    currentReservoirLevel,
+    hasLoadedSavedState,
+    intraDesiredHct,
+    plannedRbcAddition,
+    preDesiredHct,
+    preHct,
+    primeVolume,
+    rbcProductHct,
+    rbcUnitVolume,
+    removedFluidVolume,
+    selectedPresetId,
+    weightKg,
+  ])
+
+  const selectedPreset = selectedPresetId ? PRIMING_VOLUME_PRESETS[Number.parseInt(selectedPresetId, 10)] : undefined
+  const primeVolumeNumber = parseInputNumber(primeVolume)
+  const isManualPrimeOverride = Boolean(
+    selectedPreset && isPositiveNumber(primeVolumeNumber) && primeVolumeNumber !== selectedPreset.primeVolumeMl,
+  )
+  const primeSourceLabel = selectedPreset
+    ? isManualPrimeOverride
+      ? "Manual override"
+      : "Selected preset"
+    : primeVolume.trim()
+      ? "Custom prime"
+      : "No preset"
+
+  const preCpbResult = useMemo<PreCpbResult>(() => {
+    const weight = parseInputNumber(weightKg)
+    const coefficient = parseInputNumber(bloodVolumeCoefficient)
+    const prime = parseInputNumber(primeVolume)
+    const patientPreHct = parseInputNumber(preHct)
+    const targetPercent = parseInputNumber(preDesiredHct)
+    const rbcHct = parseInputNumber(rbcProductHct)
+    const unitVolume = parseInputNumber(rbcUnitVolume)
+
+    if (
+      !isPositiveNumber(weight) ||
+      !isPositiveNumber(coefficient) ||
+      !isPositiveNumber(prime) ||
+      !isPercentInRange(preHct) ||
+      !isPercentInRange(preDesiredHct) ||
+      !isFractionInRange(rbcProductHct) ||
+      !isPositiveNumber(unitVolume)
+    ) {
+      return {
+        status: "message",
+        message: "Shared setup과 Desired Hct를 입력하면 Pre-CPB 결과가 표시됩니다.",
+      }
+    }
+
+    const target = targetPercent / 100
+    if (target >= rbcHct) {
+      return { status: "message", message: "Desired Hct는 RBC product Hct보다 낮아야 합니다." }
+    }
+
+    // Patient volume = Weight × Blood volume coefficient
+    const patientVolume = weight * coefficient
+    // Patient RBC volume = Patient volume × Pre-Hct / 100
+    const patientRbcVolume = patientVolume * (patientPreHct / 100)
+    // Base total volume = Patient volume + Prime volume
+    const baseTotalVolume = patientVolume + prime
+
+    if (!isPositiveNumber(baseTotalVolume)) {
+      return { status: "message", message: "Base total volume이 0 이하입니다. 입력값을 확인해주세요." }
+    }
+
+    // Expected Hct without RBC = Patient RBC volume / Base total volume × 100
+    const expectedHctWithoutRbc = (patientRbcVolume / baseTotalVolume) * 100
+    if (!Number.isFinite(expectedHctWithoutRbc) || expectedHctWithoutRbc < 0 || expectedHctWithoutRbc > 100) {
+      return { status: "message", message: "Expected Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
+    }
+
+    // RBC required mL = max(0, (Target × Base total volume - Patient RBC volume) / (RBC product Hct - Target))
+    const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / (rbcHct - target))
+    const rbcUnitCount = rbcRequiredVolume / unitVolume
+    const estimatedFinalVolume = baseTotalVolume + rbcRequiredVolume
+    const estimatedFinalRbcVolume = patientRbcVolume + rbcRequiredVolume * rbcHct
+    const estimatedFinalHct = (estimatedFinalRbcVolume / estimatedFinalVolume) * 100
+
+    if (!Number.isFinite(estimatedFinalHct) || estimatedFinalHct < 0 || estimatedFinalHct > 100) {
+      return { status: "message", message: "Estimated final Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
+    }
+
+    return {
+      status: "ready",
+      patientVolume,
+      patientRbcVolume,
+      baseTotalVolume,
+      expectedHctWithoutRbc,
+      desiredHct: targetPercent,
+      rbcRequiredVolume,
+      rbcUnitCount,
+      estimatedFinalVolume,
+      estimatedFinalRbcVolume,
+      estimatedFinalHct,
+    }
+  }, [bloodVolumeCoefficient, preDesiredHct, preHct, primeVolume, rbcProductHct, rbcUnitVolume, weightKg])
+
+  useEffect(() => {
+    if (preCpbResult.status !== "ready" || currentTotalVolumeEdited) return
+    setCurrentEstimatedTotalVolume(String(Math.round(preCpbResult.estimatedFinalVolume)))
+  }, [currentTotalVolumeEdited, preCpbResult])
+
+  const effectiveIntraDesiredHct = intraDesiredHct.trim() === "" ? preDesiredHct : intraDesiredHct
+
+  const intraoperativeResult = useMemo<IntraoperativeResult>(() => {
+    const currentTotalVolume = parseInputNumber(currentEstimatedTotalVolume)
+    const currentHctPercent = parseInputNumber(currentHct)
+    const plannedRbc = parseOptionalVolume(plannedRbcAddition)
+    const addedCrystalloid = parseOptionalVolume(addedCrystalloidVolume)
+    const removedFluid = parseOptionalVolume(removedFluidVolume)
+    const targetPercent = parseInputNumber(effectiveIntraDesiredHct)
+    const rbcHct = parseInputNumber(rbcProductHct)
+    const unitVolume = parseInputNumber(rbcUnitVolume)
+    const hasReservoirLevel = hasOptionalValue(currentReservoirLevel)
+    const reservoirLevel = hasReservoirLevel ? parseInputNumber(currentReservoirLevel) : null
+
+    if (
+      !isPositiveNumber(currentTotalVolume) ||
+      !isPercentInRange(currentHct) ||
+      !isNonNegativeNumber(plannedRbc) ||
+      !isNonNegativeNumber(addedCrystalloid) ||
+      !isNonNegativeNumber(removedFluid) ||
+      !isPercentInRange(effectiveIntraDesiredHct) ||
+      !isFractionInRange(rbcProductHct) ||
+      !isPositiveNumber(unitVolume) ||
+      (hasReservoirLevel && !isNonNegativeNumber(reservoirLevel as number))
+    ) {
+      return {
+        status: "message",
+        message: "Current Hct와 current total volume을 입력하면 intraoperative 결과가 표시됩니다.",
+      }
+    }
+
+    const target = targetPercent / 100
+    if (target >= rbcHct) {
+      return { status: "message", message: "Intraoperative desired Hct는 RBC product Hct보다 낮아야 합니다." }
+    }
+
+    // Current RBC volume = Current estimated total volume × Current Hct / 100
+    const currentRbcVolume = currentTotalVolume * (currentHctPercent / 100)
+    // New RBC volume = Current RBC volume + Planned RBC addition × RBC product Hct
+    const newRbcVolume = currentRbcVolume + plannedRbc * rbcHct
+    // New total volume = Current estimated total volume + Planned RBC addition + Added crystalloid - Removed fluid
+    const newTotalVolume = currentTotalVolume + plannedRbc + addedCrystalloid - removedFluid
+
+    if (!isPositiveNumber(newTotalVolume)) {
+      return { status: "message", message: "New total volume이 0 이하입니다. planned volume을 확인해주세요." }
+    }
+
+    const predictedHct = (newRbcVolume / newTotalVolume) * 100
+    if (!Number.isFinite(predictedHct) || predictedHct < 0 || predictedHct > 100) {
+      return { status: "message", message: "Predicted Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
+    }
+
+    const netVolumeChange = plannedRbc + addedCrystalloid - removedFluid
+    const projectedReservoirLevel = reservoirLevel === null ? null : reservoirLevel + netVolumeChange
+    const reservoirWarning =
+      projectedReservoirLevel !== null && projectedReservoirLevel <= 0
+        ? "Projected reservoir may be too low. Recheck circuit volume before removal."
+        : null
+
+    // RBC needed after planned changes = max(0, (Target × New total volume - New RBC volume) / (RBC product Hct - Target))
+    const rbcNeededVolume = Math.max(0, (target * newTotalVolume - newRbcVolume) / (rbcHct - target))
+    const rbcNeededUnitCount = rbcNeededVolume / unitVolume
+    // Target total volume = New RBC volume / Target; Fluid adjustment to target = Target total volume - New total volume
+    const targetTotalVolume = newRbcVolume / target
+    const fluidAdjustmentToTarget = targetTotalVolume - newTotalVolume
+    const fluidAdjustmentAction =
+      fluidAdjustmentToTarget < -FLUID_ADJUSTMENT_THRESHOLD_ML
+        ? "remove"
+        : fluidAdjustmentToTarget > FLUID_ADJUSTMENT_THRESHOLD_ML
+          ? "add"
+          : "none"
+    const projectedReservoirAfterTarget =
+      projectedReservoirLevel === null ? null : projectedReservoirLevel + fluidAdjustmentToTarget
+    const targetReservoirWarning =
+      projectedReservoirAfterTarget !== null && projectedReservoirAfterTarget <= 0
+        ? "Projected reservoir may be too low. Recheck circuit volume before removal."
+        : null
+
+    return {
+      status: "ready",
+      currentHct: currentHctPercent,
+      currentTotalVolume,
+      currentRbcVolume,
+      plannedRbcAddition: plannedRbc,
+      addedCrystalloidVolume: addedCrystalloid,
+      removedFluidVolume: removedFluid,
+      netVolumeChange,
+      newRbcVolume,
+      newTotalVolume,
+      predictedHct,
+      hctDelta: predictedHct - currentHctPercent,
+      desiredHct: targetPercent,
+      rbcNeededVolume,
+      rbcNeededUnitCount,
+      fluidAdjustmentToTarget,
+      fluidAdjustmentAction,
+      projectedReservoirLevel,
+      projectedReservoirAfterTarget,
+      reservoirWarning,
+      targetReservoirWarning,
+    }
+  }, [
+    addedCrystalloidVolume,
+    currentEstimatedTotalVolume,
+    currentHct,
+    currentReservoirLevel,
+    effectiveIntraDesiredHct,
+    plannedRbcAddition,
+    rbcProductHct,
+    rbcUnitVolume,
+    removedFluidVolume,
+  ])
+
+  const handlePresetChange = (presetId: string) => {
+    const preset = PRIMING_VOLUME_PRESETS[Number.parseInt(presetId, 10)]
+    setSelectedPresetId(presetId)
+    setPrimeVolume(String(preset.primeVolumeMl))
+  }
+
+  const handleCurrentVolumeChange = (value: string) => {
+    setCurrentTotalVolumeEdited(true)
+    setCurrentEstimatedTotalVolume(value)
+  }
+
+  const applyPreCpbVolume = () => {
+    if (preCpbResult.status !== "ready") return
+    setCurrentEstimatedTotalVolume(String(Math.round(preCpbResult.estimatedFinalVolume)))
+    setCurrentTotalVolumeEdited(false)
+  }
+
+  const applyPreCpbHct = () => {
+    if (preCpbResult.status !== "ready") return
+    setCurrentHct(formatNumber(preCpbResult.estimatedFinalHct, 1))
+  }
+
+  const getFluidAdjustmentCopy = (value: number) => {
+    if (value < -FLUID_ADJUSTMENT_THRESHOLD_ML) return { label: `Remove ${formatNumber(Math.abs(value))} mL`, tone: "blue" as const }
+    if (value > FLUID_ADJUSTMENT_THRESHOLD_ML) return { label: `Add ${formatNumber(value)} mL`, tone: "green" as const }
+    return { label: "No adjustment needed", tone: "green" as const }
+  }
+
+  const primeChip = selectedPreset ? getPresetLabel(selectedPreset) : primeVolume.trim() ? `${primeVolume} mL custom` : "Prime not set"
+
+  return (
+    <div className="mx-auto w-full max-w-6xl p-3 md:p-4">
+      <Card className="overflow-hidden border-green-100 bg-gradient-to-br from-white via-white to-green-50/60 shadow-lg dark:border-green-950/60 dark:from-card dark:via-card dark:to-green-950/20">
+        <CardHeader className="border-b border-green-100/80 bg-green-50/70 pb-4 dark:border-green-950/70 dark:bg-green-950/20">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-1.5">
+              <CardTitle className="text-2xl font-bold tracking-tight">Hct predict</CardTitle>
+              <div className="text-sm font-semibold text-green-800 dark:text-green-200">PCS CPB Hct 예측</div>
+              <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                Pre-CPB prime planning과 수술 중 volume balance에 따른 Hct 변화를 계산합니다.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
+                PCS CPB
+              </Badge>
+              <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
+                RBC-LF 1 unit = 200 mL
+              </Badge>
+              <Badge variant="outline" className="bg-white/80 text-slate-700 dark:bg-background/50 dark:text-slate-200">
+                Prime preset included
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4 p-3 md:p-5">
+          <SectionCard
+            title="Shared setup"
+            icon={<HeartPulse className="h-4 w-4" />}
+            description="Pre-CPB planning과 intraoperative simulation에서 공통으로 사용하는 값입니다."
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4">
+              <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} />
+              <InputBlock
+                id="blood-volume-coefficient"
+                label="Blood volume coefficient mL/kg"
+                value={bloodVolumeCoefficient}
+                onChange={setBloodVolumeCoefficient}
+              />
+              <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} />
+              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} />
+              <InputBlock
+                id="rbc-product-hct"
+                label="RBC product Hct"
+                value={rbcProductHct}
+                onChange={setRbcProductHct}
+                helperText="Enter as fraction, e.g. 0.66 for 66%."
+              />
+              <InputBlock
+                id="rbc-unit-volume"
+                label="RBC-LF unit volume mL/unit"
+                value={rbcUnitVolume}
+                onChange={setRbcUnitVolume}
+                helperText="Department default: 200 mL/unit."
+              />
+              <div className="space-y-1.5 md:col-span-3 xl:col-span-2">
+                <Label htmlFor="tubing-set" className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
+                  Tubing set selector
+                </Label>
+                <Select value={selectedPresetId} onValueChange={handlePresetChange}>
+                  <SelectTrigger id="tubing-set" className="h-10 w-full bg-background/80 text-left text-sm">
+                    <SelectValue placeholder="Select institutional tubing set preset" />
+                  </SelectTrigger>
+                  <SelectContent className="max-w-[min(92vw,760px)]">
+                    {PRIMING_VOLUME_PRESETS.map((preset, index) => (
+                      <SelectItem
+                        key={`${preset.name}-${preset.oxygenator}-${preset.configuration}-${preset.primeVolumeMl}`}
+                        value={String(index)}
+                        className="whitespace-normal py-2"
+                      >
+                        {getPresetLabel(preset)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant="outline" className="bg-background/80">
+                {primeSourceLabel}
+              </Badge>
+              {selectedPreset && <span className="text-muted-foreground">{getPresetLabel(selectedPreset)}</span>}
+            </div>
+            <p className="rounded-md bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
+              Patient RBC volume은 Patient volume × Pre-Hct / 100으로만 계산합니다. Prime과 crystalloid는 RBC volume을 증가시키지 않습니다.
+            </p>
+          </SectionCard>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <SectionCard
+              title="Pre-CPB prime planning"
+              icon={<FlaskConical className="h-4 w-4" />}
+              description="목표 Hct를 맞추기 위해 prime에 섞을 RBC volume을 계산합니다."
+            >
+              <InputBlock id="pre-desired-hct" label="Desired Hct %" value={preDesiredHct} onChange={setPreDesiredHct} />
+
+              {preCpbResult.status === "message" ? (
+                <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                  <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{preCpbResult.message}</CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-3">
+                    <ResultCard
+                      label="Expected Hct without RBC"
+                      value={formatNumber(preCpbResult.expectedHctWithoutRbc, 1)}
+                      unit="%"
+                      tone={preCpbResult.expectedHctWithoutRbc >= preCpbResult.desiredHct ? "green" : "amber"}
+                    />
+                    <ResultCard
+                      label="RBC to prime"
+                      value={formatNumber(preCpbResult.rbcRequiredVolume)}
+                      unit="mL"
+                      tone={preCpbResult.rbcRequiredVolume > FLUID_ADJUSTMENT_THRESHOLD_ML ? "rose" : "green"}
+                      detail={
+                        <>
+                          ≈ {formatNumber(preCpbResult.rbcUnitCount, 1)} unit<br />
+                          Based on RBC-LF {rbcUnitVolume || "-"} mL/unit
+                        </>
+                      }
+                    />
+                    <ResultCard
+                      label="Estimated final Hct"
+                      value={formatNumber(preCpbResult.estimatedFinalHct, 1)}
+                      unit="%"
+                      tone={preCpbResult.estimatedFinalHct >= preCpbResult.desiredHct ? "green" : "amber"}
+                      detail={`Estimated final volume ${formatNumber(preCpbResult.estimatedFinalVolume)} mL`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-4">
+                    <div>
+                      <div className="text-muted-foreground">Patient volume</div>
+                      <div className="font-semibold">{formatNumber(preCpbResult.patientVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Prime volume</div>
+                      <div className="font-semibold">{formatNumber(parseInputNumber(primeVolume))} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Base total volume</div>
+                      <div className="font-semibold">{formatNumber(preCpbResult.baseTotalVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Patient RBC volume</div>
+                      <div className="font-semibold">{formatNumber(preCpbResult.patientRbcVolume)} mL</div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Intraoperative Hct simulation"
+              icon={<Droplets className="h-4 w-4" />}
+              description="현재 Hct와 수술 중 planned volume change를 입력해 예상 Hct를 계산합니다."
+            >
+              <div className="flex flex-wrap gap-2 text-xs">
+                <Badge variant="outline" className="bg-background/80">Weight: {weightKg || "-"} kg</Badge>
+                <Badge variant="outline" className="max-w-full bg-background/80">Prime: {primeChip}</Badge>
+                <Badge variant="outline" className="bg-background/80">
+                  Pre-CPB final volume: {preCpbResult.status === "ready" ? `${formatNumber(preCpbResult.estimatedFinalVolume)} mL` : "-"}
+                </Badge>
+                <Badge variant="outline" className="bg-background/80">RBC product Hct: {formatPercentFromFraction(parseInputNumber(rbcProductHct))}%</Badge>
+                <Badge variant="outline" className="bg-background/80">RBC-LF: {rbcUnitVolume || "-"} mL/unit</Badge>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <InputBlock id="current-hct" label="Current Hct %" value={currentHct} onChange={setCurrentHct} />
+                <InputBlock
+                  id="current-estimated-volume"
+                  label="Current estimated total volume mL"
+                  value={currentEstimatedTotalVolume}
+                  onChange={handleCurrentVolumeChange}
+                  helperText="Auto-filled from Pre-CPB estimate, editable during CPB."
+                />
+                <InputBlock
+                  id="current-reservoir-level"
+                  label="Current reservoir level mL"
+                  value={currentReservoirLevel}
+                  onChange={setCurrentReservoirLevel}
+                  helperText="Projected reservoir estimate only."
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={applyPreCpbHct}
+                  disabled={preCpbResult.status !== "ready"}
+                  className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Use Pre-CPB Hct
+                </button>
+                <button
+                  type="button"
+                  onClick={applyPreCpbVolume}
+                  disabled={preCpbResult.status !== "ready"}
+                  className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Use Pre-CPB volume
+                </button>
+              </div>
+              <p className="rounded-md bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
+                Reservoir level is used for projected reservoir estimate only. It is not directly added to total volume.
+              </p>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <InputBlock id="planned-rbc-addition" label="Planned RBC addition mL" value={plannedRbcAddition} onChange={setPlannedRbcAddition} />
+                <InputBlock id="added-crystalloid-volume" label="Added crystalloid volume mL" value={addedCrystalloidVolume} onChange={setAddedCrystalloidVolume} />
+                <InputBlock id="removed-fluid-volume" label="Removed crystalloid / plasma water mL" value={removedFluidVolume} onChange={setRemovedFluidVolume} />
+                <InputBlock id="intra-desired-hct" label="Intraoperative desired Hct %" value={intraDesiredHct} onChange={setIntraDesiredHct} />
+              </div>
+              <p className="rounded-md bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
+                Removed fluid is treated as RBC-free fluid removal, such as UF or hemoconcentration. Do not use for mixed whole blood removal.
+                {intraDesiredHct.trim() === "" && preDesiredHct.trim() !== "" && " Intraoperative desired Hct is using the Pre-CPB target."}
+              </p>
+
+              {intraoperativeResult.status === "message" ? (
+                <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                  <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{intraoperativeResult.message}</CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <ResultCard
+                      label="Predicted Hct"
+                      value={formatNumber(intraoperativeResult.predictedHct, 1)}
+                      unit="%"
+                      tone={intraoperativeResult.predictedHct >= intraoperativeResult.desiredHct ? "green" : "amber"}
+                      detail={`Delta ${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)} %p from current Hct`}
+                    />
+                    <ResultCard
+                      label="Net volume balance"
+                      value={formatSignedMl(intraoperativeResult.netVolumeChange)}
+                      tone={getVolumeAction(intraoperativeResult.netVolumeChange) === "remove" ? "blue" : getVolumeAction(intraoperativeResult.netVolumeChange) === "add" ? "amber" : "slate"}
+                      detail={`RBC +${formatNumber(intraoperativeResult.plannedRbcAddition)} · Crystalloid +${formatNumber(intraoperativeResult.addedCrystalloidVolume)} · Removed ${formatNumber(intraoperativeResult.removedFluidVolume)}`}
+                    />
+                    <ResultCard
+                      label="RBC needed to target"
+                      value={formatNumber(intraoperativeResult.rbcNeededVolume)}
+                      unit="mL"
+                      tone={intraoperativeResult.rbcNeededVolume > FLUID_ADJUSTMENT_THRESHOLD_ML ? "rose" : "green"}
+                      detail={
+                        <>
+                          ≈ {formatNumber(intraoperativeResult.rbcNeededUnitCount, 1)} unit<br />
+                          Based on RBC-LF {rbcUnitVolume || "-"} mL/unit
+                        </>
+                      }
+                    />
+                    <ResultCard
+                      label="Fluid adjustment to target"
+                      value={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).label}
+                      tone={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).tone}
+                      detail={
+                        <>
+                          Target Hct {formatNumber(intraoperativeResult.desiredHct, 1)}%
+                          {intraoperativeResult.projectedReservoirAfterTarget !== null && (
+                            <>
+                              <br />Projected reservoir: {formatNumber(intraoperativeResult.projectedReservoirAfterTarget)} mL
+                            </>
+                          )}
+                        </>
+                      }
+                    />
+                  </div>
+                  {(intraoperativeResult.reservoirWarning || intraoperativeResult.targetReservoirWarning) && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>{intraoperativeResult.targetReservoirWarning || intraoperativeResult.reservoirWarning}</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-4">
+                    <div>
+                      <div className="text-muted-foreground">Current RBC volume</div>
+                      <div className="font-semibold">{formatNumber(intraoperativeResult.currentRbcVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">New total volume</div>
+                      <div className="font-semibold">{formatNumber(intraoperativeResult.newTotalVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">New RBC volume</div>
+                      <div className="font-semibold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Projected reservoir</div>
+                      <div className="font-semibold">
+                        {intraoperativeResult.projectedReservoirLevel === null ? "Not entered" : `${formatNumber(intraoperativeResult.projectedReservoirLevel)} mL`}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </SectionCard>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
