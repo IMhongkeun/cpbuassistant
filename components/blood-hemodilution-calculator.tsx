@@ -61,8 +61,21 @@ const PRIMING_VOLUME_PRESETS = [
 const getPresetLabel = (preset: (typeof PRIMING_VOLUME_PRESETS)[number]) =>
   `${preset.name} · ${preset.oxygenator} · ${preset.configuration} — ${preset.primeVolumeMl} mL`
 
-const parseInputNumber = (value: string) => Number.parseFloat(value)
-const parseOptionalVolume = (value: string) => (value.trim() === "" ? 0 : parseInputNumber(value))
+const NUMERIC_ONLY_MESSAGE = "Enter numeric values only. Do not include units such as kg, mL, or %."
+
+const parseStrictNumber = (value: string): number | null => {
+  const trimmedValue = value.trim()
+
+  if (trimmedValue === "") return null
+
+  const numericPattern = /^(?:\d+(?:\.\d+)?|\.\d+)$/
+  if (!numericPattern.test(trimmedValue)) return null
+
+  const numericValue = Number(trimmedValue)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+const parseOptionalVolume = (value: string) => (value.trim() === "" ? 0 : parseStrictNumber(value))
 const hasOptionalValue = (value: string) => value.trim() !== ""
 
 const formatNumber = (value: number, decimals = 0) => {
@@ -84,16 +97,26 @@ const formatPercentFromFraction = (value: number) => {
   return formatNumber(value * 100, 0)
 }
 
-const isPositiveNumber = (value: number) => Number.isFinite(value) && value > 0
-const isNonNegativeNumber = (value: number) => Number.isFinite(value) && value >= 0
+const isPositiveNumber = (value: string) => {
+  const numericValue = parseStrictNumber(value)
+  return numericValue !== null && numericValue > 0
+}
+const isNonNegativeNumber = (value: string) => {
+  const numericValue = parseStrictNumber(value)
+  return numericValue !== null && numericValue >= 0
+}
 const isPercentInRange = (value: string) => {
-  const numericValue = Number(value)
-  return Number.isFinite(numericValue) && numericValue > 0 && numericValue <= 100
+  const numericValue = parseStrictNumber(value)
+  return numericValue !== null && numericValue > 0 && numericValue <= 100
 }
 const isFractionInRange = (value: string) => {
-  const numericValue = Number(value)
-  return Number.isFinite(numericValue) && numericValue > 0 && numericValue <= 1
+  const numericValue = parseStrictNumber(value)
+  return numericValue !== null && numericValue > 0 && numericValue <= 1
 }
+const isPositiveNumericValue = (value: number) => Number.isFinite(value) && value > 0
+const isNonNegativeNumericValue = (value: number) => Number.isFinite(value) && value >= 0
+const isPercentNumericValue = (value: number) => Number.isFinite(value) && value > 0 && value <= 100
+const isFractionNumericValue = (value: number) => Number.isFinite(value) && value > 0 && value <= 1
 
 const getVolumeAction = (value: number): "add" | "remove" | "neutral" => {
   if (value > FLUID_ADJUSTMENT_THRESHOLD_ML) return "add"
@@ -390,9 +413,9 @@ export default function BloodHemodilutionCalculator() {
   }, [currentTotalVolumeEdited, hasLoadedSavedState])
 
   const selectedPreset = selectedPresetId ? PRIMING_VOLUME_PRESETS[Number.parseInt(selectedPresetId, 10)] : undefined
-  const primeVolumeNumber = parseInputNumber(primeVolume)
+  const primeVolumeNumber = parseStrictNumber(primeVolume)
   const isManualPrimeOverride = Boolean(
-    selectedPreset && isPositiveNumber(primeVolumeNumber) && primeVolumeNumber !== selectedPreset.primeVolumeMl,
+    selectedPreset && primeVolumeNumber !== null && isPositiveNumericValue(primeVolumeNumber) && primeVolumeNumber !== selectedPreset.primeVolumeMl,
   )
   const primeSourceLabel = selectedPreset
     ? isManualPrimeOverride
@@ -403,22 +426,37 @@ export default function BloodHemodilutionCalculator() {
       : "No preset"
 
   const preCpbResult = useMemo<PreCpbResult>(() => {
-    const weight = parseInputNumber(weightKg)
-    const coefficient = parseInputNumber(bloodVolumeCoefficient)
-    const prime = parseInputNumber(primeVolume)
-    const patientPreHct = parseInputNumber(preHct)
-    const targetPercent = parseInputNumber(preDesiredHct)
-    const rbcHct = parseInputNumber(rbcProductHct)
-    const unitVolume = parseInputNumber(rbcUnitVolume)
+    const weight = parseStrictNumber(weightKg)
+    const coefficient = parseStrictNumber(bloodVolumeCoefficient)
+    const prime = parseStrictNumber(primeVolume)
+    const patientPreHct = parseStrictNumber(preHct)
+    const targetPercent = parseStrictNumber(preDesiredHct)
+    const rbcHct = parseStrictNumber(rbcProductHct)
+    const unitVolume = parseStrictNumber(rbcUnitVolume)
 
     if (
-      !isPositiveNumber(weight) ||
-      !isPositiveNumber(coefficient) ||
-      !isPositiveNumber(prime) ||
-      !isPercentInRange(preHct) ||
-      !isPercentInRange(preDesiredHct) ||
-      !isFractionInRange(rbcProductHct) ||
-      !isPositiveNumber(unitVolume)
+      weight === null ||
+      coefficient === null ||
+      prime === null ||
+      patientPreHct === null ||
+      targetPercent === null ||
+      rbcHct === null ||
+      unitVolume === null
+    ) {
+      return {
+        status: "message",
+        message: NUMERIC_ONLY_MESSAGE,
+      }
+    }
+
+    if (
+      !isPositiveNumericValue(weight) ||
+      !isPositiveNumericValue(coefficient) ||
+      !isPositiveNumericValue(prime) ||
+      !isPercentNumericValue(patientPreHct) ||
+      !isPercentNumericValue(targetPercent) ||
+      !isFractionNumericValue(rbcHct) ||
+      !isPositiveNumericValue(unitVolume)
     ) {
       return {
         status: "message",
@@ -438,7 +476,7 @@ export default function BloodHemodilutionCalculator() {
     // Base total volume = Patient volume + Prime volume
     const baseTotalVolume = patientVolume + prime
 
-    if (!isPositiveNumber(baseTotalVolume)) {
+    if (!isPositiveNumericValue(baseTotalVolume)) {
       return { status: "message", message: "Base total volume이 0 이하입니다. 입력값을 확인해주세요." }
     }
 
@@ -485,28 +523,45 @@ export default function BloodHemodilutionCalculator() {
   const hasIntraoperativeTarget = hasOptionalValue(intraDesiredHct)
 
   const intraoperativeResult = useMemo<IntraoperativeResult>(() => {
-    const currentTotalVolume = parseInputNumber(currentEstimatedTotalVolume)
-    const currentHctPercent = parseInputNumber(currentHct)
+    const currentTotalVolume = parseStrictNumber(currentEstimatedTotalVolume)
+    const currentHctPercent = parseStrictNumber(currentHct)
     const plannedRbc = parseOptionalVolume(plannedRbcAddition)
     const addedCrystalloid = parseOptionalVolume(addedCrystalloidVolume)
     const removedFluid = parseOptionalVolume(removedFluidVolume)
-    const targetPercent = parseInputNumber(intraDesiredHct)
     const hasTarget = hasOptionalValue(intraDesiredHct)
-    const rbcHct = parseInputNumber(rbcProductHct)
-    const unitVolume = parseInputNumber(rbcUnitVolume)
+    const targetPercent = hasTarget ? parseStrictNumber(intraDesiredHct) : null
+    const rbcHct = parseStrictNumber(rbcProductHct)
+    const unitVolume = parseStrictNumber(rbcUnitVolume)
     const hasReservoirLevel = hasOptionalValue(currentReservoirLevel)
-    const reservoirLevel = hasReservoirLevel ? parseInputNumber(currentReservoirLevel) : null
+    const reservoirLevel = hasReservoirLevel ? parseStrictNumber(currentReservoirLevel) : null
 
     if (
-      !isPositiveNumber(currentTotalVolume) ||
-      !isPercentInRange(currentHct) ||
-      !isNonNegativeNumber(plannedRbc) ||
-      !isNonNegativeNumber(addedCrystalloid) ||
-      !isNonNegativeNumber(removedFluid) ||
-      (hasTarget && !isPercentInRange(intraDesiredHct)) ||
-      !isFractionInRange(rbcProductHct) ||
-      !isPositiveNumber(unitVolume) ||
-      (hasReservoirLevel && !isNonNegativeNumber(reservoirLevel as number))
+      currentTotalVolume === null ||
+      currentHctPercent === null ||
+      plannedRbc === null ||
+      addedCrystalloid === null ||
+      removedFluid === null ||
+      (hasTarget && targetPercent === null) ||
+      rbcHct === null ||
+      unitVolume === null ||
+      (hasReservoirLevel && reservoirLevel === null)
+    ) {
+      return {
+        status: "message",
+        message: NUMERIC_ONLY_MESSAGE,
+      }
+    }
+
+    if (
+      !isPositiveNumericValue(currentTotalVolume) ||
+      !isPercentNumericValue(currentHctPercent) ||
+      !isNonNegativeNumericValue(plannedRbc) ||
+      !isNonNegativeNumericValue(addedCrystalloid) ||
+      !isNonNegativeNumericValue(removedFluid) ||
+      (targetPercent !== null && !isPercentNumericValue(targetPercent)) ||
+      !isFractionNumericValue(rbcHct) ||
+      !isPositiveNumericValue(unitVolume) ||
+      (reservoirLevel !== null && !isNonNegativeNumericValue(reservoirLevel))
     ) {
       return {
         status: "message",
@@ -514,7 +569,7 @@ export default function BloodHemodilutionCalculator() {
       }
     }
 
-    const target = hasTarget ? targetPercent / 100 : null
+    const target = targetPercent === null ? null : targetPercent / 100
     if (target !== null && target >= rbcHct) {
       return { status: "message", message: "Intraoperative desired Hct는 RBC product Hct보다 낮아야 합니다." }
     }
@@ -526,7 +581,7 @@ export default function BloodHemodilutionCalculator() {
     // New total volume = Current estimated total volume + Planned RBC addition + Added crystalloid - Removed fluid
     const newTotalVolume = currentTotalVolume + plannedRbc + addedCrystalloid - removedFluid
 
-    if (!isPositiveNumber(newTotalVolume)) {
+    if (!isPositiveNumericValue(newTotalVolume)) {
       return { status: "message", message: "New total volume이 0 이하입니다. planned volume을 확인해주세요." }
     }
 
@@ -627,6 +682,7 @@ export default function BloodHemodilutionCalculator() {
   }
 
   const primeChip = selectedPreset ? getPresetLabel(selectedPreset) : primeVolume.trim() ? `${primeVolume} mL custom` : "Prime not set"
+  const rbcProductHctNumber = parseStrictNumber(rbcProductHct)
 
   return (
     <div className="mx-auto w-full max-w-6xl p-3 md:p-4">
@@ -661,15 +717,16 @@ export default function BloodHemodilutionCalculator() {
             description="Pre-CPB planning과 intraoperative simulation에서 공통으로 사용하는 값입니다."
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} />
+              <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} helperText="Enter number only, without kg." />
               <InputBlock
                 id="blood-volume-coefficient"
                 label="Blood volume coefficient mL/kg"
                 value={bloodVolumeCoefficient}
                 onChange={setBloodVolumeCoefficient}
+                helperText="Enter number only."
               />
-              <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} />
-              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} />
+              <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} helperText="Enter number only, e.g. 30 for 30%." />
+              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} helperText="Enter number only, without mL." />
               <InputBlock
                 id="rbc-product-hct"
                 label="RBC product Hct"
@@ -682,7 +739,7 @@ export default function BloodHemodilutionCalculator() {
                 label="RBC-LF unit volume mL/unit"
                 value={rbcUnitVolume}
                 onChange={setRbcUnitVolume}
-                helperText="Department default: 200 mL/unit."
+                helperText="Department default: 200 mL/unit. Enter number only."
               />
               <div className="space-y-1.5 md:col-span-3 xl:col-span-2">
                 <Label htmlFor="tubing-set" className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
@@ -723,7 +780,13 @@ export default function BloodHemodilutionCalculator() {
               icon={<FlaskConical className="h-4 w-4" />}
               description="목표 Hct를 맞추기 위해 prime에 섞을 RBC volume을 계산합니다."
             >
-              <InputBlock id="pre-desired-hct" label="Desired Hct %" value={preDesiredHct} onChange={setPreDesiredHct} />
+              <InputBlock
+                id="pre-desired-hct"
+                label="Desired Hct %"
+                value={preDesiredHct}
+                onChange={setPreDesiredHct}
+                helperText="Enter number only, e.g. 30 for 30%."
+              />
 
               {preCpbResult.status === "message" ? (
                 <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
@@ -765,7 +828,7 @@ export default function BloodHemodilutionCalculator() {
                     </div>
                     <div>
                       <div className="text-muted-foreground">Prime volume</div>
-                      <div className="font-semibold">{formatNumber(parseInputNumber(primeVolume))} mL</div>
+                      <div className="font-semibold">{formatNumber(preCpbResult.baseTotalVolume - preCpbResult.patientVolume)} mL</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Base total volume</div>
@@ -791,12 +854,18 @@ export default function BloodHemodilutionCalculator() {
                 <Badge variant="outline" className="bg-background/80">
                   Pre-CPB final volume: {preCpbResult.status === "ready" ? `${formatNumber(preCpbResult.estimatedFinalVolume)} mL` : "-"}
                 </Badge>
-                <Badge variant="outline" className="bg-background/80">RBC product Hct: {formatPercentFromFraction(parseInputNumber(rbcProductHct))}%</Badge>
+                <Badge variant="outline" className="bg-background/80">RBC product Hct: {formatPercentFromFraction(rbcProductHctNumber ?? Number.NaN)}%</Badge>
                 <Badge variant="outline" className="bg-background/80">RBC-LF: {rbcUnitVolume || "-"} mL/unit</Badge>
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <InputBlock id="current-hct" label="Current Hct %" value={currentHct} onChange={setCurrentHct} />
+                <InputBlock
+                  id="current-hct"
+                  label="Current Hct %"
+                  value={currentHct}
+                  onChange={setCurrentHct}
+                  helperText="Enter number only, e.g. 30 for 30%."
+                />
                 <InputBlock
                   id="current-estimated-volume"
                   label="Current estimated total volume mL"
@@ -804,8 +873,8 @@ export default function BloodHemodilutionCalculator() {
                   onChange={handleCurrentVolumeChange}
                   helperText={
                     currentTotalVolumeEdited
-                      ? "Manual intraoperative volume"
-                      : "Auto-filled from Pre-CPB estimate"
+                      ? "Manual intraoperative volume. Enter number only, without mL."
+                      : "Auto-filled from Pre-CPB estimate. Enter number only, without mL."
                   }
                 />
                 <InputBlock
@@ -813,7 +882,7 @@ export default function BloodHemodilutionCalculator() {
                   label="Current reservoir level mL"
                   value={currentReservoirLevel}
                   onChange={setCurrentReservoirLevel}
-                  helperText="Projected reservoir estimate only."
+                  helperText="Projected reservoir estimate only. Enter number only, without mL."
                 />
               </div>
               <div className="flex flex-wrap gap-2">
@@ -844,14 +913,26 @@ export default function BloodHemodilutionCalculator() {
               <div className="space-y-2">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if planned changes</div>
                 <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
-                  <InputBlock id="planned-rbc-addition" label="Planned RBC addition mL" value={plannedRbcAddition} onChange={setPlannedRbcAddition} />
-                  <InputBlock id="added-crystalloid-volume" label="Added crystalloid mL" value={addedCrystalloidVolume} onChange={setAddedCrystalloidVolume} />
+                  <InputBlock
+                    id="planned-rbc-addition"
+                    label="Planned RBC addition mL"
+                    value={plannedRbcAddition}
+                    onChange={setPlannedRbcAddition}
+                    helperText="Enter number only, without mL."
+                  />
+                  <InputBlock
+                    id="added-crystalloid-volume"
+                    label="Added crystalloid mL"
+                    value={addedCrystalloidVolume}
+                    onChange={setAddedCrystalloidVolume}
+                    helperText="Enter number only, without mL."
+                  />
                   <InputBlock
                     id="removed-fluid-volume"
                     label="Removed fluid mL"
                     value={removedFluidVolume}
                     onChange={setRemovedFluidVolume}
-                    helperText="UF / hemoconcentration only. Not mixed whole blood removal."
+                    helperText="UF / hemoconcentration only. Not mixed whole blood removal. Enter number only, without mL."
                   />
                 </div>
               </div>
@@ -930,7 +1011,13 @@ export default function BloodHemodilutionCalculator() {
                         </p>
                       </div>
                       <div className="w-full md:w-56">
-                        <InputBlock id="intra-desired-hct" label="Intraoperative desired Hct %" value={intraDesiredHct} onChange={setIntraDesiredHct} />
+                        <InputBlock
+                          id="intra-desired-hct"
+                          label="Intraoperative desired Hct %"
+                          value={intraDesiredHct}
+                          onChange={setIntraDesiredHct}
+                          helperText="Enter number only, e.g. 30 for 30%."
+                        />
                       </div>
                     </div>
 
