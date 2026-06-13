@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const CALCULATOR_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCalculator"
 const PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
+const CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentEstimatedTotalVolume"
+const CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentTotalVolumeEdited"
 const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
 
 const PRIMING_VOLUME_PRESETS = [
@@ -250,8 +252,13 @@ export default function BloodHemodilutionCalculator() {
 
     try {
       const savedState = window.localStorage.getItem(CALCULATOR_STORAGE_KEY)
+      const savedCurrentVolume = window.localStorage.getItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+      const savedCurrentVolumeEdited = window.localStorage.getItem(CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY)
+
       if (savedState) {
         const parsedState = JSON.parse(savedState) as StoredCalculatorState
+        const restoredCurrentVolume = savedCurrentVolume ?? parsedState.currentEstimatedTotalVolume ?? ""
+
         setWeightKg(parsedState.weightKg ?? "")
         setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
         setSelectedPresetId(parsedState.selectedPresetId ?? "")
@@ -261,18 +268,24 @@ export default function BloodHemodilutionCalculator() {
         setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
         setRbcUnitVolume(parsedState.rbcUnitVolume ?? "200")
         setCurrentHct(parsedState.currentHct ?? "")
-        setCurrentEstimatedTotalVolume(parsedState.currentEstimatedTotalVolume ?? "")
+        setCurrentEstimatedTotalVolume(restoredCurrentVolume)
+        setCurrentTotalVolumeEdited(savedCurrentVolumeEdited === "true" || Boolean(restoredCurrentVolume.trim()))
         setCurrentReservoirLevel(parsedState.currentReservoirLevel ?? "")
         setPlannedRbcAddition(parsedState.plannedRbcAddition ?? "0")
         setAddedCrystalloidVolume(parsedState.addedCrystalloidVolume ?? "0")
         setRemovedFluidVolume(parsedState.removedFluidVolume ?? "0")
         setIntraDesiredHct(parsedState.intraDesiredHct ?? "")
       } else {
+        const restoredCurrentVolume = savedCurrentVolume ?? ""
         setPrimeVolume(window.localStorage.getItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
+        setCurrentEstimatedTotalVolume(restoredCurrentVolume)
+        setCurrentTotalVolumeEdited(savedCurrentVolumeEdited === "true" || Boolean(restoredCurrentVolume.trim()))
       }
     } catch {
       window.localStorage.removeItem(CALCULATOR_STORAGE_KEY)
       window.localStorage.removeItem(PRIME_VOLUME_STORAGE_KEY)
+      window.localStorage.removeItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+      window.localStorage.removeItem(CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY)
     }
 
     setHasLoadedSavedState(true)
@@ -325,6 +338,26 @@ export default function BloodHemodilutionCalculator() {
     selectedPresetId,
     weightKg,
   ])
+
+  useEffect(() => {
+    if (!hasLoadedSavedState || typeof window === "undefined") return
+
+    if (currentEstimatedTotalVolume.trim() === "") {
+      window.localStorage.removeItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+      return
+    }
+
+    window.localStorage.setItem(CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY, currentEstimatedTotalVolume)
+  }, [currentEstimatedTotalVolume, hasLoadedSavedState])
+
+  useEffect(() => {
+    if (!hasLoadedSavedState || typeof window === "undefined") return
+
+    window.localStorage.setItem(
+      CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY,
+      currentTotalVolumeEdited ? "true" : "false",
+    )
+  }, [currentTotalVolumeEdited, hasLoadedSavedState])
 
   const selectedPreset = selectedPresetId ? PRIMING_VOLUME_PRESETS[Number.parseInt(selectedPresetId, 10)] : undefined
   const primeVolumeNumber = parseInputNumber(primeVolume)
@@ -411,10 +444,13 @@ export default function BloodHemodilutionCalculator() {
     }
   }, [bloodVolumeCoefficient, preDesiredHct, preHct, primeVolume, rbcProductHct, rbcUnitVolume, weightKg])
 
+  const preCpbEstimatedFinalVolume = preCpbResult.status === "ready" ? preCpbResult.estimatedFinalVolume : null
+
   useEffect(() => {
-    if (preCpbResult.status !== "ready" || currentTotalVolumeEdited) return
-    setCurrentEstimatedTotalVolume(String(Math.round(preCpbResult.estimatedFinalVolume)))
-  }, [currentTotalVolumeEdited, preCpbResult])
+    if (preCpbEstimatedFinalVolume === null || currentTotalVolumeEdited) return
+
+    setCurrentEstimatedTotalVolume(String(Math.round(preCpbEstimatedFinalVolume)))
+  }, [currentTotalVolumeEdited, preCpbEstimatedFinalVolume])
 
   const hasIntraoperativeTarget = hasOptionalValue(intraDesiredHct)
 
@@ -736,7 +772,11 @@ export default function BloodHemodilutionCalculator() {
                   label="Current estimated total volume mL"
                   value={currentEstimatedTotalVolume}
                   onChange={handleCurrentVolumeChange}
-                  helperText="Auto-filled from Pre-CPB estimate, editable during CPB."
+                  helperText={
+                    currentTotalVolumeEdited
+                      ? "Manual intraoperative volume"
+                      : "Auto-filled from Pre-CPB estimate"
+                  }
                 />
                 <InputBlock
                   id="current-reservoir-level"
@@ -761,8 +801,11 @@ export default function BloodHemodilutionCalculator() {
                   disabled={preCpbResult.status !== "ready"}
                   className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Use Pre-CPB volume
+                  Use Pre-CPB estimate
                 </button>
+                <Badge variant="outline" className="bg-background/80 text-xs">
+                  {currentTotalVolumeEdited ? "Manual intraoperative volume" : "Auto-filled from Pre-CPB estimate"}
+                </Badge>
               </div>
               <p className="rounded-md bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
                 Reservoir level is used for projected reservoir estimate only. It is not directly added to total volume.
