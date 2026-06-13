@@ -205,8 +205,6 @@ type PreCpbResult =
       rbcRequiredVolume: number
       rbcUnitCount: number
       estimatedFinalVolume: number
-      estimatedFinalRbcVolume: number
-      estimatedFinalHct: number
     }
   | { status: "message"; message: string }
 
@@ -524,11 +522,9 @@ export default function BloodHemodilutionCalculator() {
     const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / (rbcHct - target))
     const rbcUnitCount = rbcRequiredVolume / unitVolume
     const estimatedFinalVolume = baseTotalVolume + rbcRequiredVolume
-    const estimatedFinalRbcVolume = patientRbcVolume + rbcRequiredVolume * rbcHct
-    const estimatedFinalHct = (estimatedFinalRbcVolume / estimatedFinalVolume) * 100
 
-    if (!Number.isFinite(estimatedFinalHct) || estimatedFinalHct < 0 || estimatedFinalHct > 100) {
-      return { status: "message", message: "Estimated final Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
+    if (!isPositiveNumericValue(estimatedFinalVolume)) {
+      return { status: "message", message: "Estimated final volume이 0 이하입니다. 입력값을 확인해주세요." }
     }
 
     return {
@@ -541,8 +537,6 @@ export default function BloodHemodilutionCalculator() {
       rbcRequiredVolume,
       rbcUnitCount,
       estimatedFinalVolume,
-      estimatedFinalRbcVolume,
-      estimatedFinalHct,
     }
   }, [bloodVolumeCoefficient, preDesiredHct, preHct, primeVolume, rbcProductHct, rbcUnitVolume, weightKg])
 
@@ -706,7 +700,7 @@ export default function BloodHemodilutionCalculator() {
 
   const applyPreCpbHct = () => {
     if (preCpbResult.status !== "ready") return
-    setCurrentHct(formatNumber(preCpbResult.estimatedFinalHct, 1))
+    setCurrentHct(formatNumber(preCpbResult.desiredHct, 1))
   }
 
   const getFluidAdjustmentCopy = (value: number) => {
@@ -828,7 +822,7 @@ export default function BloodHemodilutionCalculator() {
                 </Card>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <ResultCard
                       label="Expected Hct without RBC"
                       value={formatNumber(preCpbResult.expectedHctWithoutRbc, 1)}
@@ -847,15 +841,8 @@ export default function BloodHemodilutionCalculator() {
                         </>
                       }
                     />
-                    <ResultCard
-                      label="Estimated final Hct"
-                      value={formatNumber(preCpbResult.estimatedFinalHct, 1)}
-                      unit="%"
-                      tone={preCpbResult.estimatedFinalHct >= preCpbResult.desiredHct ? "green" : "amber"}
-                      detail={`Estimated final volume ${formatNumber(preCpbResult.estimatedFinalVolume)} mL`}
-                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-5">
                     <div>
                       <div className="text-muted-foreground">Patient volume</div>
                       <div className="font-semibold">{formatNumber(preCpbResult.patientVolume)} mL</div>
@@ -871,6 +858,10 @@ export default function BloodHemodilutionCalculator() {
                     <div>
                       <div className="text-muted-foreground">Patient RBC volume</div>
                       <div className="font-semibold">{formatNumber(preCpbResult.patientRbcVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Final volume after RBC</div>
+                      <div className="font-semibold">{formatNumber(preCpbResult.estimatedFinalVolume)} mL</div>
                     </div>
                   </div>
                 </>
