@@ -886,7 +886,7 @@ const CPBUassistant = () => {
                   : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
               }`}
             >
-              Blood / Hemodilution
+              Hct predict
             </button>
           </div>
 
