@@ -14,6 +14,9 @@ const PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
 const CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentEstimatedTotalVolume"
 const CURRENT_TOTAL_VOLUME_EDITED_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentTotalVolumeEdited"
 const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
+const DEFAULT_BLOOD_VOLUME_COEFFICIENT = "55"
+const DEFAULT_RBC_PRODUCT_HCT = "0.66"
+const DEFAULT_RBC_UNIT_VOLUME = "200"
 
 const safeLocalStorageGetItem = (key: string) => {
   if (typeof window === "undefined") return null
@@ -77,6 +80,8 @@ const parseStrictNumber = (value: string): number | null => {
 
 const parseOptionalVolume = (value: string) => (value.trim() === "" ? 0 : parseStrictNumber(value))
 const hasOptionalValue = (value: string) => value.trim() !== ""
+const defaultIfBlank = (value: string | null | undefined, defaultValue: string) =>
+  value?.trim() ? value : defaultValue
 
 const formatNumber = (value: number, decimals = 0) => {
   if (!Number.isFinite(value)) return "-"
@@ -200,8 +205,6 @@ type PreCpbResult =
       rbcRequiredVolume: number
       rbcUnitCount: number
       estimatedFinalVolume: number
-      estimatedFinalRbcVolume: number
-      estimatedFinalHct: number
     }
   | { status: "message"; message: string }
 
@@ -312,13 +315,13 @@ const ResultCard = ({
 
 export default function BloodHemodilutionCalculator() {
   const [weightKg, setWeightKg] = useState("")
-  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState("55")
+  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState(DEFAULT_BLOOD_VOLUME_COEFFICIENT)
   const [selectedPresetId, setSelectedPresetId] = useState("")
   const [primeVolume, setPrimeVolume] = useState("")
   const [preHct, setPreHct] = useState("")
   const [preDesiredHct, setPreDesiredHct] = useState("")
-  const [rbcProductHct, setRbcProductHct] = useState("0.66")
-  const [rbcUnitVolume, setRbcUnitVolume] = useState("200")
+  const [rbcProductHct, setRbcProductHct] = useState(DEFAULT_RBC_PRODUCT_HCT)
+  const [rbcUnitVolume, setRbcUnitVolume] = useState(DEFAULT_RBC_UNIT_VOLUME)
   const [currentHct, setCurrentHct] = useState("")
   const [currentEstimatedTotalVolume, setCurrentEstimatedTotalVolume] = useState("")
   const [currentReservoirLevel, setCurrentReservoirLevel] = useState("")
@@ -342,13 +345,13 @@ export default function BloodHemodilutionCalculator() {
         const restoredCurrentVolume = savedCurrentVolume ?? parsedState.currentEstimatedTotalVolume ?? ""
 
         setWeightKg(parsedState.weightKg ?? "")
-        setBloodVolumeCoefficient(parsedState.bloodVolumeCoefficient ?? "55")
+        setBloodVolumeCoefficient(defaultIfBlank(parsedState.bloodVolumeCoefficient, DEFAULT_BLOOD_VOLUME_COEFFICIENT))
         setSelectedPresetId(parsedState.selectedPresetId ?? "")
         setPrimeVolume(parsedState.primeVolume ?? safeLocalStorageGetItem(PRIME_VOLUME_STORAGE_KEY) ?? "")
         setPreHct(parsedState.preHct ?? "")
         setPreDesiredHct(parsedState.preDesiredHct ?? "")
-        setRbcProductHct(parsedState.rbcProductHct ?? "0.66")
-        setRbcUnitVolume(parsedState.rbcUnitVolume ?? "200")
+        setRbcProductHct(defaultIfBlank(parsedState.rbcProductHct, DEFAULT_RBC_PRODUCT_HCT))
+        setRbcUnitVolume(defaultIfBlank(parsedState.rbcUnitVolume, DEFAULT_RBC_UNIT_VOLUME))
         setCurrentHct(parsedState.currentHct ?? "")
         setCurrentEstimatedTotalVolume(restoredCurrentVolume)
         setCurrentTotalVolumeEdited(savedCurrentVolumeEdited === "true" || Boolean(restoredCurrentVolume.trim()))
@@ -515,15 +518,15 @@ export default function BloodHemodilutionCalculator() {
       return { status: "message", message: "Expected Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
     }
 
-    // RBC required mL = max(0, (Target × Base total volume - Patient RBC volume) / (RBC product Hct - Target))
-    const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / (rbcHct - target))
+    // RBC required mL = max(0, (Target × Base total volume - Patient RBC volume) / RBC product Hct)
+    // This targets the requested Hct against the patient + prime base volume,
+    // without adding RBC volume to the target denominator.
+    const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / rbcHct)
     const rbcUnitCount = rbcRequiredVolume / unitVolume
     const estimatedFinalVolume = baseTotalVolume + rbcRequiredVolume
-    const estimatedFinalRbcVolume = patientRbcVolume + rbcRequiredVolume * rbcHct
-    const estimatedFinalHct = (estimatedFinalRbcVolume / estimatedFinalVolume) * 100
 
-    if (!Number.isFinite(estimatedFinalHct) || estimatedFinalHct < 0 || estimatedFinalHct > 100) {
-      return { status: "message", message: "Estimated final Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
+    if (!isPositiveNumericValue(estimatedFinalVolume)) {
+      return { status: "message", message: "Estimated final volume이 0 이하입니다. 입력값을 확인해주세요." }
     }
 
     return {
@@ -536,8 +539,6 @@ export default function BloodHemodilutionCalculator() {
       rbcRequiredVolume,
       rbcUnitCount,
       estimatedFinalVolume,
-      estimatedFinalRbcVolume,
-      estimatedFinalHct,
     }
   }, [bloodVolumeCoefficient, preDesiredHct, preHct, primeVolume, rbcProductHct, rbcUnitVolume, weightKg])
 
@@ -620,6 +621,9 @@ export default function BloodHemodilutionCalculator() {
     }
 
     const netVolumeChange = plannedRbc + addedCrystalloid - removedFluid
+    // Projected reservoir is an operational reference only:
+    // Current reservoir level + Planned RBC addition + Added crystalloid - Removed fluid.
+    // It is not included in the Hct denominator.
     const projectedReservoirLevel = reservoirLevel === null ? null : reservoirLevel + netVolumeChange
     const reservoirWarning =
       projectedReservoirLevel !== null && projectedReservoirLevel <= 0
@@ -640,6 +644,8 @@ export default function BloodHemodilutionCalculator() {
           : fluidAdjustmentToTarget > FLUID_ADJUSTMENT_THRESHOLD_ML
             ? "add"
             : "none"
+    // Shows the operational reservoir estimate after target fluid adjustment only.
+    // This value is not fed back into Hct calculation.
     const projectedReservoirAfterTarget =
       projectedReservoirLevel === null || fluidAdjustmentToTarget === null ? null : projectedReservoirLevel + fluidAdjustmentToTarget
     const targetReservoirWarning =
@@ -701,7 +707,7 @@ export default function BloodHemodilutionCalculator() {
 
   const applyPreCpbHct = () => {
     if (preCpbResult.status !== "ready") return
-    setCurrentHct(formatNumber(preCpbResult.estimatedFinalHct, 1))
+    setCurrentHct(formatNumber(preCpbResult.desiredHct, 1))
   }
 
   const getFluidAdjustmentCopy = (value: number) => {
@@ -755,22 +761,7 @@ export default function BloodHemodilutionCalculator() {
                 helperText="Enter number only."
               />
               <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} helperText="Enter number only, e.g. 30 for 30%." />
-              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} helperText="Enter number only, without mL." />
-              <InputBlock
-                id="rbc-product-hct"
-                label="RBC product Hct"
-                value={rbcProductHct}
-                onChange={setRbcProductHct}
-                helperText="Enter as fraction, e.g. 0.66 for 66%."
-              />
-              <InputBlock
-                id="rbc-unit-volume"
-                label="RBC-LF unit volume mL/unit"
-                value={rbcUnitVolume}
-                onChange={setRbcUnitVolume}
-                helperText="Department default: 200 mL/unit. Enter number only."
-              />
-              <div className="space-y-1.5 md:col-span-3 xl:col-span-2">
+              <div className="space-y-1.5 md:col-span-3 xl:col-span-4">
                 <Label htmlFor="tubing-set" className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
                   Tubing set selector
                 </Label>
@@ -791,6 +782,21 @@ export default function BloodHemodilutionCalculator() {
                   </SelectContent>
                 </Select>
               </div>
+              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} helperText="Enter number only, without mL." />
+              <InputBlock
+                id="rbc-product-hct"
+                label="RBC product Hct"
+                value={rbcProductHct}
+                onChange={setRbcProductHct}
+                helperText="Enter as fraction, e.g. 0.66 for 66%."
+              />
+              <InputBlock
+                id="rbc-unit-volume"
+                label="RBC-LF unit volume mL/unit"
+                value={rbcUnitVolume}
+                onChange={setRbcUnitVolume}
+                helperText="Department default: 200 mL/unit. Enter number only."
+              />
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <Badge variant="outline" className="bg-background/80">
@@ -823,7 +829,7 @@ export default function BloodHemodilutionCalculator() {
                 </Card>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <ResultCard
                       label="Expected Hct without RBC"
                       value={formatNumber(preCpbResult.expectedHctWithoutRbc, 1)}
@@ -842,15 +848,8 @@ export default function BloodHemodilutionCalculator() {
                         </>
                       }
                     />
-                    <ResultCard
-                      label="Estimated final Hct"
-                      value={formatNumber(preCpbResult.estimatedFinalHct, 1)}
-                      unit="%"
-                      tone={preCpbResult.estimatedFinalHct >= preCpbResult.desiredHct ? "green" : "amber"}
-                      detail={`Estimated final volume ${formatNumber(preCpbResult.estimatedFinalVolume)} mL`}
-                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-5">
                     <div>
                       <div className="text-muted-foreground">Patient volume</div>
                       <div className="font-semibold">{formatNumber(preCpbResult.patientVolume)} mL</div>
@@ -866,6 +865,10 @@ export default function BloodHemodilutionCalculator() {
                     <div>
                       <div className="text-muted-foreground">Patient RBC volume</div>
                       <div className="font-semibold">{formatNumber(preCpbResult.patientRbcVolume)} mL</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Final volume after RBC</div>
+                      <div className="font-semibold">{formatNumber(preCpbResult.estimatedFinalVolume)} mL</div>
                     </div>
                   </div>
                 </>
@@ -887,32 +890,35 @@ export default function BloodHemodilutionCalculator() {
                 <Badge variant="outline" className="bg-background/80">RBC-LF: {rbcUnitVolume || "-"} mL/unit</Badge>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <InputBlock
-                  id="current-hct"
-                  label="Current Hct %"
-                  value={currentHct}
-                  onChange={setCurrentHct}
-                  helperText="Enter number only, e.g. 30 for 30%."
-                />
-                <InputBlock
-                  id="current-estimated-volume"
-                  label="Current estimated total volume mL"
-                  value={currentEstimatedTotalVolume}
-                  onChange={handleCurrentVolumeChange}
-                  helperText={
-                    currentTotalVolumeEdited
-                      ? "Manual intraoperative volume. Enter number only, without mL."
-                      : "Auto-filled from Pre-CPB estimate. Enter number only, without mL."
-                  }
-                />
-                <InputBlock
-                  id="current-reservoir-level"
-                  label="Current reservoir level mL"
-                  value={currentReservoirLevel}
-                  onChange={setCurrentReservoirLevel}
-                  helperText="Projected reservoir estimate only. Enter number only, without mL."
-                />
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current baseline</div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <InputBlock
+                    id="current-hct"
+                    label="Current Hct %"
+                    value={currentHct}
+                    onChange={setCurrentHct}
+                    helperText="Enter number only, e.g. 30 for 30%."
+                  />
+                  <InputBlock
+                    id="current-estimated-volume"
+                    label="Current estimated total volume mL"
+                    value={currentEstimatedTotalVolume}
+                    onChange={handleCurrentVolumeChange}
+                    helperText={
+                      currentTotalVolumeEdited
+                        ? "Hct denominator volume. Edit if changed during CPB."
+                        : "Auto-filled from Pre-CPB estimate. Edit if changed during CPB."
+                    }
+                  />
+                  <InputBlock
+                    id="current-reservoir-level"
+                    label="Current reservoir level mL"
+                    value={currentReservoirLevel}
+                    onChange={setCurrentReservoirLevel}
+                    helperText="Optional. Reference only; not added to total volume."
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -935,10 +941,6 @@ export default function BloodHemodilutionCalculator() {
                   {currentTotalVolumeEdited ? "Manual intraoperative volume" : "Auto-filled from Pre-CPB estimate"}
                 </Badge>
               </div>
-              <p className="rounded-md bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
-                Reservoir level is used for projected reservoir estimate only. It is not directly added to total volume.
-              </p>
-
               <div className="space-y-2">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if planned changes</div>
                 <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
@@ -1000,6 +1002,7 @@ export default function BloodHemodilutionCalculator() {
                           value={formatNumber(intraoperativeResult.projectedReservoirLevel)}
                           unit="mL"
                           tone={intraoperativeResult.projectedReservoirLevel <= 0 ? "amber" : "blue"}
+                          detail="Reference only"
                         />
                       )}
                     </div>
@@ -1010,7 +1013,7 @@ export default function BloodHemodilutionCalculator() {
                       <span>{intraoperativeResult.reservoirWarning}</span>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-3">
                     <div>
                       <div className="text-muted-foreground">Current RBC volume</div>
                       <div className="font-semibold">{formatNumber(intraoperativeResult.currentRbcVolume)} mL</div>
@@ -1023,12 +1026,6 @@ export default function BloodHemodilutionCalculator() {
                       <div className="text-muted-foreground">New RBC volume</div>
                       <div className="font-semibold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Projected reservoir</div>
-                      <div className="font-semibold">
-                        {intraoperativeResult.projectedReservoirLevel === null ? "Not entered" : `${formatNumber(intraoperativeResult.projectedReservoirLevel)} mL`}
-                      </div>
-                    </div>
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
@@ -1036,7 +1033,7 @@ export default function BloodHemodilutionCalculator() {
                       <div>
                         <div className="text-sm font-semibold text-foreground">Target helper</div>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Optional target. If entered, the calculator estimates RBC needed or fluid adjustment needed to reach this Hct.
+                          Optional target for RBC or fluid adjustment.
                         </p>
                       </div>
                       <div className="w-full md:w-56">
@@ -1083,7 +1080,7 @@ export default function BloodHemodilutionCalculator() {
                                 Target Hct {formatNumber(intraoperativeResult.desiredHct, 1)}%
                                 {intraoperativeResult.projectedReservoirAfterTarget !== null && (
                                   <>
-                                    <br />Projected reservoir: {formatNumber(intraoperativeResult.projectedReservoirAfterTarget)} mL
+                                    <br />Reservoir after target: {formatNumber(intraoperativeResult.projectedReservoirAfterTarget)} mL
                                   </>
                                 )}
                               </>
