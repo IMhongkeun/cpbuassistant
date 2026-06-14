@@ -907,8 +907,8 @@ export default function BloodHemodilutionCalculator() {
                     onChange={handleCurrentVolumeChange}
                     helperText={
                       currentTotalVolumeEdited
-                        ? "Edit this if crystalloid, RBC, UF, sampling, or circuit volume has changed during CPB."
-                        : "Auto-filled from Pre-CPB estimate. Edit this if crystalloid, RBC, UF, sampling, or circuit volume has changed during CPB."
+                        ? "Hct denominator volume. Edit if changed during CPB."
+                        : "Auto-filled from Pre-CPB estimate. Edit if changed during CPB."
                     }
                   />
                   <InputBlock
@@ -916,7 +916,7 @@ export default function BloodHemodilutionCalculator() {
                     label="Current reservoir level mL"
                     value={currentReservoirLevel}
                     onChange={setCurrentReservoirLevel}
-                    helperText="Optional. Used only to estimate projected reservoir level after planned volume changes. Not added to total volume."
+                    helperText="Optional. Reference only; not added to total volume."
                   />
                 </div>
               </div>
@@ -941,10 +941,6 @@ export default function BloodHemodilutionCalculator() {
                   {currentTotalVolumeEdited ? "Manual intraoperative volume" : "Auto-filled from Pre-CPB estimate"}
                 </Badge>
               </div>
-              <p className="rounded-md bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
-                Current estimated total volume is the Hct denominator. Reservoir level is an operational reference only and is not added to the Hct denominator.
-              </p>
-
               <div className="space-y-2">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if planned changes</div>
                 <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
@@ -1006,7 +1002,7 @@ export default function BloodHemodilutionCalculator() {
                           value={formatNumber(intraoperativeResult.projectedReservoirLevel)}
                           unit="mL"
                           tone={intraoperativeResult.projectedReservoirLevel <= 0 ? "amber" : "blue"}
-                          detail="Operational reference only. Not included in Hct denominator."
+                          detail="Reference only"
                         />
                       )}
                     </div>
@@ -1017,7 +1013,7 @@ export default function BloodHemodilutionCalculator() {
                       <span>{intraoperativeResult.reservoirWarning}</span>
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-3">
                     <div>
                       <div className="text-muted-foreground">Current RBC volume</div>
                       <div className="font-semibold">{formatNumber(intraoperativeResult.currentRbcVolume)} mL</div>
@@ -1030,15 +1026,6 @@ export default function BloodHemodilutionCalculator() {
                       <div className="text-muted-foreground">New RBC volume</div>
                       <div className="font-semibold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Projected reservoir</div>
-                      <div className="font-semibold">
-                        {intraoperativeResult.projectedReservoirLevel === null
-                          ? "Enter reservoir level to estimate"
-                          : `${formatNumber(intraoperativeResult.projectedReservoirLevel)} mL`}
-                      </div>
-                      <div className="text-muted-foreground">Operational reference only</div>
-                    </div>
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
@@ -1046,8 +1033,7 @@ export default function BloodHemodilutionCalculator() {
                       <div>
                         <div className="text-sm font-semibold text-foreground">Target helper</div>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Optional target. If entered, the calculator estimates RBC needed or fluid adjustment needed to reach this Hct.
-                          Reservoir projection remains an operational reference only.
+                          Optional target for RBC or fluid adjustment.
                         </p>
                       </div>
                       <div className="w-full md:w-56">
@@ -1094,8 +1080,7 @@ export default function BloodHemodilutionCalculator() {
                                 Target Hct {formatNumber(intraoperativeResult.desiredHct, 1)}%
                                 {intraoperativeResult.projectedReservoirAfterTarget !== null && (
                                   <>
-                                    <br />Projected reservoir after target adjustment: {formatNumber(intraoperativeResult.projectedReservoirAfterTarget)} mL
-                                    <br />Not included in Hct denominator.
+                                    <br />Reservoir after target: {formatNumber(intraoperativeResult.projectedReservoirAfterTarget)} mL
                                   </>
                                 )}
                               </>
