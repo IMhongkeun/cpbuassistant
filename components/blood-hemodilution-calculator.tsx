@@ -1031,39 +1031,39 @@ export default function BloodHemodilutionCalculator() {
                     helperText="RBC-free fluid removal로 계산합니다. Mixed whole blood removal에는 사용하지 마세요."
                   />
                 </div>
-              </div>
 
-              {intraoperativeResult.status === "message" ? (
-                <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
-                  <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{intraoperativeResult.message}</CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-xs md:grid-cols-5">
-                    <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-100">
-                      <div className="text-muted-foreground dark:text-rose-200/80">Predicted Hct</div>
-                      <div className="text-xl font-extrabold">{formatNumber(intraoperativeResult.predictedHct, 1)}%</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Hct delta</div>
-                      <div className="text-lg font-bold">{`${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)}`}%p</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Net planned</div>
-                      <div className="text-lg font-bold">{formatSignedMl(intraoperativeResult.netVolumeChange)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">New total</div>
-                      <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newTotalVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">New RBC</div>
-                      <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
+                {intraoperativeResult.status === "message" ? (
+                  <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                    <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{intraoperativeResult.message}</CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-xs md:grid-cols-5">
+                      <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-100">
+                        <div className="text-muted-foreground dark:text-rose-200/80">Predicted Hct</div>
+                        <div className="text-xl font-extrabold">{formatNumber(intraoperativeResult.predictedHct, 1)}%</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Hct delta</div>
+                        <div className="text-lg font-bold">{`${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)}`}%p</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Net planned</div>
+                        <div className="text-lg font-bold">{formatSignedMl(intraoperativeResult.netVolumeChange)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">New total</div>
+                        <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newTotalVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">New RBC</div>
+                        <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </SectionCard>
           </div>
         </CardContent>
