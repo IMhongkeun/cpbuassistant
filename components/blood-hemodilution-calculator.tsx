@@ -761,15 +761,14 @@ export default function BloodHemodilutionCalculator() {
             description="Pre-CPB planning과 intraoperative simulation에서 공통으로 사용하는 값입니다."
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} helperText="Enter number only, without kg." />
+              <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} />
               <InputBlock
                 id="blood-volume-coefficient"
                 label="Blood volume coefficient mL/kg"
                 value={bloodVolumeCoefficient}
                 onChange={setBloodVolumeCoefficient}
-                helperText="Enter number only."
               />
-              <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} helperText="Enter number only, e.g. 30 for 30%." />
+              <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} />
               <div className="space-y-1.5 md:col-span-3 xl:col-span-4">
                 <Label htmlFor="tubing-set" className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
                   Tubing set selector
@@ -791,7 +790,7 @@ export default function BloodHemodilutionCalculator() {
                   </SelectContent>
                 </Select>
               </div>
-              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} helperText="Enter number only, without mL." />
+              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} />
               <InputBlock
                 id="rbc-product-hct"
                 label="RBC product Hct"
@@ -804,7 +803,7 @@ export default function BloodHemodilutionCalculator() {
                 label="RBC-LF unit volume mL/unit"
                 value={rbcUnitVolume}
                 onChange={setRbcUnitVolume}
-                helperText="Department default: 200 mL/unit. Enter number only."
+                helperText="Department default: 200 mL/unit."
               />
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -813,9 +812,6 @@ export default function BloodHemodilutionCalculator() {
               </Badge>
               {selectedPreset && <span className="text-muted-foreground">{getPresetLabel(selectedPreset)}</span>}
             </div>
-            <p className="rounded-md bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
-              Patient RBC volume = Patient volume × Pre-Hct / 100. Prime과 crystalloid는 RBC volume을 증가시키지 않습니다.
-            </p>
           </SectionCard>
 
           <div className="grid grid-cols-1 gap-4">
@@ -830,7 +826,6 @@ export default function BloodHemodilutionCalculator() {
                   label="Desired Hct %"
                   value={preDesiredHct}
                   onChange={setPreDesiredHct}
-                  helperText="숫자만 입력하세요. 예: 30"
                 />
 
                 <div className="space-y-3">
@@ -905,7 +900,6 @@ export default function BloodHemodilutionCalculator() {
                         value={currentHct}
                         onChange={setCurrentHct}
                         placeholder="0"
-                        helperText="현재 ABGA/lab Hct를 숫자만 입력하세요."
                       />
                       <InputBlock
                         id="intra-net-volume-change-from-base"
@@ -972,7 +966,7 @@ export default function BloodHemodilutionCalculator() {
                       value={intraDesiredHct}
                       onChange={setIntraDesiredHct}
                       placeholder="0"
-                      helperText="선택 입력입니다. 숫자만 입력하세요."
+                      helperText="선택 입력입니다."
                     />
                   </div>
                 </div>
@@ -1037,39 +1031,39 @@ export default function BloodHemodilutionCalculator() {
                     helperText="RBC-free fluid removal로 계산합니다. Mixed whole blood removal에는 사용하지 마세요."
                   />
                 </div>
-              </div>
 
-              {intraoperativeResult.status === "message" ? (
-                <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
-                  <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{intraoperativeResult.message}</CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-xs md:grid-cols-5">
-                    <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-100">
-                      <div className="text-muted-foreground dark:text-rose-200/80">Predicted Hct</div>
-                      <div className="text-xl font-extrabold">{formatNumber(intraoperativeResult.predictedHct, 1)}%</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Hct delta</div>
-                      <div className="text-lg font-bold">{`${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)}`}%p</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Net planned</div>
-                      <div className="text-lg font-bold">{formatSignedMl(intraoperativeResult.netVolumeChange)}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">New total</div>
-                      <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newTotalVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">New RBC</div>
-                      <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
+                {intraoperativeResult.status === "message" ? (
+                  <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                    <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{intraoperativeResult.message}</CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-xs md:grid-cols-5">
+                      <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-100">
+                        <div className="text-muted-foreground dark:text-rose-200/80">Predicted Hct</div>
+                        <div className="text-xl font-extrabold">{formatNumber(intraoperativeResult.predictedHct, 1)}%</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Hct delta</div>
+                        <div className="text-lg font-bold">{`${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)}`}%p</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Net planned</div>
+                        <div className="text-lg font-bold">{formatSignedMl(intraoperativeResult.netVolumeChange)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">New total</div>
+                        <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newTotalVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">New RBC</div>
+                        <div className="text-lg font-bold">{formatNumber(intraoperativeResult.newRbcVolume)} mL</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </SectionCard>
           </div>
         </CardContent>
