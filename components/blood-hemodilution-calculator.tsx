@@ -828,7 +828,7 @@ export default function BloodHemodilutionCalculator() {
             </p>
           </SectionCard>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4">
             <SectionCard
               title="Pre-CPB prime planning"
               icon={<FlaskConical className="h-4 w-4" />}
@@ -973,7 +973,8 @@ export default function BloodHemodilutionCalculator() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
                 <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
                   <div>
                     <div className="text-sm font-semibold text-foreground">Target Hct helper</div>
@@ -1017,11 +1018,11 @@ export default function BloodHemodilutionCalculator() {
                     />
                   </div>
                 ) : null}
-              </div>
+                </div>
 
-              <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if planned changes</div>
-                <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if planned changes</div>
+                  <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
                   <InputBlock
                     id="planned-rbc-addition"
                     label="Planned RBC addition mL"
@@ -1046,6 +1047,7 @@ export default function BloodHemodilutionCalculator() {
                     placeholder="0"
                     helperText="RBC-free fluid removal로 계산합니다. Mixed whole blood removal에는 사용하지 마세요."
                   />
+                  </div>
                 </div>
               </div>
 
@@ -1056,7 +1058,7 @@ export default function BloodHemodilutionCalculator() {
               ) : (
                 <div className="space-y-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <ResultCard
                       label="Predicted Hct"
                       value={formatNumber(intraoperativeResult.predictedHct, 1)}
