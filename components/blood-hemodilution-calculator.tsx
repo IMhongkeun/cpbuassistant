@@ -665,13 +665,14 @@ export default function BloodHemodilutionCalculator() {
 
     const netVolumeChange = plannedRbc + addedCrystalloid - removedFluid
 
-    // Target helper is optional. When entered, it uses the post-planned-change RBC/total volume as baseline.
-    // RBC needed to target = max(0, (Target × New total volume - New RBC volume) / (RBC product Hct - Target)).
-    const rbcNeededVolume = target === null ? null : Math.max(0, (target * newTotalVolume - newRbcVolume) / (rbcHct - target))
+    // Target helper is optional and uses the current baseline only.
+    // It is intentionally separate from what-if planned changes/results.
+    // RBC needed to target = max(0, (Target × Current total volume - Current RBC volume) / (RBC product Hct - Target)).
+    const rbcNeededVolume = target === null ? null : Math.max(0, (target * currentTotalVolume - currentRbcVolume) / (rbcHct - target))
     const rbcNeededUnitCount = rbcNeededVolume === null ? null : rbcNeededVolume / unitVolume
-    // Target total volume = New RBC volume / Target; Fluid adjustment to target = Target total volume - New total volume.
-    const targetTotalVolume = target === null ? null : newRbcVolume / target
-    const fluidAdjustmentToTarget = targetTotalVolume === null ? null : targetTotalVolume - newTotalVolume
+    // Target total volume = Current RBC volume / Target; Fluid adjustment to target = Target total volume - Current total volume.
+    const targetTotalVolume = target === null ? null : currentRbcVolume / target
+    const fluidAdjustmentToTarget = targetTotalVolume === null ? null : targetTotalVolume - currentTotalVolume
     const fluidAdjustmentAction =
       fluidAdjustmentToTarget === null
         ? null
@@ -962,7 +963,7 @@ export default function BloodHemodilutionCalculator() {
                 <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
                   <div>
                     <div className="text-sm font-semibold text-foreground">Target Hct helper</div>
-                    <p className="text-xs leading-relaxed text-muted-foreground">목표 Hct 도달을 위한 RBC 추가 또는 HF/UF 조정 옵션을 계산합니다.</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">현재 baseline 기준으로 목표 Hct 도달 옵션을 계산합니다.</p>
                   </div>
                   <div className="w-full md:w-56">
                     <InputBlock
@@ -1003,9 +1004,14 @@ export default function BloodHemodilutionCalculator() {
                   </div>
                 ) : null}
 
-                <div className="border-t border-border/70 pt-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if planned changes</div>
-                  <div className="mt-2 grid grid-cols-1 items-start gap-3 md:grid-cols-3">
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/70 bg-background/60 p-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">What-if planned changes</div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">현재 baseline에 planned change만 적용한 별도 예측입니다.</p>
+                </div>
+                <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
                   <InputBlock
                     id="planned-rbc-addition"
                     label="Planned RBC addition mL"
@@ -1030,7 +1036,6 @@ export default function BloodHemodilutionCalculator() {
                     placeholder="0"
                     helperText="RBC-free fluid removal로 계산합니다. Mixed whole blood removal에는 사용하지 마세요."
                   />
-                  </div>
                 </div>
               </div>
 
@@ -1042,9 +1047,9 @@ export default function BloodHemodilutionCalculator() {
                 <div className="space-y-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
                   <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/20 p-3 text-xs md:grid-cols-5">
-                    <div>
-                      <div className="text-muted-foreground">Predicted Hct</div>
-                      <div className="text-lg font-bold">{formatNumber(intraoperativeResult.predictedHct, 1)}%</div>
+                    <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-100">
+                      <div className="text-muted-foreground dark:text-rose-200/80">Predicted Hct</div>
+                      <div className="text-xl font-extrabold">{formatNumber(intraoperativeResult.predictedHct, 1)}%</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Hct delta</div>
