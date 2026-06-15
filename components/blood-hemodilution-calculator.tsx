@@ -661,7 +661,7 @@ export default function BloodHemodilutionCalculator() {
               <CardTitle className="text-2xl font-bold tracking-tight">Hct predict</CardTitle>
               <div className="text-sm font-semibold text-green-800 dark:text-green-200">PCS CPB Hct 예측</div>
               <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-                Pre-CPB prime planning과 수술 중 volume balance에 따른 Hct 변화를 계산합니다.
+                Pre-CPB prime planning과 수술 중 Hct 변화를 계산합니다.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
@@ -738,24 +738,26 @@ export default function BloodHemodilutionCalculator() {
               {selectedPreset && <span className="text-muted-foreground">{getPresetLabel(selectedPreset)}</span>}
             </div>
             <p className="rounded-md bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
-              Patient RBC volume은 Patient volume × Pre-Hct / 100으로만 계산합니다. Prime과 crystalloid는 RBC volume을 증가시키지 않습니다.
+              Patient RBC volume = Patient volume × Pre-Hct / 100. Prime과 crystalloid는 RBC volume을 증가시키지 않습니다.
             </p>
           </SectionCard>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SectionCard
               title="Pre-CPB prime planning"
               icon={<FlaskConical className="h-4 w-4" />}
               description="목표 Hct를 맞추기 위해 prime에 섞을 RBC volume을 계산합니다."
             >
-              <InputBlock
-                id="pre-desired-hct"
-                label="Desired Hct %"
-                value={preDesiredHct}
-                onChange={setPreDesiredHct}
-                helperText="Enter number only, e.g. 30 for 30%."
-              />
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(180px,220px)_1fr] lg:items-start">
+                <InputBlock
+                  id="pre-desired-hct"
+                  label="Desired Hct %"
+                  value={preDesiredHct}
+                  onChange={setPreDesiredHct}
+                  helperText="숫자만 입력하세요. 예: 30"
+                />
 
+                <div className="space-y-3">
               {preCpbResult.status === "message" ? (
                 <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
                   <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{preCpbResult.message}</CardContent>
@@ -777,7 +779,7 @@ export default function BloodHemodilutionCalculator() {
                       detail={
                         <>
                           ≈ {formatNumber(preCpbResult.rbcUnitCount, 1)} unit<br />
-                          Based on RBC-LF {rbcUnitVolume || "-"} mL/unit
+                          RBC-LF {rbcUnitVolume || "-"} mL/unit 기준
                         </>
                       }
                     />
@@ -806,17 +808,15 @@ export default function BloodHemodilutionCalculator() {
                   </div>
                 </>
               )}
+                </div>
+              </div>
             </SectionCard>
 
             <SectionCard
               title="Intraoperative Hct simulation"
               icon={<Droplets className="h-4 w-4" />}
-              description="현재 Hct와 환자 volume + prime volume 대비 net volume 변화를 입력하세요. 현재 Hct에는 이전의 희석, 수혈, HF/UF에 의한 농축 효과가 이미 반영되어 있다고 간주합니다."
+              description="현재 Hct와 base volume 대비 net volume 변화만 입력합니다. 현재 Hct에는 이전 희석, 수혈, HF/UF 효과가 이미 반영된 것으로 간주합니다."
             >
-              <p className="rounded-md bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
-                Enter the current Hct and the net volume change from patient volume + prime volume. The current Hct already reflects prior dilution, transfusion, or hemoconcentration.
-              </p>
-
               <div className="flex flex-wrap gap-2 text-xs">
                 <Badge variant="outline" className="bg-background/80">RBC product Hct: {formatPercentFromFraction(rbcProductHctNumber ?? Number.NaN)}%</Badge>
                 <Badge variant="outline" className="bg-background/80">RBC-LF: {rbcUnitVolume || "-"} mL/unit</Badge>
@@ -824,54 +824,113 @@ export default function BloodHemodilutionCalculator() {
 
               <div className="space-y-2">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current baseline</div>
-                {intraoperativeResult.status === "ready" && (
-                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-3">
-                    <div>
-                      <div className="text-muted-foreground">Patient volume</div>
-                      <div className="font-semibold">{formatNumber(intraoperativeResult.patientVolume)} mL</div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_1.15fr]">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <InputBlock
+                        id="current-hct"
+                        label="Current Hct %"
+                        value={currentHct}
+                        onChange={setCurrentHct}
+                        placeholder="0"
+                        helperText="현재 ABGA/lab Hct를 숫자만 입력하세요."
+                      />
+                      <InputBlock
+                        id="intra-net-volume-change-from-base"
+                        label="Net volume change from base mL"
+                        value={intraNetVolumeChangeFromBase}
+                        onChange={setIntraNetVolumeChangeFromBase}
+                        placeholder="0"
+                        helperText="Base 대비 증가량은 양수, 감소량은 음수로 입력하세요."
+                      />
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Prime volume</div>
-                      <div className="font-semibold">{formatNumber(intraoperativeResult.primeVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Base volume</div>
-                      <div className="font-semibold">{formatNumber(intraoperativeResult.baseVolume)} mL</div>
-                      <div className="text-muted-foreground">Patient {formatNumber(intraoperativeResult.patientVolume)} mL + Prime {formatNumber(intraoperativeResult.primeVolume)} mL</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={applyPreCpbHct}
+                        disabled={preCpbResult.status !== "ready"}
+                        className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Use Pre-CPB Hct
+                      </button>
                     </div>
                   </div>
-                )}
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <InputBlock
-                    id="current-hct"
-                    label="Current Hct %"
-                    value={currentHct}
-                    onChange={setCurrentHct}
-                    placeholder="0"
-                    helperText="Enter current ABGA/lab Hct. It already reflects prior RBC, crystalloid, and HF/UF effects."
-                  />
-                  <InputBlock
-                    id="intra-net-volume-change-from-base"
-                    label="Net volume change from base mL"
-                    value={intraNetVolumeChangeFromBase}
-                    onChange={setIntraNetVolumeChangeFromBase}
-                    placeholder="0"
-                    helperText="환자 volume + prime volume 대비 현재 총 volume이 얼마나 늘거나 줄었는지 net 값으로 입력하세요. 증가하면 양수, 감소하면 음수입니다."
-                  />
+
+                  {intraoperativeResult.status === "ready" && (
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs sm:grid-cols-3">
+                      <div>
+                        <div className="text-muted-foreground">Patient volume</div>
+                        <div className="font-semibold">{formatNumber(intraoperativeResult.patientVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Prime volume</div>
+                        <div className="font-semibold">{formatNumber(intraoperativeResult.primeVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Base volume</div>
+                        <div className="font-semibold">{formatNumber(intraoperativeResult.baseVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Current total</div>
+                        <div className="font-semibold">{formatNumber(intraoperativeResult.currentTotalVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Current RBC</div>
+                        <div className="font-semibold">{formatNumber(intraoperativeResult.currentRbcVolume)} mL</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Net from base</div>
+                        <div className="font-semibold">{formatSignedMl(intraoperativeResult.netVolumeChangeFromBase)}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  Current estimated total volume = patient volume + prime volume + net volume change from base. 현재 총 volume = 환자 volume + prime volume + net volume 변화량입니다.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={applyPreCpbHct}
-                    disabled={preCpbResult.status !== "ready"}
-                    className="rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Use Pre-CPB Hct
-                  </button>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+                <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">Target Hct helper</div>
+                    <p className="text-xs leading-relaxed text-muted-foreground">목표 Hct 도달을 위한 RBC 추가 또는 HF/UF 조정 옵션을 계산합니다.</p>
+                  </div>
+                  <div className="w-full md:w-56">
+                    <InputBlock
+                      id="intra-desired-hct"
+                      label="Intraoperative desired Hct %"
+                      value={intraDesiredHct}
+                      onChange={setIntraDesiredHct}
+                      placeholder="0"
+                      helperText="선택 입력입니다. 숫자만 입력하세요."
+                    />
+                  </div>
                 </div>
+
+                {intraoperativeResult.status !== "ready" ? null : !hasIntraoperativeTarget ? (
+                  <Card className="border-border/70 bg-background/70 shadow-sm">
+                    <CardContent className="p-3 text-sm text-muted-foreground">
+                      Target Hct를 입력하면 RBC 또는 HF/UF 조정량을 표시합니다.
+                    </CardContent>
+                  </Card>
+                ) : intraoperativeResult.desiredHct !== null &&
+                  intraoperativeResult.rbcNeededVolume !== null &&
+                  intraoperativeResult.rbcNeededUnitCount !== null &&
+                  intraoperativeResult.fluidAdjustmentToTarget !== null ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <ResultCard
+                      label="RBC needed to target"
+                      value={intraoperativeResult.rbcNeededVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? "RBC 불필요" : formatNumber(intraoperativeResult.rbcNeededVolume)}
+                      unit={intraoperativeResult.rbcNeededVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? undefined : "mL"}
+                      tone={intraoperativeResult.rbcNeededVolume > FLUID_ADJUSTMENT_THRESHOLD_ML ? "rose" : "green"}
+                      detail={<>≈ {formatNumber(intraoperativeResult.rbcNeededUnitCount, 1)} unit</>}
+                    />
+                    <ResultCard
+                      label="Fluid adjustment to target"
+                      value={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).label}
+                      tone={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).tone}
+                      detail={`목표 Hct ${formatNumber(intraoperativeResult.desiredHct, 1)}%`}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -883,7 +942,7 @@ export default function BloodHemodilutionCalculator() {
                     value={plannedRbcAddition}
                     onChange={setPlannedRbcAddition}
                     placeholder="0"
-                    helperText="Enter number only, without mL."
+                    helperText="앞으로 넣을 RBC volume입니다."
                   />
                   <InputBlock
                     id="added-crystalloid-volume"
@@ -891,7 +950,7 @@ export default function BloodHemodilutionCalculator() {
                     value={addedCrystalloidVolume}
                     onChange={setAddedCrystalloidVolume}
                     placeholder="0"
-                    helperText="Crystalloid / cardioplegia / test saline. Enter number only, without mL."
+                    helperText="Crystalloid, cardioplegia, test saline 합산 volume입니다."
                   />
                   <InputBlock
                     id="removed-fluid-volume"
@@ -899,7 +958,7 @@ export default function BloodHemodilutionCalculator() {
                     value={removedFluidVolume}
                     onChange={setRemovedFluidVolume}
                     placeholder="0"
-                    helperText="Treated as RBC-free fluid removal. Do not use for mixed whole blood removal."
+                    helperText="RBC-free fluid removal로 계산합니다. Mixed whole blood removal에는 사용하지 마세요."
                   />
                 </div>
               </div>
@@ -909,104 +968,32 @@ export default function BloodHemodilutionCalculator() {
                   <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{intraoperativeResult.message}</CardContent>
                 </Card>
               ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <ResultCard
-                      label="Current estimated total volume"
-                      value={formatNumber(intraoperativeResult.currentTotalVolume)}
-                      unit="mL"
-                      tone="blue"
-                      detail={`Base ${formatNumber(intraoperativeResult.baseVolume)} mL + Net change ${formatSignedMl(intraoperativeResult.netVolumeChangeFromBase)}`}
+                      label="Predicted Hct"
+                      value={formatNumber(intraoperativeResult.predictedHct, 1)}
+                      unit="%"
+                      tone={hasIntraoperativeTarget && intraoperativeResult.desiredHct !== null && intraoperativeResult.predictedHct >= intraoperativeResult.desiredHct ? "green" : "amber"}
                     />
                     <ResultCard
-                      label="Current RBC volume"
-                      value={formatNumber(intraoperativeResult.currentRbcVolume)}
-                      unit="mL"
-                      tone="slate"
-                      detail="Current estimated total volume × Current Hct / 100"
+                      label="Hct delta"
+                      value={`${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)}`}
+                      unit="%p"
+                      tone={intraoperativeResult.hctDelta >= 0 ? "green" : "amber"}
+                      detail="Current Hct 대비"
                     />
+                    <ResultCard
+                      label="Net planned volume change"
+                      value={formatSignedMl(intraoperativeResult.netVolumeChange)}
+                      tone={getVolumeAction(intraoperativeResult.netVolumeChange) === "remove" ? "blue" : getVolumeAction(intraoperativeResult.netVolumeChange) === "add" ? "amber" : "slate"}
+                      detail={`RBC +${formatNumber(intraoperativeResult.plannedRbcAddition)} · Crystalloid +${formatNumber(intraoperativeResult.addedCrystalloidVolume)} · HF/UF ${formatNumber(intraoperativeResult.removedFluidVolume)}`}
+                    />
+                    <ResultCard label="New total volume" value={formatNumber(intraoperativeResult.newTotalVolume)} unit="mL" tone="slate" />
+                    <ResultCard label="New RBC volume" value={formatNumber(intraoperativeResult.newRbcVolume)} unit="mL" tone="slate" />
                   </div>
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      <ResultCard
-                        label="Predicted Hct"
-                        value={formatNumber(intraoperativeResult.predictedHct, 1)}
-                        unit="%"
-                        tone={hasIntraoperativeTarget && intraoperativeResult.desiredHct !== null && intraoperativeResult.predictedHct >= intraoperativeResult.desiredHct ? "green" : "amber"}
-                      />
-                      <ResultCard
-                        label="Hct delta"
-                        value={`${intraoperativeResult.hctDelta >= 0 ? "+" : ""}${formatNumber(intraoperativeResult.hctDelta, 1)}`}
-                        unit="%p"
-                        tone={intraoperativeResult.hctDelta >= 0 ? "green" : "amber"}
-                        detail="from current Hct"
-                      />
-                      <ResultCard
-                        label="Net planned volume change"
-                        value={formatSignedMl(intraoperativeResult.netVolumeChange)}
-                        tone={getVolumeAction(intraoperativeResult.netVolumeChange) === "remove" ? "blue" : getVolumeAction(intraoperativeResult.netVolumeChange) === "add" ? "amber" : "slate"}
-                        detail={`RBC +${formatNumber(intraoperativeResult.plannedRbcAddition)} · Crystalloid +${formatNumber(intraoperativeResult.addedCrystalloidVolume)} · HF/UF ${formatNumber(intraoperativeResult.removedFluidVolume)}`}
-                      />
-                      <ResultCard label="New total volume" value={formatNumber(intraoperativeResult.newTotalVolume)} unit="mL" tone="slate" />
-                      <ResultCard label="New RBC volume" value={formatNumber(intraoperativeResult.newRbcVolume)} unit="mL" tone="slate" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
-                    <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-foreground">Target Hct helper</div>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          RBC needed and fluid adjustment are separate options, not simultaneous instructions.
-                        </p>
-                      </div>
-                      <div className="w-full md:w-56">
-                        <InputBlock
-                          id="intra-desired-hct"
-                          label="Intraoperative desired Hct %"
-                          value={intraDesiredHct}
-                          onChange={setIntraDesiredHct}
-                          placeholder="0"
-                          helperText="Enter number only, e.g. 30 for 30%."
-                        />
-                      </div>
-                    </div>
-
-                    {!hasIntraoperativeTarget ? (
-                      <Card className="border-border/70 bg-background/70 shadow-sm">
-                        <CardContent className="p-3 text-sm text-muted-foreground">
-                          Enter target Hct to estimate RBC or HF/UF adjustment.
-                        </CardContent>
-                      </Card>
-                    ) : intraoperativeResult.desiredHct !== null &&
-                      intraoperativeResult.rbcNeededVolume !== null &&
-                      intraoperativeResult.rbcNeededUnitCount !== null &&
-                      intraoperativeResult.fluidAdjustmentToTarget !== null ? (
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <ResultCard
-                          label="RBC needed to target"
-                          value={intraoperativeResult.rbcNeededVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? "No RBC required" : formatNumber(intraoperativeResult.rbcNeededVolume)}
-                          unit={intraoperativeResult.rbcNeededVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? undefined : "mL"}
-                          tone={intraoperativeResult.rbcNeededVolume > FLUID_ADJUSTMENT_THRESHOLD_ML ? "rose" : "green"}
-                          detail={
-                            <>
-                              ≈ {formatNumber(intraoperativeResult.rbcNeededUnitCount, 1)} unit<br />
-                              Based on RBC-LF {rbcUnitVolume || "-"} mL/unit
-                            </>
-                          }
-                        />
-                        <ResultCard
-                          label="Fluid adjustment to target"
-                          value={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).label}
-                          tone={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).tone}
-                          detail={`Target Hct ${formatNumber(intraoperativeResult.desiredHct, 1)}%`}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                </>
+                </div>
               )}
             </SectionCard>
           </div>
