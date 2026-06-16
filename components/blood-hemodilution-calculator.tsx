@@ -376,6 +376,48 @@ const ResultCard = ({
   </Card>
 )
 
+const TargetOptionCard = ({
+  title,
+  tone,
+  main,
+  secondary,
+  condition,
+  finalVolume,
+  expectedHct,
+  badge,
+}: {
+  title: string
+  tone: "green" | "rose" | "blue"
+  main: React.ReactNode
+  secondary?: React.ReactNode
+  condition: string
+  finalVolume: number
+  expectedHct: number
+  badge?: string
+}) => (
+  <Card className={`${getResultTint(tone)} h-full shadow-sm`}>
+    <CardContent className="flex h-full flex-col gap-3 p-3">
+      <div className="flex min-h-6 items-start justify-between gap-2">
+        <div className="text-xs font-semibold text-muted-foreground">{title}</div>
+        {badge && (
+          <Badge variant="outline" className="bg-background/70 px-1.5 py-0 text-[10px] font-semibold">
+            {badge}
+          </Badge>
+        )}
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xl font-bold leading-none tracking-tight">{main}</div>
+        {secondary && <div className="text-sm font-semibold leading-snug text-muted-foreground">{secondary}</div>}
+      </div>
+      <div className="text-xs leading-relaxed text-muted-foreground">{condition}</div>
+      <div className="mt-auto border-t border-border/60 pt-2 text-xs leading-relaxed text-muted-foreground">
+        Final volume: <span className="font-semibold text-foreground">{formatNumber(finalVolume, 1)} mL</span> · Expected Hct:{" "}
+        <span className="font-semibold text-foreground">{formatNumber(expectedHct, 1)}%</span>
+      </div>
+    </CardContent>
+  </Card>
+)
+
 export default function BloodHemodilutionCalculator() {
   const [weightKg, setWeightKg] = useState("")
   const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState(DEFAULT_BLOOD_VOLUME_COEFFICIENT)
@@ -1006,8 +1048,8 @@ export default function BloodHemodilutionCalculator() {
                   <div>
                     <div className="text-sm font-semibold text-foreground">Target Hct helper</div>
                     <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
-                      <p>목표 Hct에 도달하는 서로 다른 volume-management 옵션입니다. 세 결과를 동시에 시행하는 용량이 아닙니다.</p>
-                      <p>pRBC는 적혈구 외 volume도 포함하므로 HF 없이 주입하면 pRBC 전체 용량이 total volume에 추가됩니다. RBC 주입 후 증가한 net volume을 HF로 제거할 계획이라면 Volume-neutral 결과를 참고하세요.</p>
+                      <p>목표 Hct에 도달하는 3가지 대안입니다. 각 결과는 서로 다른 조건이며 동시에 적용하는 용량이 아닙니다.</p>
+                      <p>pRBC 전체 volume이 추가되며, 같은 양의 net HF/UF를 시행하면 total volume이 거의 유지됩니다.</p>
                     </div>
                   </div>
                   <div className="w-full md:w-56">
@@ -1025,7 +1067,7 @@ export default function BloodHemodilutionCalculator() {
                 {intraoperativeResult.status !== "ready" ? null : !hasIntraoperativeTarget ? (
                   <Card className="border-border/70 bg-background/70 shadow-sm">
                     <CardContent className="p-3 text-sm text-muted-foreground">
-                      Target Hct를 입력하면 baseline 기준의 세 가지 대안 전략을 표시합니다.
+                      목표 Hct를 입력하면 3가지 volume-management 대안을 비교합니다.
                     </CardContent>
                   </Card>
                 ) : intraoperativeResult.desiredHct !== null &&
@@ -1039,52 +1081,42 @@ export default function BloodHemodilutionCalculator() {
                   intraoperativeResult.fluidAdjustmentToTarget !== null &&
                   intraoperativeResult.fluidAdjustmentFinalVolume !== null &&
                   intraoperativeResult.fluidAdjustmentExpectedHct !== null ? (
-                  <div className="space-y-3">
-                    <ResultCard
-                      label="RBC + volume-neutral HF"
-                      value={
-                        intraoperativeResult.volumeNeutralRbcVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <TargetOptionCard
+                      title="RBC only"
+                      tone="rose"
+                      main={
+                        intraoperativeResult.rbcOnlyVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML
                           ? "RBC 불필요"
-                          : formatNumber(intraoperativeResult.volumeNeutralRbcVolume, 1)
+                          : `${formatNumber(intraoperativeResult.rbcOnlyVolume, 1)} mL`
                       }
-                      unit={intraoperativeResult.volumeNeutralRbcVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? undefined : "mL"}
+                      secondary={`≈ ${formatNumber(intraoperativeResult.rbcOnlyUnitCount, 1)} unit`}
+                      condition="HF/UF 없이 pRBC만 추가"
+                      finalVolume={intraoperativeResult.rbcOnlyFinalVolume}
+                      expectedHct={intraoperativeResult.rbcOnlyExpectedHct}
+                    />
+                    <TargetOptionCard
+                      title="RBC + neutral HF"
                       tone="green"
-                      detail={
+                      badge="Volume-neutral"
+                      main={`RBC ${formatNumber(intraoperativeResult.volumeNeutralRbcVolume, 1)} mL`}
+                      secondary={
                         <>
-                          Assumes net HF approximately equals the pRBC volume added, keeping total volume nearly unchanged.<br />
-                          + net HF approximately {formatNumber(intraoperativeResult.volumeNeutralRbcVolume, 1)} mL · Final total volume approximately {formatNumber(intraoperativeResult.volumeNeutralFinalVolume ?? intraoperativeResult.currentTotalVolume)} mL · Expected Hct {formatNumber(intraoperativeResult.volumeNeutralExpectedHct, 1)}% · ≈ {formatNumber(intraoperativeResult.volumeNeutralRbcUnitCount, 1)} unit
+                          HF/UF {formatNumber(intraoperativeResult.volumeNeutralRbcVolume, 1)} mL<br />≈ {formatNumber(intraoperativeResult.volumeNeutralRbcUnitCount, 1)} unit
                         </>
                       }
+                      condition="RBC 증가분만큼 net HF/UF 시행"
+                      finalVolume={intraoperativeResult.volumeNeutralFinalVolume ?? intraoperativeResult.currentTotalVolume}
+                      expectedHct={intraoperativeResult.volumeNeutralExpectedHct}
                     />
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <ResultCard
-                        label="RBC only · no HF"
-                        value={intraoperativeResult.rbcOnlyVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? "RBC 불필요" : formatNumber(intraoperativeResult.rbcOnlyVolume, 1)}
-                        unit={intraoperativeResult.rbcOnlyVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML ? undefined : "mL"}
-                        tone="rose"
-                        detail={
-                          <>
-                            HF 없이 pRBC만 추가하는 경우입니다. pRBC 전체 투여량이 total volume에 포함됩니다.<br />
-                            Final volume {formatNumber(intraoperativeResult.rbcOnlyFinalVolume, 1)} mL · Expected Hct {formatNumber(intraoperativeResult.rbcOnlyExpectedHct, 1)}% · ≈ {formatNumber(intraoperativeResult.rbcOnlyUnitCount, 1)} unit
-                          </>
-                        }
-                      />
-                      <ResultCard
-                        label="Fluid adjustment only"
-                        value={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).label}
-                        tone="blue"
-                        detail={
-                          <>
-                            RBC 추가 없이 RBC-free fluid를 조정하는 조건입니다.<br />
-                            Final volume {formatNumber(intraoperativeResult.fluidAdjustmentFinalVolume, 1)} mL · Expected Hct {formatNumber(intraoperativeResult.fluidAdjustmentExpectedHct, 1)}%<br />
-                            HF/UF removal is treated as RBC-free fluid removal. Do not use this calculation for mixed whole-blood removal.
-                          </>
-                        }
-                      />
-                    </div>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      HF가 pRBC 내부의 비-RBC 성분만 선택적으로 제거한다는 뜻은 아닙니다. 혼합된 circuit에서 RBC mass는 유지하고 net fluid volume이 감소한다고 단순화한 계산입니다.
-                    </p>
+                    <TargetOptionCard
+                      title="HF/UF only"
+                      tone="blue"
+                      main={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).label}
+                      condition="RBC 추가 없이 fluid만 제거"
+                      finalVolume={intraoperativeResult.fluidAdjustmentFinalVolume}
+                      expectedHct={intraoperativeResult.fluidAdjustmentExpectedHct}
+                    />
                   </div>
                 ) : null}
 
@@ -1093,10 +1125,9 @@ export default function BloodHemodilutionCalculator() {
               <div className="space-y-3 rounded-lg border border-border/70 bg-background/60 p-3">
                 <div>
                   <div className="text-sm font-semibold text-foreground">What-if planned changes</div>
-                  <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
-                    <p>현재 baseline에 planned change만 적용한 별도 예측입니다. pRBC는 실제 RBC fraction뿐 아니라 전체 제품 volume이 total volume에 추가됩니다. HF/UF removal에는 circuit에서 실제로 감소시킬 net fluid volume을 입력하세요.</p>
-                    <p>RBC 주입 후 total volume을 유지하려면 Planned RBC addition과 비슷한 양을 Planned HF/UF removal에 입력해 volume-neutral 조건을 시뮬레이션할 수 있습니다.</p>
-                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    pRBC 전체 volume은 total volume에 추가되며, 입력한 HF/UF volume만큼 total volume이 감소합니다.
+                  </p>
                 </div>
                 <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
                   <InputBlock
@@ -1105,7 +1136,7 @@ export default function BloodHemodilutionCalculator() {
                     value={plannedRbcAddition}
                     onChange={setPlannedRbcAddition}
                     placeholder="0"
-                    helperText="앞으로 주입할 pRBC 전체 제품 volume입니다. RBC product Hct만큼 RBC volume이 증가하고, 입력한 전체 mL가 total volume에 추가됩니다."
+                    helperText="주입할 pRBC 전체 volume"
                   />
                   <InputBlock
                     id="added-crystalloid-volume"
@@ -1113,7 +1144,7 @@ export default function BloodHemodilutionCalculator() {
                     value={addedCrystalloidVolume}
                     onChange={setAddedCrystalloidVolume}
                     placeholder="0"
-                    helperText="앞으로 추가할 crystalloid, cardioplegia, test saline 등의 volume입니다. RBC volume은 증가하지 않습니다."
+                    helperText="추가할 crystalloid volume"
                   />
                   <InputBlock
                     id="removed-fluid-volume"
@@ -1121,7 +1152,7 @@ export default function BloodHemodilutionCalculator() {
                     value={removedFluidVolume}
                     onChange={setRemovedFluidVolume}
                     placeholder="0"
-                    helperText="Circuit에서 제거할 RBC-free net fluid volume입니다. Mixed whole-blood removal에는 사용하지 마세요. 동시에 들어오는 fluid가 있다면 별도의 crystalloid addition field에 입력하세요."
+                    helperText="제거할 net RBC-free fluid volume"
                   />
                 </div>
 
