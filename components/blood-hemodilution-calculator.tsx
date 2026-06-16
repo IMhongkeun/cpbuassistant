@@ -259,6 +259,77 @@ type PreCpbResult =
     }
   | { status: "message"; message: string }
 
+type WhatIfScenarioKind = "none" | "rbc-only" | "crystalloid-only" | "removal-only" | "volume-neutral" | "net-addition" | "net-removal"
+
+type WhatIfScenario = {
+  kind: WhatIfScenarioKind
+  label: string
+  message: string
+}
+
+const getWhatIfScenario = ({
+  plannedRbc,
+  addedCrystalloid,
+  removedFluid,
+  tolerance,
+}: {
+  plannedRbc: number
+  addedCrystalloid: number
+  removedFluid: number
+  tolerance: number
+}): WhatIfScenario | null => {
+  // Scenario classification follows the full planned volume balance:
+  // net volume change = pRBC product volume + crystalloid volume - net HF/UF removal.
+  const netVolumeChange = plannedRbc + addedCrystalloid - removedFluid
+  const hasRbc = plannedRbc > 0
+  const hasCrystalloid = addedCrystalloid > 0
+  const hasRemoval = removedFluid > 0
+
+  if (!hasRbc && !hasCrystalloid && !hasRemoval) return null
+
+  if (hasRbc && !hasCrystalloid && !hasRemoval) {
+    return { kind: "rbc-only", label: "RBC only", message: "RBC-only scenario: pRBC 전체 volume이 total volume에 추가됩니다." }
+  }
+
+  if (!hasRbc && hasCrystalloid && !hasRemoval) {
+    return {
+      kind: "crystalloid-only",
+      label: "Crystalloid only",
+      message: "Crystalloid addition: total volume이 증가하여 Hct가 낮아질 수 있습니다.",
+    }
+  }
+
+  if (!hasRbc && !hasCrystalloid && hasRemoval) {
+    return {
+      kind: "removal-only",
+      label: "HF/UF only",
+      message: "HF/UF-only scenario: total volume이 감소하여 Hct가 높아질 수 있습니다.",
+    }
+  }
+
+  if (Math.abs(netVolumeChange) <= tolerance) {
+    return {
+      kind: "volume-neutral",
+      label: "Volume-neutral",
+      message: "Volume-neutral scenario: 전체 추가 volume과 HF/UF 제거량이 비슷하여 total volume이 거의 유지됩니다.",
+    }
+  }
+
+  if (netVolumeChange > tolerance) {
+    return {
+      kind: "net-addition",
+      label: "Net addition",
+      message: "Net volume addition: total volume이 증가하여 Hct가 낮아질 수 있습니다.",
+    }
+  }
+
+  return {
+    kind: "net-removal",
+    label: "Net removal",
+    message: "Net volume removal: total volume이 감소하여 Hct가 높아질 수 있습니다.",
+  }
+}
+
 type IntraoperativeResult =
   | {
       status: "ready"
@@ -290,7 +361,7 @@ type IntraoperativeResult =
       fluidAdjustmentFinalVolume: number | null
       fluidAdjustmentExpectedHct: number | null
       fluidAdjustmentAction: "remove" | "add" | "none" | null
-      whatIfScenario: string | null
+      whatIfScenario: WhatIfScenario | null
     }
   | { status: "message"; message: string }
 
@@ -751,17 +822,13 @@ export default function BloodHemodilutionCalculator() {
             ? "add"
             : "none"
 
-    const volumeNeutralTolerance = Math.max(5, plannedRbc * 0.05, removedFluid * 0.05)
-    const whatIfScenario =
-      plannedRbc > 0 && removedFluid === 0
-        ? "RBC-only scenario: pRBC 전체 volume이 total volume에 추가됩니다."
-        : plannedRbc > 0 && Math.abs(removedFluid - plannedRbc) <= volumeNeutralTolerance
-          ? "Volume-neutral scenario: RBC 추가량과 HF/UF 제거량이 비슷하여 total volume이 거의 유지됩니다."
-          : removedFluid > plannedRbc + addedCrystalloid
-            ? "Net volume removal scenario: total volume이 감소하여 Hct가 더 상승할 수 있습니다."
-            : addedCrystalloid >= Math.max(50, plannedRbc + removedFluid)
-              ? "Net dilution scenario: crystalloid addition으로 Hct가 낮아질 수 있습니다."
-              : null
+    const volumeNeutralTolerance = 5
+    const whatIfScenario = getWhatIfScenario({
+      plannedRbc,
+      addedCrystalloid,
+      removedFluid,
+      tolerance: volumeNeutralTolerance,
+    })
 
     return {
       status: "ready",
@@ -1166,7 +1233,7 @@ export default function BloodHemodilutionCalculator() {
                       <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">What-if results</div>
                       {intraoperativeResult.whatIfScenario && (
                         <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[11px] text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
-                          {intraoperativeResult.whatIfScenario}
+                          {intraoperativeResult.whatIfScenario.label}
                         </Badge>
                       )}
                     </div>
@@ -1195,7 +1262,7 @@ export default function BloodHemodilutionCalculator() {
                     <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
                       RBC +{formatNumber(intraoperativeResult.plannedRbcAddition)} mL · Crystalloid +{formatNumber(intraoperativeResult.addedCrystalloidVolume)} mL · HF/UF −{formatNumber(intraoperativeResult.removedFluidVolume)} mL<br />
                       Net volume change {formatSignedMl(intraoperativeResult.netVolumeChange)}
-                      {intraoperativeResult.whatIfScenario?.startsWith("Volume-neutral") ? " · Volume-neutral" : ""}
+                      {intraoperativeResult.whatIfScenario ? ` · ${intraoperativeResult.whatIfScenario.message}` : ""}
                     </div>
                   </div>
                 )}
