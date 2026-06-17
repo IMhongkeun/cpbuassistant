@@ -26,7 +26,17 @@ const parseSaturation = (value: string): number | null => {
 
 const isInSaturationRange = (value: number): boolean => value >= 0 && value <= 100
 
-const formatInputForFormula = (value: number): string => Number.parseFloat(value.toFixed(1)).toString()
+const formatFormulaOperand = (rawValue: string, parsedValue: number): string => {
+  if (!Number.isFinite(parsedValue)) return "—"
+  if (Object.is(parsedValue, -0)) return "0"
+
+  const trimmedValue = rawValue.trim()
+  if (trimmedValue !== "" && Number.isFinite(Number(trimmedValue)) && Number(trimmedValue) === parsedValue) {
+    return trimmedValue
+  }
+
+  return parsedValue.toString()
+}
 
 const getInterpretation = (qpQs: number): string => {
   if (qpQs > 1.05) return "Net left-to-right shunt"
@@ -98,7 +108,7 @@ export default function QpQsCalculator() {
     }
 
     const roundedQpQs = qpQs.toFixed(2)
-    const formula = `(100 − ${formatInputForFormula(raSvcValue)}) ÷ (100 − ${formatInputForFormula(paMpaValue)}) = ${roundedQpQs}`
+    const formula = `(100 − ${formatFormulaOperand(raSvcSat, raSvcValue)}) ÷ (100 − ${formatFormulaOperand(paMpaSat, paMpaValue)}) = ${roundedQpQs}`
 
     return {
       raSvcError,
