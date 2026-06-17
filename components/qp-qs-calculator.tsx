@@ -163,12 +163,51 @@ export default function QpQsCalculator() {
           </div>
 
           <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
-            <div className="font-semibold text-foreground">Simplified saturation-based calculation</div>
-            <p className="mt-1">
-              This calculation assumes systemic arterial and pulmonary venous saturation are both 100%. Use actual arterial and
-              pulmonary venous oxygen content when this assumption is not appropriate.
-            </p>
-            <p className="mt-2">Interpret Qp/Qs together with echocardiography, pressure data, ventricular function, and systemic perfusion.</p>
+            <div className="font-semibold text-foreground">About this Qp/Qs calculation</div>
+
+            <div className="mt-3 space-y-3">
+              <section className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Overview</h3>
+                <p>
+                  Qp/Qs is the ratio of pulmonary blood flow (Qp) to systemic blood flow (Qs). It provides a simplified estimate
+                  of the direction and magnitude of intracardiac shunting.
+                </p>
+              </section>
+
+              <section className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Formula</h3>
+                <div className="overflow-x-auto rounded-lg border bg-background/60 px-3 py-2 font-mono text-xs text-foreground">
+                  Qp/Qs = (100 − RA/SVC saturation) ÷ (100 − PA/MPA saturation)
+                </div>
+                <p>
+                  RA or SVC saturation is used as an estimate of systemic venous saturation before left-to-right shunt mixing. PA
+                  or MPA saturation represents pulmonary arterial blood after shunt mixing.
+                </p>
+              </section>
+
+              <section className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Interpretation</h3>
+                <ul className="space-y-1">
+                  <li>Qp/Qs ≈ 1.0 — Pulmonary and systemic blood flow are approximately balanced.</li>
+                  <li>Qp/Qs &gt; 1.0 — Suggests net left-to-right shunting.</li>
+                  <li>Qp/Qs &lt; 1.0 — Suggests net right-to-left shunting or reduced pulmonary blood flow.</li>
+                </ul>
+                <p>A value slightly above 1.0 does not by itself indicate a clinically significant residual shunt.</p>
+              </section>
+
+              <section className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Assumptions and limitations</h3>
+                <p>
+                  This simplified calculation assumes that systemic arterial and pulmonary venous oxygen saturations are both
+                  100%. When this assumption is not appropriate, use measured arterial and pulmonary venous oxygen content in the
+                  full Fick equation.
+                </p>
+                <p>
+                  Interpret the result together with echocardiography, saturation step-up, pressure data, ventricular function,
+                  and systemic perfusion. Qp/Qs alone should not determine the need for surgical revision.
+                </p>
+              </section>
+            </div>
           </div>
         </CardContent>
       </Card>
