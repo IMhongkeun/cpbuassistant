@@ -163,48 +163,47 @@ export default function QpQsCalculator() {
           </div>
 
           <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
-            <div className="font-semibold text-foreground">About this Qp/Qs calculation</div>
+            <div className="font-semibold text-foreground">Qp/Qs 계산 안내</div>
 
             <div className="mt-3 space-y-3">
               <section className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Overview</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">개요</h3>
                 <p>
-                  Qp/Qs is the ratio of pulmonary blood flow (Qp) to systemic blood flow (Qs). It provides a simplified estimate
-                  of the direction and magnitude of intracardiac shunting.
+                  Qp/Qs는 폐혈류량(Qp)과 체혈류량(Qs)의 비율입니다. 심장 내 단락의 방향과 크기를 간단히 추정하는 데
+                  도움을 줍니다.
                 </p>
               </section>
 
               <section className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Formula</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">공식</h3>
                 <div className="overflow-x-auto rounded-lg border bg-background/60 px-3 py-2 font-mono text-xs text-foreground">
                   Qp/Qs = (100 − RA/SVC saturation) ÷ (100 − PA/MPA saturation)
                 </div>
                 <p>
-                  RA or SVC saturation is used as an estimate of systemic venous saturation before left-to-right shunt mixing. PA
-                  or MPA saturation represents pulmonary arterial blood after shunt mixing.
+                  RA 또는 SVC 산소포화도는 좌우 단락 혼합 이전의 전신 정맥 산소포화도 추정값으로 사용합니다. PA 또는 MPA
+                  산소포화도는 단락 혼합 이후의 폐동맥 혈액을 나타냅니다.
                 </p>
               </section>
 
               <section className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Interpretation</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">해석</h3>
                 <ul className="space-y-1">
-                  <li>Qp/Qs ≈ 1.0 — Pulmonary and systemic blood flow are approximately balanced.</li>
-                  <li>Qp/Qs &gt; 1.0 — Suggests net left-to-right shunting.</li>
-                  <li>Qp/Qs &lt; 1.0 — Suggests net right-to-left shunting or reduced pulmonary blood flow.</li>
+                  <li>Qp/Qs ≈ 1.0 — 폐혈류와 체혈류가 대체로 균형을 이룹니다.</li>
+                  <li>Qp/Qs &gt; 1.0 — 순 좌우 단락을 시사합니다.</li>
+                  <li>Qp/Qs &lt; 1.0 — 순 우좌 단락 또는 폐혈류 감소를 시사합니다.</li>
                 </ul>
-                <p>A value slightly above 1.0 does not by itself indicate a clinically significant residual shunt.</p>
+                <p>1.0보다 약간 높은 값만으로 임상적으로 의미 있는 잔여 단락이라고 판단해서는 안 됩니다.</p>
               </section>
 
               <section className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">Assumptions and limitations</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">가정과 한계</h3>
                 <p>
-                  This simplified calculation assumes that systemic arterial and pulmonary venous oxygen saturations are both
-                  100%. When this assumption is not appropriate, use measured arterial and pulmonary venous oxygen content in the
-                  full Fick equation.
+                  이 간이 계산은 전신 동맥 산소포화도와 폐정맥 산소포화도가 모두 100%라고 가정합니다. 이 가정이 적절하지
+                  않은 경우에는 실제 동맥 및 폐정맥 산소 함량을 사용한 전체 Fick 공식을 사용해야 합니다.
                 </p>
                 <p>
-                  Interpret the result together with echocardiography, saturation step-up, pressure data, ventricular function,
-                  and systemic perfusion. Qp/Qs alone should not determine the need for surgical revision.
+                  결과는 심초음파, 산소포화도 step-up, 압력 자료, 심실 기능, 전신 관류 상태와 함께 해석해야 합니다.
+                  Qp/Qs만으로 수술적 재교정 필요성을 결정해서는 안 됩니다.
                 </p>
               </section>
             </div>
