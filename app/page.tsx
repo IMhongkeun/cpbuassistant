@@ -6,6 +6,7 @@ import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
 import ScmpFlowCalculator from "../components/scmp-flow-calculator"
 import BloodHemodilutionCalculator from "../components/blood-hemodilution-calculator"
+import QpQsCalculator from "../components/qp-qs-calculator"
 import GDPCalculator from "../components/gdp-calculator" // Import the GDPCalculator component
 
 // Helper function to convert HH:MM string (allowing HH > 23) to total minutes from midnight
@@ -23,7 +24,7 @@ const timeToMinutes = (timeStr) => {
 const CPBUassistant = () => {
   // State to manage the active tab (lung, heart, pediatric, cpb, or gdp)
   const [activeTab, setActiveTab] = useState("lung")
-  // State to manage PCS sub-tabs (echo, scmp, or blood)
+  // State to manage PCS sub-tabs (echo, scmp, blood, or qpqs)
   const [pcsSubTab, setPcsSubTab] = useState("echo")
 
   // State for Lung Transplant data
@@ -857,10 +858,10 @@ const CPBUassistant = () => {
       {activeTab === "pediatric" && (
         <div className="space-y-6">
           {/* Sub-tab Navigation */}
-          <div className="flex space-x-1 bg-gray-50 p-1 rounded-lg shadow-sm">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 bg-gray-50 p-1 rounded-lg shadow-sm">
             <button
               onClick={() => setPcsSubTab("echo")}
-              className={`flex-1 py-2 px-4 rounded-md transition-all duration-200 ${
+              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
                 pcsSubTab === "echo"
                   ? "bg-white text-green-700 shadow-sm font-semibold"
                   : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
@@ -870,7 +871,7 @@ const CPBUassistant = () => {
             </button>
             <button
               onClick={() => setPcsSubTab("scmp")}
-              className={`flex-1 py-2 px-4 rounded-md transition-all duration-200 ${
+              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
                 pcsSubTab === "scmp"
                   ? "bg-white text-green-700 shadow-sm font-semibold"
                   : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
@@ -880,7 +881,7 @@ const CPBUassistant = () => {
             </button>
             <button
               onClick={() => setPcsSubTab("blood")}
-              className={`flex-1 py-2 px-4 rounded-md transition-all duration-200 ${
+              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
                 pcsSubTab === "blood"
                   ? "bg-white text-green-700 shadow-sm font-semibold"
                   : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
@@ -888,12 +889,23 @@ const CPBUassistant = () => {
             >
               Hct predict
             </button>
+            <button
+              onClick={() => setPcsSubTab("qpqs")}
+              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
+                pcsSubTab === "qpqs"
+                  ? "bg-white text-green-700 shadow-sm font-semibold"
+                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+              }`}
+            >
+              Qp/Qs
+            </button>
           </div>
 
           {/* Sub-tab Content */}
           {pcsSubTab === "echo" && <EchoZScoreTool />}
           {pcsSubTab === "scmp" && <ScmpFlowCalculator />}
           {pcsSubTab === "blood" && <BloodHemodilutionCalculator />}
+          {pcsSubTab === "qpqs" && <QpQsCalculator />}
         </div>
       )}
 
