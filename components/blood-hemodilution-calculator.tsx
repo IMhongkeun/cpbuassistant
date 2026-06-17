@@ -1,17 +1,19 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Droplets, FlaskConical, HeartPulse } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Droplets, FlaskConical, HeartPulse, RotateCcw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-const CALCULATOR_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCalculator"
-const PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
-const LEGACY_CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentEstimatedTotalVolume"
+const OLD_CALCULATOR_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCalculator"
+const OLD_PRIME_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionPrimeVolume"
+const OLD_CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCurrentEstimatedTotalVolume"
+const CALCULATOR_PREFERENCES_STORAGE_KEY = "blood-hemodilution-calculator-preferences"
+const CASE_SESSION_STORAGE_KEY = "blood-hemodilution-current-case"
 const FLUID_ADJUSTMENT_THRESHOLD_ML = 0.5
 const DEFAULT_BLOOD_VOLUME_COEFFICIENT = "55"
 const DEFAULT_RBC_PRODUCT_HCT = "0.66"
@@ -44,6 +46,36 @@ const safeLocalStorageRemoveItem = (key: string) => {
     window.localStorage.removeItem(key)
   } catch {
     // Persistence is optional. Ignore storage remove failures.
+  }
+}
+
+const safeSessionStorageGetItem = (key: string) => {
+  if (typeof window === "undefined") return null
+
+  try {
+    return window.sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+const safeSessionStorageSetItem = (key: string, value: string) => {
+  if (typeof window === "undefined") return
+
+  try {
+    window.sessionStorage.setItem(key, value)
+  } catch {
+    // Case persistence is optional.
+  }
+}
+
+const safeSessionStorageRemoveItem = (key: string) => {
+  if (typeof window === "undefined") return
+
+  try {
+    window.sessionStorage.removeItem(key)
+  } catch {
+    // Ignore storage failure.
   }
 }
 
@@ -174,7 +206,7 @@ const getResultTint = (tone: "green" | "amber" | "rose" | "blue" | "slate") => {
   if (tone === "blue") return "border-blue-200 bg-blue-50/75 dark:border-blue-900/60 dark:bg-blue-950/20"
   return "border-border/70 bg-card/95"
 }
-type StoredCalculatorState = {
+type LegacyStoredCalculatorState = {
   weightKg?: string | number
   bloodVolumeCoefficient?: string | number
   selectedPresetId?: string
@@ -193,56 +225,24 @@ type StoredCalculatorState = {
   currentEstimatedTotalVolume?: string | number
 }
 
-const getMigratedIntraoperativeValues = (
-  parsedState: StoredCalculatorState,
-  savedPrimeVolume: string | null,
-  legacyCurrentVolume: string | null,
-) => {
-  const migratedCurrentHct =
-    normalizeStoredNumericString(parsedState.intraCurrentHct) ?? normalizeStoredNumericString(parsedState.currentHct) ?? ""
+type CalculatorPreferences = {
+  bloodVolumeCoefficient: string
+  rbcProductHct: string
+  rbcUnitVolume: string
+}
 
-  const savedNetVolumeChange = normalizeStoredNumericString(parsedState.intraNetVolumeChangeFromBase, true)
-  const legacyCurrentTotalVolume =
-    normalizeStoredNumericString(parsedState.currentEstimatedTotalVolume) ?? normalizeStoredNumericString(legacyCurrentVolume)
-
-  if (savedNetVolumeChange !== null) {
-    return {
-      currentHct: migratedCurrentHct,
-      netVolumeChangeFromBase: savedNetVolumeChange,
-      legacyCurrentEstimatedTotalVolumeToPreserve: null,
-    }
-  }
-  const weight = parseStrictNumber(normalizeStoredNumericString(parsedState.weightKg) ?? "")
-  const coefficient = parseStrictNumber(
-    normalizeStoredNumericString(parsedState.bloodVolumeCoefficient) ?? DEFAULT_BLOOD_VOLUME_COEFFICIENT,
-  )
-  const prime = parseStrictNumber(normalizeStoredNumericString(parsedState.primeVolume) ?? normalizeStoredNumericString(savedPrimeVolume) ?? "")
-
-  // Legacy migration uses the same base definition as intraoperative calculation:
-  // Base volume = Weight × Blood volume coefficient + Prime volume.
-  if (legacyCurrentTotalVolume === null || weight === null || coefficient === null || prime === null) {
-    return {
-      currentHct: migratedCurrentHct,
-      netVolumeChangeFromBase: "",
-      legacyCurrentEstimatedTotalVolumeToPreserve: legacyCurrentTotalVolume,
-    }
-  }
-
-  const legacyTotal = parseStrictNumber(legacyCurrentTotalVolume)
-  const baseVolume = weight * coefficient + prime
-  if (legacyTotal === null || !isPositiveNumericValue(baseVolume)) {
-    return {
-      currentHct: migratedCurrentHct,
-      netVolumeChangeFromBase: "",
-      legacyCurrentEstimatedTotalVolumeToPreserve: legacyCurrentTotalVolume,
-    }
-  }
-
-  return {
-    currentHct: migratedCurrentHct,
-    netVolumeChangeFromBase: formatInputNumber(legacyTotal - baseVolume),
-    legacyCurrentEstimatedTotalVolumeToPreserve: null,
-  }
+type CaseSessionState = {
+  weightKg: string
+  selectedPresetId: string
+  primeVolume: string
+  preHct: string
+  preDesiredHct: string
+  currentHct: string
+  intraNetVolumeChangeFromBase: string
+  plannedRbcAddition: string
+  addedCrystalloidVolume: string
+  removedFluidVolume: string
+  intraDesiredHct: string
 }
 
 type PreCpbResult =
@@ -505,44 +505,55 @@ export default function BloodHemodilutionCalculator() {
   const [removedFluidVolume, setRemovedFluidVolume] = useState("")
   const [intraDesiredHct, setIntraDesiredHct] = useState("")
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false)
-  const legacyCurrentVolumeToPreserveRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
 
+    const savedPreferences = safeLocalStorageGetItem(CALCULATOR_PREFERENCES_STORAGE_KEY)
+    const legacyState = safeLocalStorageGetItem(OLD_CALCULATOR_STORAGE_KEY)
+
     try {
-      const savedState = safeLocalStorageGetItem(CALCULATOR_STORAGE_KEY)
-      const savedPrimeVolume = safeLocalStorageGetItem(PRIME_VOLUME_STORAGE_KEY)
-      const legacyCurrentVolume = safeLocalStorageGetItem(LEGACY_CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
-
-      if (savedState) {
-        const parsedState = JSON.parse(savedState) as StoredCalculatorState
-        const migratedIntraoperativeValues = getMigratedIntraoperativeValues(parsedState, savedPrimeVolume, legacyCurrentVolume)
-        legacyCurrentVolumeToPreserveRef.current = migratedIntraoperativeValues.legacyCurrentEstimatedTotalVolumeToPreserve
-
-        setWeightKg(normalizeStoredNumericString(parsedState.weightKg) ?? "")
+      if (savedPreferences) {
+        const parsedPreferences = JSON.parse(savedPreferences) as Partial<CalculatorPreferences>
         setBloodVolumeCoefficient(
-          defaultIfBlank(normalizeStoredNumericString(parsedState.bloodVolumeCoefficient), DEFAULT_BLOOD_VOLUME_COEFFICIENT),
+          defaultIfBlank(normalizeStoredNumericString(parsedPreferences.bloodVolumeCoefficient), DEFAULT_BLOOD_VOLUME_COEFFICIENT),
         )
-        setSelectedPresetId(parsedState.selectedPresetId ?? "")
-        setPrimeVolume(normalizeStoredNumericString(parsedState.primeVolume) ?? normalizeStoredNumericString(savedPrimeVolume) ?? "")
-        setPreHct(normalizeStoredNumericString(parsedState.preHct) ?? "")
-        setPreDesiredHct(normalizeStoredNumericString(parsedState.preDesiredHct) ?? "")
-        setRbcProductHct(defaultIfBlank(normalizeStoredNumericString(parsedState.rbcProductHct), DEFAULT_RBC_PRODUCT_HCT))
-        setRbcUnitVolume(defaultIfBlank(normalizeStoredNumericString(parsedState.rbcUnitVolume), DEFAULT_RBC_UNIT_VOLUME))
-        setCurrentHct(migratedIntraoperativeValues.currentHct)
-        setIntraNetVolumeChangeFromBase(migratedIntraoperativeValues.netVolumeChangeFromBase)
-        setPlannedRbcAddition(normalizeStoredNumericString(parsedState.plannedRbcAddition) ?? "")
-        setAddedCrystalloidVolume(normalizeStoredNumericString(parsedState.addedCrystalloidVolume) ?? "")
-        setRemovedFluidVolume(normalizeStoredNumericString(parsedState.removedFluidVolume) ?? "")
-        setIntraDesiredHct(normalizeStoredNumericString(parsedState.intraDesiredHct) ?? "")
-      } else {
-        legacyCurrentVolumeToPreserveRef.current = normalizeStoredNumericString(legacyCurrentVolume)
-        setPrimeVolume(normalizeStoredNumericString(savedPrimeVolume) ?? "")
+        setRbcProductHct(defaultIfBlank(normalizeStoredNumericString(parsedPreferences.rbcProductHct), DEFAULT_RBC_PRODUCT_HCT))
+        setRbcUnitVolume(defaultIfBlank(normalizeStoredNumericString(parsedPreferences.rbcUnitVolume), DEFAULT_RBC_UNIT_VOLUME))
+      } else if (legacyState) {
+        const parsedLegacyState = JSON.parse(legacyState) as LegacyStoredCalculatorState
+        setBloodVolumeCoefficient(
+          defaultIfBlank(normalizeStoredNumericString(parsedLegacyState.bloodVolumeCoefficient), DEFAULT_BLOOD_VOLUME_COEFFICIENT),
+        )
+        setRbcProductHct(defaultIfBlank(normalizeStoredNumericString(parsedLegacyState.rbcProductHct), DEFAULT_RBC_PRODUCT_HCT))
+        setRbcUnitVolume(defaultIfBlank(normalizeStoredNumericString(parsedLegacyState.rbcUnitVolume), DEFAULT_RBC_UNIT_VOLUME))
       }
     } catch {
-      safeLocalStorageRemoveItem(CALCULATOR_STORAGE_KEY)
-      safeLocalStorageRemoveItem(PRIME_VOLUME_STORAGE_KEY)
+      safeLocalStorageRemoveItem(CALCULATOR_PREFERENCES_STORAGE_KEY)
+    }
+
+    safeLocalStorageRemoveItem(OLD_CALCULATOR_STORAGE_KEY)
+    safeLocalStorageRemoveItem(OLD_PRIME_VOLUME_STORAGE_KEY)
+    safeLocalStorageRemoveItem(OLD_CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
+
+    try {
+      const savedCaseState = safeSessionStorageGetItem(CASE_SESSION_STORAGE_KEY)
+      if (savedCaseState) {
+        const parsedCaseState = JSON.parse(savedCaseState) as Partial<CaseSessionState>
+        setWeightKg(normalizeStoredNumericString(parsedCaseState.weightKg) ?? "")
+        setSelectedPresetId(typeof parsedCaseState.selectedPresetId === "string" ? parsedCaseState.selectedPresetId : "")
+        setPrimeVolume(normalizeStoredNumericString(parsedCaseState.primeVolume) ?? "")
+        setPreHct(normalizeStoredNumericString(parsedCaseState.preHct) ?? "")
+        setPreDesiredHct(normalizeStoredNumericString(parsedCaseState.preDesiredHct) ?? "")
+        setCurrentHct(normalizeStoredNumericString(parsedCaseState.currentHct) ?? "")
+        setIntraNetVolumeChangeFromBase(normalizeStoredNumericString(parsedCaseState.intraNetVolumeChangeFromBase, true) ?? "")
+        setPlannedRbcAddition(normalizeStoredNumericString(parsedCaseState.plannedRbcAddition) ?? "")
+        setAddedCrystalloidVolume(normalizeStoredNumericString(parsedCaseState.addedCrystalloidVolume) ?? "")
+        setRemovedFluidVolume(normalizeStoredNumericString(parsedCaseState.removedFluidVolume) ?? "")
+        setIntraDesiredHct(normalizeStoredNumericString(parsedCaseState.intraDesiredHct) ?? "")
+      }
+    } catch {
+      safeSessionStorageRemoveItem(CASE_SESSION_STORAGE_KEY)
     }
 
     setHasLoadedSavedState(true)
@@ -551,23 +562,25 @@ export default function BloodHemodilutionCalculator() {
   useEffect(() => {
     if (!hasLoadedSavedState || typeof window === "undefined") return
 
-    const trimmedPrimeVolume = primeVolume.trim()
-    if (trimmedPrimeVolume === "") {
-      safeLocalStorageRemoveItem(PRIME_VOLUME_STORAGE_KEY)
-    } else {
-      safeLocalStorageSetItem(PRIME_VOLUME_STORAGE_KEY, primeVolume)
+    const preferences: CalculatorPreferences = {
+      bloodVolumeCoefficient,
+      rbcProductHct,
+      rbcUnitVolume,
     }
 
-    const stateToSave: StoredCalculatorState = {
+    safeLocalStorageSetItem(CALCULATOR_PREFERENCES_STORAGE_KEY, JSON.stringify(preferences))
+  }, [bloodVolumeCoefficient, hasLoadedSavedState, rbcProductHct, rbcUnitVolume])
+
+  useEffect(() => {
+    if (!hasLoadedSavedState || typeof window === "undefined") return
+
+    const caseState: CaseSessionState = {
       weightKg,
-      bloodVolumeCoefficient,
       selectedPresetId,
       primeVolume,
       preHct,
       preDesiredHct,
-      rbcProductHct,
-      rbcUnitVolume,
-      intraCurrentHct: currentHct,
+      currentHct,
       intraNetVolumeChangeFromBase,
       plannedRbcAddition,
       addedCrystalloidVolume,
@@ -575,16 +588,15 @@ export default function BloodHemodilutionCalculator() {
       intraDesiredHct,
     }
 
-    if (intraNetVolumeChangeFromBase.trim() === "" && legacyCurrentVolumeToPreserveRef.current !== null) {
-      stateToSave.currentEstimatedTotalVolume = legacyCurrentVolumeToPreserveRef.current
-    } else {
-      legacyCurrentVolumeToPreserveRef.current = null
+    const hasCaseStateValues = Object.values(caseState).some((value) => value.trim() !== "")
+    if (!hasCaseStateValues) {
+      safeSessionStorageRemoveItem(CASE_SESSION_STORAGE_KEY)
+      return
     }
 
-    safeLocalStorageSetItem(CALCULATOR_STORAGE_KEY, JSON.stringify(stateToSave))
+    safeSessionStorageSetItem(CASE_SESSION_STORAGE_KEY, JSON.stringify(caseState))
   }, [
     addedCrystalloidVolume,
-    bloodVolumeCoefficient,
     currentHct,
     hasLoadedSavedState,
     intraDesiredHct,
@@ -593,8 +605,6 @@ export default function BloodHemodilutionCalculator() {
     preDesiredHct,
     preHct,
     primeVolume,
-    rbcProductHct,
-    rbcUnitVolume,
     removedFluidVolume,
     selectedPresetId,
     weightKg,
@@ -887,6 +897,37 @@ export default function BloodHemodilutionCalculator() {
     setCurrentHct(formatNumber(preCpbResult.desiredHct, 1))
   }
 
+  const hasCurrentCaseValues = [
+    weightKg,
+    selectedPresetId,
+    primeVolume,
+    preHct,
+    preDesiredHct,
+    currentHct,
+    intraNetVolumeChangeFromBase,
+    plannedRbcAddition,
+    addedCrystalloidVolume,
+    removedFluidVolume,
+    intraDesiredHct,
+  ].some((value) => value.trim() !== "")
+
+  const resetCurrentCase = () => {
+    if (hasCurrentCaseValues && !window.confirm("현재 환자의 입력값을 모두 초기화합니다.")) return
+
+    setWeightKg("")
+    setSelectedPresetId("")
+    setPrimeVolume("")
+    setPreHct("")
+    setPreDesiredHct("")
+    setCurrentHct("")
+    setIntraNetVolumeChangeFromBase("")
+    setPlannedRbcAddition("")
+    setAddedCrystalloidVolume("")
+    setRemovedFluidVolume("")
+    setIntraDesiredHct("")
+    safeSessionStorageRemoveItem(CASE_SESSION_STORAGE_KEY)
+  }
+
   const getFluidAdjustmentCopy = (value: number) => {
     if (value < -FLUID_ADJUSTMENT_THRESHOLD_ML) return { label: `Remove ${formatNumber(Math.abs(value))} mL`, tone: "blue" as const }
     if (value > FLUID_ADJUSTMENT_THRESHOLD_ML) return { label: `Add ${formatNumber(value)} mL`, tone: "green" as const }
@@ -908,6 +949,17 @@ export default function BloodHemodilutionCalculator() {
                 Pre-CPB prime planning과 수술 중 Hct 변화를 계산합니다.
               </p>
             </div>
+            <div className="flex flex-col items-start gap-1 lg:items-end">
+              <button
+                type="button"
+                onClick={resetCurrentCase}
+                className="inline-flex items-center gap-1.5 rounded-md border border-green-200 bg-white px-3 py-1.5 text-sm font-semibold text-green-800 shadow-sm transition hover:bg-green-50 dark:border-green-900/70 dark:bg-card dark:text-green-200 dark:hover:bg-green-950/30"
+              >
+                <RotateCcw className="h-4 w-4" />
+                새 환자
+              </button>
+              <p className="text-xs text-muted-foreground">현재 환자의 입력값을 모두 초기화합니다.</p>
+            </div>
           </div>
         </CardHeader>
 
@@ -915,7 +967,7 @@ export default function BloodHemodilutionCalculator() {
           <SectionCard
             title="Shared setup"
             icon={<HeartPulse className="h-4 w-4" />}
-            description="Pre-CPB planning과 intraoperative simulation에서 공통으로 사용하는 값입니다."
+            description="Pre-CPB planning과 intraoperative simulation에서 공통으로 사용하는 값입니다. 환자별 입력값은 새 환자 시작 시 초기화됩니다."
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4">
               <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} />
