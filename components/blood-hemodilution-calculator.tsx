@@ -245,6 +245,16 @@ type CaseSessionState = {
   intraDesiredHct: string
 }
 
+type PreCpbBaseResult =
+  | {
+      status: "ready"
+      patientVolume: number
+      patientRbcVolume: number
+      baseTotalVolume: number
+      expectedHctWithoutRbc: number
+    }
+  | { status: "message"; message: string }
+
 type PreCpbResult =
   | {
       status: "ready"
@@ -624,24 +634,13 @@ export default function BloodHemodilutionCalculator() {
       ? "Custom prime"
       : "No preset"
 
-  const preCpbResult = useMemo<PreCpbResult>(() => {
+  const preCpbBaseResult = useMemo<PreCpbBaseResult>(() => {
     const weight = parseStrictNumber(weightKg)
     const coefficient = parseStrictNumber(bloodVolumeCoefficient)
     const prime = parseStrictNumber(primeVolume)
     const patientPreHct = parseStrictNumber(preHct)
-    const targetPercent = parseStrictNumber(preDesiredHct)
-    const rbcHct = parseStrictNumber(rbcProductHct)
-    const unitVolume = parseStrictNumber(rbcUnitVolume)
 
-    if (
-      weight === null ||
-      coefficient === null ||
-      prime === null ||
-      patientPreHct === null ||
-      targetPercent === null ||
-      rbcHct === null ||
-      unitVolume === null
-    ) {
+    if (weight === null || coefficient === null || prime === null || patientPreHct === null) {
       return {
         status: "message",
         message: NUMERIC_ONLY_MESSAGE,
@@ -652,20 +651,12 @@ export default function BloodHemodilutionCalculator() {
       !isPositiveNumericValue(weight) ||
       !isPositiveNumericValue(coefficient) ||
       !isPositiveNumericValue(prime) ||
-      !isPercentNumericValue(patientPreHct) ||
-      !isPercentNumericValue(targetPercent) ||
-      !isFractionNumericValue(rbcHct) ||
-      !isPositiveNumericValue(unitVolume)
+      !isPercentNumericValue(patientPreHct)
     ) {
       return {
         status: "message",
-        message: "Shared setup과 Desired Hct를 입력하면 Pre-CPB 결과가 표시됩니다.",
+        message: "Shared setup을 입력하면 Expected Hct without RBC가 표시됩니다.",
       }
-    }
-
-    const target = targetPercent / 100
-    if (target >= rbcHct) {
-      return { status: "message", message: "Desired Hct는 RBC product Hct보다 낮아야 합니다." }
     }
 
     // Patient volume = Weight × Blood volume coefficient
@@ -685,12 +676,64 @@ export default function BloodHemodilutionCalculator() {
       return { status: "message", message: "Expected Hct가 0-100% 범위를 벗어납니다. 입력값을 확인해주세요." }
     }
 
+    return {
+      status: "ready",
+      patientVolume,
+      patientRbcVolume,
+      baseTotalVolume,
+      expectedHctWithoutRbc,
+    }
+  }, [bloodVolumeCoefficient, preHct, primeVolume, weightKg])
+
+  const preCpbResult = useMemo<PreCpbResult>(() => {
+    if (preCpbBaseResult.status === "message") {
+      return preCpbBaseResult
+    }
+
+    const hasDesiredHct = hasOptionalValue(preDesiredHct)
+    const targetPercent = hasDesiredHct ? parseStrictNumber(preDesiredHct) : null
+    const rbcHct = parseStrictNumber(rbcProductHct)
+    const unitVolume = parseStrictNumber(rbcUnitVolume)
+
+    if (!hasDesiredHct) {
+      return {
+        status: "message",
+        message: "Desired Hct를 입력하면 RBC to prime이 표시됩니다.",
+      }
+    }
+
+    if (targetPercent === null || rbcHct === null || unitVolume === null) {
+      return {
+        status: "message",
+        message: NUMERIC_ONLY_MESSAGE,
+      }
+    }
+
+    if (
+      !isPercentNumericValue(targetPercent) ||
+      !isFractionNumericValue(rbcHct) ||
+      !isPositiveNumericValue(unitVolume)
+    ) {
+      return {
+        status: "message",
+        message: "Desired Hct와 RBC 설정을 입력하면 RBC to prime이 표시됩니다.",
+      }
+    }
+
+    const target = targetPercent / 100
+    if (target >= rbcHct) {
+      return { status: "message", message: "Desired Hct는 RBC product Hct보다 낮아야 합니다." }
+    }
+
     // RBC required mL = max(0, (Target × Base total volume - Patient RBC volume) / RBC product Hct)
     // This targets the requested Hct against the patient + prime base volume,
     // without adding RBC volume to the target denominator.
-    const rbcRequiredVolume = Math.max(0, (target * baseTotalVolume - patientRbcVolume) / rbcHct)
+    const rbcRequiredVolume = Math.max(
+      0,
+      (target * preCpbBaseResult.baseTotalVolume - preCpbBaseResult.patientRbcVolume) / rbcHct,
+    )
     const rbcUnitCount = rbcRequiredVolume / unitVolume
-    const estimatedFinalVolume = baseTotalVolume + rbcRequiredVolume
+    const estimatedFinalVolume = preCpbBaseResult.baseTotalVolume + rbcRequiredVolume
 
     if (!isPositiveNumericValue(estimatedFinalVolume)) {
       return { status: "message", message: "Estimated final volume이 0 이하입니다. 입력값을 확인해주세요." }
@@ -698,16 +741,16 @@ export default function BloodHemodilutionCalculator() {
 
     return {
       status: "ready",
-      patientVolume,
-      patientRbcVolume,
-      baseTotalVolume,
-      expectedHctWithoutRbc,
+      patientVolume: preCpbBaseResult.patientVolume,
+      patientRbcVolume: preCpbBaseResult.patientRbcVolume,
+      baseTotalVolume: preCpbBaseResult.baseTotalVolume,
+      expectedHctWithoutRbc: preCpbBaseResult.expectedHctWithoutRbc,
       desiredHct: targetPercent,
       rbcRequiredVolume,
       rbcUnitCount,
       estimatedFinalVolume,
     }
-  }, [bloodVolumeCoefficient, preDesiredHct, preHct, primeVolume, rbcProductHct, rbcUnitVolume, weightKg])
+  }, [preCpbBaseResult, preDesiredHct, rbcProductHct, rbcUnitVolume])
 
 
   const hasIntraoperativeTarget = hasOptionalValue(intraDesiredHct)
@@ -1038,56 +1081,75 @@ export default function BloodHemodilutionCalculator() {
                 />
 
                 <div className="space-y-3">
-              {preCpbResult.status === "message" ? (
-                <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
-                  <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">{preCpbResult.message}</CardContent>
-                </Card>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <ResultCard
-                      label="Expected Hct without RBC"
-                      value={formatNumber(preCpbResult.expectedHctWithoutRbc, 1)}
-                      unit="%"
-                      tone={preCpbResult.expectedHctWithoutRbc >= preCpbResult.desiredHct ? "green" : "amber"}
-                    />
-                    <ResultCard
-                      label="RBC to prime"
-                      value={formatNumber(preCpbResult.rbcRequiredVolume)}
-                      unit="mL"
-                      tone={preCpbResult.rbcRequiredVolume > FLUID_ADJUSTMENT_THRESHOLD_ML ? "rose" : "green"}
-                      detail={
-                        <>
-                          ≈ {formatNumber(preCpbResult.rbcUnitCount, 1)} unit<br />
-                          RBC-LF {rbcUnitVolume || "-"} mL/unit 기준
-                        </>
-                      }
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-5">
-                    <div>
-                      <div className="text-muted-foreground">Patient volume</div>
-                      <div className="font-semibold">{formatNumber(preCpbResult.patientVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Prime volume</div>
-                      <div className="font-semibold">{formatNumber(preCpbResult.baseTotalVolume - preCpbResult.patientVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Base total volume</div>
-                      <div className="font-semibold">{formatNumber(preCpbResult.baseTotalVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Patient RBC volume</div>
-                      <div className="font-semibold">{formatNumber(preCpbResult.patientRbcVolume)} mL</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Final volume after RBC</div>
-                      <div className="font-semibold">{formatNumber(preCpbResult.estimatedFinalVolume)} mL</div>
-                    </div>
-                  </div>
-                </>
-              )}
+                  {preCpbBaseResult.status === "message" ? (
+                    <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                      <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">
+                        {preCpbBaseResult.message}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <ResultCard
+                          label="Expected Hct without RBC"
+                          value={formatNumber(preCpbBaseResult.expectedHctWithoutRbc, 1)}
+                          unit="%"
+                          tone={
+                            preCpbResult.status === "ready" &&
+                            preCpbBaseResult.expectedHctWithoutRbc >= preCpbResult.desiredHct
+                              ? "green"
+                              : "amber"
+                          }
+                        />
+                        {preCpbResult.status === "ready" ? (
+                          <ResultCard
+                            label="RBC to prime"
+                            value={formatNumber(preCpbResult.rbcRequiredVolume)}
+                            unit="mL"
+                            tone={preCpbResult.rbcRequiredVolume > FLUID_ADJUSTMENT_THRESHOLD_ML ? "rose" : "green"}
+                            detail={
+                              <>
+                                ≈ {formatNumber(preCpbResult.rbcUnitCount, 1)} unit<br />
+                                RBC-LF {rbcUnitVolume || "-"} mL/unit 기준
+                              </>
+                            }
+                          />
+                        ) : (
+                          <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
+                            <CardContent className="p-3 text-sm text-amber-900 dark:text-amber-100">
+                              {preCpbResult.message}
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-muted/25 p-3 text-xs md:grid-cols-5">
+                        <div>
+                          <div className="text-muted-foreground">Patient volume</div>
+                          <div className="font-semibold">{formatNumber(preCpbBaseResult.patientVolume)} mL</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Prime volume</div>
+                          <div className="font-semibold">
+                            {formatNumber(preCpbBaseResult.baseTotalVolume - preCpbBaseResult.patientVolume)} mL
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Base total volume</div>
+                          <div className="font-semibold">{formatNumber(preCpbBaseResult.baseTotalVolume)} mL</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Patient RBC volume</div>
+                          <div className="font-semibold">{formatNumber(preCpbBaseResult.patientRbcVolume)} mL</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Final volume after RBC</div>
+                          <div className="font-semibold">
+                            {preCpbResult.status === "ready" ? `${formatNumber(preCpbResult.estimatedFinalVolume)} mL` : "-"}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </SectionCard>
