@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">CPBU Assistant</title>
+  <defs>
+    <linearGradient id="background" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#10B981" />
+      <stop offset="1" stop-color="#047857" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#background)" />
+  <path
+    d="M32 48.5C27.4 44.5 17 36.6 17 27.4C17 21.9 20.7 18 25.8 18C28.7 18 30.9 19.6 32 21.5C33.1 19.6 35.3 18 38.2 18C43.3 18 47 21.9 47 27.4C47 36.6 36.6 44.5 32 48.5Z"
+    fill="white"
+  />
+  <path d="M8 33H19L23 26L28 40L34 30L38 33H56" fill="none" stroke="#A7F3D0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="8" cy="33" r="3" fill="#ECFDF5" />
+  <circle cx="56" cy="33" r="3" fill="#ECFDF5" />
+</svg>

@@ -15,14 +15,11 @@ export const metadata: Metadata = {
   description: "장기이식 수술 시간 관리 시스템",
   generator: "v0.dev",
   icons: {
-    icon: [
-      {
-        url: "/favicon.png",
-        type: "image/svg+xml",
-      },
-    ],
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: {
+      url: "/favicon.svg",
+      type: "image/svg+xml",
+    },
+    shortcut: "/favicon.svg",
   },
 }
 
@@ -33,9 +30,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={inter.variable}>
-      <head>
-        <link rel="icon" href="/favicon.png" type="image/svg+xml" />
-      </head>
       <body className="font-sans">
         {children}
         <Toaster position="top-center" />
