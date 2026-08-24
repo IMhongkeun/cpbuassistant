@@ -379,7 +379,7 @@ const CPBUassistant = () => {
         </div>
         {description && <p className="text-xs text-gray-500 mt-1 ml-6">{description}</p>} {/* Added description */}
       </h4>
-      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-3 min-[360px]:gap-2 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <TimeInput
           label="시작 시간"
           value={startTime}
