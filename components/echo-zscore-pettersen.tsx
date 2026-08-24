@@ -343,9 +343,9 @@ export default function EchoZScorePettersen() {
       <Card className="w-full max-w-5xl mx-auto">
         <CardHeader className="cursor-pointer px-3 sm:px-6" onClick={() => setShowFormulaGuide(!showFormulaGuide)}>
           <CardTitle className="flex items-center justify-between gap-1 whitespace-nowrap text-xs sm:gap-3 sm:text-lg">
-            <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap sm:gap-2">
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden sm:gap-2">
               <Info className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-              Pettersen 2008 Z-score 계산식 안내
+              <span className="truncate">Pettersen 2008 Z-score 계산식 안내</span>
             </span>
             <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground sm:text-sm">
               {showFormulaGuide ? "▲ 접기" : "▼ 펼치기"}
