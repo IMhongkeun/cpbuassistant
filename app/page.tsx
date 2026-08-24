@@ -229,7 +229,7 @@ const CPBUassistant = () => {
             readOnly={readOnly}
             placeholder="시간:분" // Modified placeholder text
             maxLength={5}
-            className={`h-12 w-full min-w-0 rounded-md border py-2 pl-2 text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:pl-3 sm:text-base ${
+            className={`h-12 w-full min-w-0 rounded-md border py-2 pl-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:pl-3 ${
               readOnly ? "bg-gray-100 pr-3 text-gray-600" : "bg-white pr-10"
             }`}
           />
@@ -373,13 +373,13 @@ const CPBUassistant = () => {
       <h4 className="mb-3 flex flex-col items-start font-semibold text-gray-800">
         {" "}
         {/* Changed to flex-col for description below title */}
-        <div className="flex items-center whitespace-nowrap">
+        <div className="flex items-start min-[360px]:items-center min-[360px]:whitespace-nowrap">
           <Timer className="mr-2 h-4 w-4 shrink-0" /> {/* Timer icon */}
           <span>{title} {side && `(${side})`}</span> {/* Display title and side if provided */}
         </div>
         {description && <p className="text-xs text-gray-500 mt-1 ml-6">{description}</p>} {/* Added description */}
       </h4>
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-3 min-[360px]:gap-2 sm:gap-4">
         <TimeInput
           label="시작 시간"
           value={startTime}
