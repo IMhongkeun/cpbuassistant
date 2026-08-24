@@ -212,22 +212,8 @@ const CPBUassistant = () => {
     }
 
     return (
-      <div className="flex flex-col space-y-1">
-        <div className="flex items-center space-x-2 mb-1">
-          {" "}
-          {/* Container for label and button */}
-          <label className="text-sm font-medium text-gray-700">{label}</label>
-          {!readOnly && (
-            <button
-              type="button"
-              onClick={handleCurrentTime}
-              className="p-1 rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors"
-              title="현재 시간 입력"
-            >
-              <Clock className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">{label}</label>
         <div className="relative">
           <input
             type="text"
@@ -243,10 +229,21 @@ const CPBUassistant = () => {
             readOnly={readOnly}
             placeholder="시간:분" // Modified placeholder text
             maxLength={5}
-            className={`flex-1 px-3 py-2 border rounded-md w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-              readOnly ? "bg-gray-100 text-gray-600" : "bg-white"
+            className={`h-12 w-full min-w-0 rounded-md border py-2 pl-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:pl-3 ${
+              readOnly ? "bg-gray-100 pr-3 text-gray-600" : "bg-white pr-10"
             }`}
           />
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleCurrentTime}
+              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
+              title="현재 시간 입력"
+              aria-label={`${label}에 현재 시간 입력`}
+            >
+              <Clock className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     )
@@ -323,20 +320,10 @@ const CPBUassistant = () => {
     }
 
     return (
-      <div className="flex flex-col space-y-1">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700">{label}</label>
-            <button
-              type="button"
-              onClick={handleCurrentTime}
-              className="p-1 rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors"
-              title="현재 시간 입력"
-            >
-              <Clock className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="text-sm text-gray-500">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <label className="text-sm font-medium text-gray-700">{label}</label>
+          <div className="text-xs leading-5 text-gray-500 sm:text-sm">
             <Clock className="inline-block w-4 h-4 mr-1 align-middle" />
             시계 아이콘을 누르면 현재 시간이 입력됩니다.
           </div>
@@ -354,8 +341,17 @@ const CPBUassistant = () => {
             }}
             placeholder="시간:분"
             maxLength={5}
-            className="flex-1 px-3 py-2 border rounded-md w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            className="h-12 w-full rounded-md border bg-white py-2 pl-3 pr-12 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
           />
+          <button
+            type="button"
+            onClick={handleCurrentTime}
+            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
+            title="현재 시간 입력"
+            aria-label="Donor ACC Time에 현재 시간 입력"
+          >
+            <Clock className="h-4 w-4" />
+          </button>
         </div>
       </div>
     )
@@ -373,17 +369,17 @@ const CPBUassistant = () => {
     side = "",
     readOnlyStart = false,
   }) => (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <h4 className="font-semibold text-gray-800 mb-3 flex flex-col items-start">
+    <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+      <h4 className="mb-3 flex flex-col items-start font-semibold text-gray-800">
         {" "}
         {/* Changed to flex-col for description below title */}
-        <div className="flex items-center">
-          <Timer className="w-4 h-4 mr-2" /> {/* Timer icon */}
-          {title} {side && `(${side})`} {/* Display title and side if provided */}
+        <div className="flex items-start min-[360px]:items-center min-[360px]:whitespace-nowrap">
+          <Timer className="mr-2 h-4 w-4 shrink-0" /> {/* Timer icon */}
+          <span>{title} {side && `(${side})`}</span> {/* Display title and side if provided */}
         </div>
         {description && <p className="text-xs text-gray-500 mt-1 ml-6">{description}</p>} {/* Added description */}
       </h4>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <TimeInput
           label="시작 시간"
           value={startTime}
@@ -391,9 +387,9 @@ const CPBUassistant = () => {
           readOnly={readOnlyStart} // Use readOnlyStart prop
         />
         <TimeInput label="종료 시간" value={endTime} onChange={onEndChange} />
-        <div className="flex flex-col space-y-1">
-          <label className="text-sm font-medium text-gray-700">소요 시간</label>
-          <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-blue-800 font-semibold">
+        <div className="flex min-w-0 flex-col gap-2">
+          <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">소요 시간</label>
+          <div className="flex h-12 items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800">
             {duration || "-"} {/* Display duration or '-' if not available */}
           </div>
         </div>
@@ -402,7 +398,7 @@ const CPBUassistant = () => {
   )
 
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-white rounded-xl shadow-lg">
+    <div className="mx-auto max-w-6xl rounded-xl bg-white p-3 shadow-lg sm:p-6">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center">CPBU assistant</h1>
       </div>
@@ -464,7 +460,7 @@ const CPBUassistant = () => {
       {/* Lung Transplant Section */}
       {activeTab === "lung" && (
         <div className="space-y-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-md">
+          <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md sm:p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
               폐이식 시간 관리
             </h3>
@@ -478,7 +474,7 @@ const CPBUassistant = () => {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Lung Section */}
-              <div className="space-y-4 p-4 border rounded-lg bg-gray-100">
+              <div className="space-y-4 rounded-lg border bg-gray-100 p-3 sm:p-4">
                 <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Left Lung (1st lung)</h4>
                 <TimeSection
                   title="Cold Ischemic Time"
@@ -585,7 +581,7 @@ const CPBUassistant = () => {
               </div>
 
               {/* Right Lung Section */}
-              <div className="space-y-4 p-4 border rounded-lg bg-gray-100">
+              <div className="space-y-4 rounded-lg border bg-gray-100 p-3 sm:p-4">
                 <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Right Lung (2nd lung)</h4>
                 <TimeSection
                   title="Cold Ischemic Time"
@@ -727,7 +723,7 @@ const CPBUassistant = () => {
       {/* Heart Transplant Section */}
       {activeTab === "heart" && (
         <div className="space-y-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-md">
+          <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md sm:p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
               심장이식 시간 관리
             </h3>

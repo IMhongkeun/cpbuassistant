@@ -354,7 +354,7 @@ export default function EchoZScoreTool() {
   }
 
   return (
-    <div className="bg-background rounded-xl shadow-lg p-6">
+    <div className="rounded-xl bg-background p-3 shadow-lg sm:p-6">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-foreground mb-2">Echo Z‑Score Calculator</h2>
         <p className="text-muted-foreground">소아 심장초음파 Z-score 계산기</p>
@@ -486,10 +486,12 @@ export default function EchoZScoreTool() {
       </div>
 
       <Card className="w-full max-w-5xl mx-auto mt-6">
-        <CardHeader className="cursor-pointer" onClick={() => setShowFormulaGuide(!showFormulaGuide)}>
-          <CardTitle className="flex items-center justify-between text-lg">
-            <span>PHN Z-score 계산식 안내</span>
-            <span className="text-muted-foreground text-sm">{showFormulaGuide ? "▲ 접기" : "▼ 펼치기"}</span>
+        <CardHeader className="cursor-pointer px-3 sm:px-6" onClick={() => setShowFormulaGuide(!showFormulaGuide)}>
+          <CardTitle className="flex items-center justify-between gap-2 whitespace-nowrap text-xs sm:gap-3 sm:text-lg">
+            <span className="min-w-0 truncate">PHN Z-score 계산식 안내</span>
+            <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground sm:text-sm">
+              {showFormulaGuide ? "▲ 접기" : "▼ 펼치기"}
+            </span>
           </CardTitle>
         </CardHeader>
 
