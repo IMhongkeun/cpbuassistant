@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 const FV_CURVES: Record<number, number[]> = {
   19: [0, 4, 9, 16, 26, 38, 51, 67, 86, 106, 128, 153, 179],
@@ -114,25 +114,56 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number) 
 function NumberField({ label, value, onChange, min, max, step, unit }: {
   label: string; value: number; onChange: (value: number) => void; min: number; max: number; step: number; unit: string
 }) {
+  const [draft, setDraft] = useState(String(value))
+
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+
+  const commitDraft = () => {
+    if (draft.trim() === "") {
+      setDraft(String(value))
+      return
+    }
+    const parsed = Number.parseFloat(draft)
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value))
+      return
+    }
+    const next = clamp(parsed, min, max)
+    onChange(next)
+    setDraft(String(next))
+  }
+
   return <label className="grid gap-1.5 text-sm font-medium text-slate-700">
     {label}
     <div className="flex items-center gap-2">
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-teal-600" />
-      <div className="flex w-28 items-center rounded-md border bg-white px-2 py-1.5">
-        <input type="number" min={min} max={max} step={step} value={value} onChange={(e) => onChange(clamp(n(e.target.value, value), min, max))} className="w-14 bg-transparent text-right outline-none" />
-        <span className="ml-1 text-xs text-slate-500">{unit}</span>
+      <input type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-teal-600" />
+      <div className="flex w-32 items-center rounded-md border bg-white px-2 py-1.5 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100">
+        <input type="number" inputMode="decimal" min={min} max={max} step={step} value={draft}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur()
+            if (e.key === "Escape") {
+              setDraft(String(value))
+              e.currentTarget.blur()
+            }
+          }}
+          className="w-16 bg-transparent text-right outline-none" />
+        <span className="ml-1 whitespace-nowrap text-xs text-slate-500">{unit}</span>
       </div>
     </div>
   </label>
 }
 
 export default function MicsDrainageCalculator() {
-  const [mode, setMode] = useState<"flow" | "pressure">("flow")
   const [fv, setFv] = useState(25)
   const [tube, setTube] = useState(0.375)
   const [svc, setSvc] = useState(17)
   const [targetFlow, setTargetFlow] = useState(5)
-  const [availablePressure, setAvailablePressure] = useState(60)
   const [vavdLimit, setVavdLimit] = useState(60)
   const [passivePressure, setPassivePressure] = useState(0)
   const [weight, setWeight] = useState(70)
@@ -141,13 +172,11 @@ export default function MicsDrainageCalculator() {
   const [otherPrime, setOtherPrime] = useState(1000)
 
   const rows = useMemo(() => tubeOptions.flatMap((tubeOption) => strategies.map((strategy) => {
-    const result = mode === "flow"
-      ? pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
-      : flowAtPressure(fv, tubeOption.value, strategy.value, availablePressure)
+    const result = pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
     if (!result) return { tube: tubeOption, strategy, result: null, requiredVacuum: null, within: false }
     const requiredVacuum = Math.max(0, result.pressure - passivePressure)
     return { tube: tubeOption, strategy, result, requiredVacuum, within: requiredVacuum <= vavdLimit }
-  })), [mode, fv, targetFlow, availablePressure, passivePressure, vavdLimit])
+  })), [fv, targetFlow, passivePressure, vavdLimit])
 
   const selected = rows.find((row) => row.tube.value === tube && row.strategy.value === svc)
   const hctRows = useMemo(() => tubeOptions.map((item) => {
@@ -164,10 +193,6 @@ export default function MicsDrainageCalculator() {
     <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm sm:p-6">
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div><h2 className="text-xl font-bold text-slate-900">MICS venous drainage simulator</h2><p className="mt-1 text-sm text-slate-600">Cannula·tubing·SVC 병렬 전략에 따른 회로 pressure gradient와 예상 drainage flow를 비교합니다.</p></div>
-        <div className="inline-flex rounded-lg bg-white p-1 shadow-sm">
-          <button onClick={() => setMode("flow")} className={"rounded-md px-3 py-2 text-sm font-semibold " + (mode === "flow" ? "bg-teal-600 text-white" : "text-slate-600")}>Flow → 압력</button>
-          <button onClick={() => setMode("pressure")} className={"rounded-md px-3 py-2 text-sm font-semibold " + (mode === "pressure" ? "bg-teal-600 text-white" : "text-slate-600")}>압력 → Flow</button>
-        </div>
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
@@ -177,7 +202,7 @@ export default function MicsDrainageCalculator() {
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-3">
-        {mode === "flow" ? <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" /> : <NumberField label="가용 pressure gradient" value={availablePressure} onChange={setAvailablePressure} min={0} max={120} step={1} unit="mmHg" />}
+        <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
         <NumberField label="VAVD 기준값 (음압 크기)" value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
         <NumberField label="CVP + 낙차 등 비진공 기여" value={passivePressure} onChange={setPassivePressure} min={0} max={60} step={1} unit="mmHg" />
       </div>
@@ -185,12 +210,12 @@ export default function MicsDrainageCalculator() {
 
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">선택 전략</p><p className="mt-2 text-base font-bold text-slate-900">FV {fv} Fr · {tube === 0.375 ? '3/8"' : '1/2"'} · {strategies.find((item) => item.value === svc)?.label}</p></div>
-      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{mode === "flow" ? "필요 pressure gradient" : "예상 total flow"}</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? mode === "flow" ? fmt(selected.result.pressure) + " mmHg" : fmt(selected.result.totalFlow) + " L/min" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">{selected?.result ? "FV " + fmt(selected.result.fvFlow) + " + SVC " + fmt(selected.result.svcFlow) + " L/min" : "곡선 외삽을 하지 않음"}</p></div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">"필요 pressure gradient"</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? fmt(selected.result.pressure) + " mmHg" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">{selected?.result ? "FV " + fmt(selected.result.fvFlow) + " + SVC " + fmt(selected.result.svcFlow) + " L/min" : "곡선 외삽을 하지 않음"}</p></div>
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p><p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p><p className="mt-1 text-xs text-slate-500">가용 ΔP 기준 {fmt(budget, 0)} mmHg</p></div>
     </div>
 
     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
-      <table className="w-full min-w-[720px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">FV tubing</th><th className="px-4 py-3">전략</th><th className="px-4 py-3 text-right">{mode === "flow" ? "필요 ΔP" : "가용 ΔP"}</th><th className="px-4 py-3 text-right">FV flow</th><th className="px-4 py-3 text-right">SVC flow</th><th className="px-4 py-3 text-right">Total flow</th><th className="px-4 py-3 text-right">판정</th></tr></thead>
+      <table className="w-full min-w-[720px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">FV tubing</th><th className="px-4 py-3">전략</th><th className="px-4 py-3 text-right">필요 ΔP</th><th className="px-4 py-3 text-right">FV flow</th><th className="px-4 py-3 text-right">SVC flow</th><th className="px-4 py-3 text-right">Total flow</th><th className="px-4 py-3 text-right">판정</th></tr></thead>
         <tbody>{rows.map((row) => <tr key={row.tube.value + "-" + row.strategy.value} className={(row.tube.value === tube && row.strategy.value === svc ? "bg-teal-50 " : "") + "border-t"}><td className="px-4 py-3">{row.tube.label}</td><td className="px-4 py-3">{row.strategy.label}</td><td className="px-4 py-3 text-right">{row.result ? fmt(row.result.pressure) + " mmHg" : "범위 밖"}</td><td className="px-4 py-3 text-right">{fmt(row.result?.fvFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.svcFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.totalFlow ?? null)}</td><td className="px-4 py-3 text-right"><span className={"rounded-full px-2 py-1 text-xs font-semibold " + (row.within ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>{row.result ? row.within ? "기준 이내" : "기준 초과" : "곡선 범위 밖"}</span></td></tr>)}</tbody>
       </table>
     </div>
