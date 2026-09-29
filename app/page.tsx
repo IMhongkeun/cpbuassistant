@@ -8,6 +8,7 @@ import ScmpFlowCalculator from "../components/scmp-flow-calculator"
 import BloodHemodilutionCalculator from "../components/blood-hemodilution-calculator"
 import QpQsCalculator from "../components/qp-qs-calculator"
 import GDPCalculator from "../components/gdp-calculator" // Import the GDPCalculator component
+import MicsDrainageCalculator from "../components/mics-drainage-calculator"
 
 // Helper function to convert HH:MM string (allowing HH > 23) to total minutes from midnight
 const timeToMinutes = (timeStr) => {
@@ -454,6 +455,16 @@ const CPBUassistant = () => {
           }`}
         >
           {"GDP"}
+        </button>
+        <button
+          onClick={() => setActiveTab("mics")}
+          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+            activeTab === "mics"
+              ? "bg-white text-teal-600 shadow-md transform scale-105"
+              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          {"MICS"}
         </button>
       </div>
 
@@ -916,6 +927,13 @@ const CPBUassistant = () => {
       {activeTab === "gdp" && (
         <div className="space-y-6">
           <GDPCalculator />
+        </div>
+      )}
+
+      {/* MICS venous drainage simulator */}
+      {activeTab === "mics" && (
+        <div className="space-y-6">
+          <MicsDrainageCalculator />
         </div>
       )}
     </div>
