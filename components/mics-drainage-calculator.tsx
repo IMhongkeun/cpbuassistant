@@ -193,6 +193,15 @@ export default function MicsDrainageCalculator() {
   }), [weight, preHct, ebvPerKg, otherPrime, svc])
   const hctDifference = hctRows[0].postHct - hctRows[1].postHct
   const budget = passivePressure + vavdLimit
+  const selectedResult = selected?.result ?? null
+  const selectedBreakdown = selectedResult ? {
+    fvCannula: curveLoss(FV_CURVES[fv], selectedResult.fvFlow),
+    fvTube: tubeLoss(selectedResult.fvFlow, 2, tube),
+    svcCannula: svc ? curveLoss(SVC_CURVES[svc], selectedResult.svcFlow) : 0,
+    svcTube: svc ? tubeLoss(selectedResult.svcFlow, 1, 0.375) : 0,
+  } : null
+  const selectedHct = hctRows.find((row) => row.value === tube)
+  const selectedEbv = weight * ebvPerKg
 
   return <div className="space-y-5">
     <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm sm:p-6">
@@ -243,5 +252,73 @@ export default function MicsDrainageCalculator() {
       </div>
       <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. 비진공 기여압은 CVP + 낙차(cm) × 0.736 mmHg/cm으로 계산한 추정치이며, 실제 정맥 허탈·캐뉼라 위치·reservoir 구조에 따라 달라질 수 있습니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
     </div>
+
+    <details className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 font-bold text-slate-800 transition-colors hover:bg-slate-50 sm:px-6">
+        <span>계산방식 보기 · 현재 선택값으로 풀어보기</span>
+        <span className="text-xl text-teal-600 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+      </summary>
+      <div className="border-t bg-slate-50/60 px-4 py-5 sm:px-6">
+        <p className="mb-4 text-sm leading-6 text-slate-600">현재 선택한 FV {fv} Fr · {tube === 0.375 ? '3/8″' : '1/2″'} · {strategies.find((item) => item.value === svc)?.label} · 목표 {fmt(targetFlow)} L/min을 기준으로 아래 순서로 계산합니다.</p>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          <section className="rounded-lg border bg-white p-4">
+            <h4 className="font-bold text-slate-900">1. Cannula pressure loss</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-600">PerfusionTools에 digitize된 제조사 곡선의 인접 두 점 사이를 선형 보간합니다.</p>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">ΔP = ΔP₁ + (Q − Q₁) / (Q₂ − Q₁) × (ΔP₂ − ΔP₁)</p>
+            {selectedResult && selectedBreakdown ? <div className="mt-3 space-y-1 text-sm text-slate-700">
+              <p>FV {fmt(selectedResult.fvFlow)} L/min → cannula <strong>{fmt(selectedBreakdown.fvCannula)} mmHg</strong></p>
+              {svc ? <p>SVC {fmt(selectedResult.svcFlow)} L/min → cannula <strong>{fmt(selectedBreakdown.svcCannula)} mmHg</strong></p> : <p>SVC branch 없음</p>}
+            </div> : <p className="mt-3 text-sm text-rose-700">선택 조건이 원자료 곡선 범위를 벗어나 계산하지 않았습니다.</p>}
+          </section>
+
+          <section className="rounded-lg border bg-white p-4">
+            <h4 className="font-bold text-slate-900">2. Tubing pressure loss</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-600">혈액 밀도 1,060 kg/m³, 점도 3.5 mPa·s를 적용하고 Reynolds number에 따른 Churchill friction factor와 Darcy–Weisbach 식을 사용합니다.</p>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">ΔP = f × (L / D) × (ρv² / 2),  v = Q / A</p>
+            {selectedResult && selectedBreakdown ? <div className="mt-3 space-y-1 text-sm text-slate-700">
+              <p>FV {tube === 0.375 ? '3/8″' : '1/2″'} · 200 cm → <strong>{fmt(selectedBreakdown.fvTube)} mmHg</strong></p>
+              {svc ? <p>SVC 3/8″ · 100 cm → <strong>{fmt(selectedBreakdown.svcTube)} mmHg</strong></p> : null}
+            </div> : null}
+          </section>
+
+          <section className="rounded-lg border bg-white p-4">
+            <h4 className="font-bold text-slate-900">3. FV·SVC 병렬 flow 분배</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-600">두 branch가 같은 reservoir에 연결되므로 동일한 pressure gradient가 걸린다고 보고, 아래 조건을 만족하는 ΔP를 반복 계산합니다.</p>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QFV(ΔP) + QSVC(ΔP) = 목표 total flow</p>
+            {selectedResult ? <div className="mt-3 text-sm text-slate-700">
+              <p>필요 ΔP <strong>{fmt(selectedResult.pressure)} mmHg</strong></p>
+              <p className="mt-1">FV {fmt(selectedResult.fvFlow)} + SVC {fmt(selectedResult.svcFlow)} = <strong>{fmt(selectedResult.totalFlow)} L/min</strong></p>
+            </div> : null}
+          </section>
+
+          <section className="rounded-lg border bg-white p-4">
+            <h4 className="font-bold text-slate-900">4. 자연배액 기여와 필요 VAVD</h4>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">비진공 ΔP = CVP + 낙차(cm) × 0.7356</p>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − 비진공 ΔP)</p>
+            <div className="mt-3 space-y-1 text-sm text-slate-700">
+              <p>{fmt(cvp)} + {fmt(heightCm, 0)} × 0.7356 = 비진공 <strong>{fmt(passivePressure)} mmHg</strong></p>
+              <p>{selectedResult ? fmt(selectedResult.pressure) : '—'} − {fmt(passivePressure)} = 필요 VAVD <strong>{fmt(selected?.requiredVacuum ?? null)} mmHg</strong></p>
+              <p>설정 기준 {fmt(vavdLimit, 0)} mmHg와 비교 → <strong className={selected?.within ? "text-emerald-700" : "text-rose-700"}>{selectedResult ? selected?.within ? "기준 이내" : "기준 초과" : "판정 불가"}</strong></p>
+            </div>
+          </section>
+
+          <section className="rounded-lg border bg-white p-4 lg:col-span-2">
+            <h4 className="font-bold text-slate-900">5. Tubing prime과 예상 Hct</h4>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">EBV = 체중 × 혈액량 계수</p>
+            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">예상 Hct = 수술 전 Hct × EBV / (EBV + total prime)</p>
+            <div className="mt-3 space-y-1 text-sm text-slate-700">
+              <p>EBV = {fmt(weight, 0)} kg × {fmt(ebvPerKg, 0)} mL/kg = <strong>{fmt(selectedEbv, 0)} mL</strong></p>
+              <p>선택 회로 total prime = 기타 {fmt(otherPrime, 0)} + FV tubing {fmt(selectedHct?.fvPrime ?? null)}{svc ? " + SVC tubing 71.3" : ""} = <strong>{fmt(selectedHct?.totalPrime ?? null)} mL</strong></p>
+              <p>예상 Hct = {fmt(preHct)} × {fmt(selectedEbv, 0)} / ({fmt(selectedEbv, 0)} + {fmt(selectedHct?.totalPrime ?? null)}) = <strong>{fmt(selectedHct?.postHct ?? null)}%</strong></p>
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
+          이 계산은 회로 전략 비교를 위한 추정 모델입니다. Cannula 제조사 곡선은 주로 물 시험 자료이며, SVC에 사용하는 NextGen arterial cannula는 제조사 pressure-loss 곡선의 크기를 drainage 저항으로 적용했습니다. 실제 결과는 혈액 점도·온도·Hct·정맥 허탈·환자 혈액량·캐뉼라 위치와 삽입 깊이·kink·connector·reservoir 구조에 따라 달라질 수 있습니다.
+        </div>
+      </div>
+    </details>
   </div>
 }
