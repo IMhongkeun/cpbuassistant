@@ -165,11 +165,14 @@ export default function MicsDrainageCalculator() {
   const [svc, setSvc] = useState(17)
   const [targetFlow, setTargetFlow] = useState(5)
   const [vavdLimit, setVavdLimit] = useState(60)
-  const [passivePressure, setPassivePressure] = useState(0)
+  const [cvp, setCvp] = useState(0)
+  const [heightCm, setHeightCm] = useState(0)
   const [weight, setWeight] = useState(70)
   const [preHct, setPreHct] = useState(35)
   const [ebvPerKg, setEbvPerKg] = useState(55)
   const [otherPrime, setOtherPrime] = useState(1000)
+
+  const passivePressure = Math.max(0, cvp) + Math.max(0, heightCm) * 0.7356
 
   const rows = useMemo(() => tubeOptions.flatMap((tubeOption) => strategies.map((strategy) => {
     const result = pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
@@ -201,17 +204,22 @@ export default function MicsDrainageCalculator() {
         <div><p className="mb-2 text-sm font-medium text-slate-700">Drainage 전략</p><div className="flex flex-wrap gap-1">{strategies.map((item) => <button key={item.value} onClick={() => setSvc(item.value)} className={"rounded-md border px-3 py-2 text-sm font-semibold " + (svc === item.value ? "border-teal-600 bg-teal-600 text-white" : "bg-white text-slate-600")}>{item.label}</button>)}</div></div>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-3">
+      <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
         <NumberField label="VAVD 기준값 (음압 크기)" value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
-        <NumberField label="CVP + 낙차 등 비진공 기여" value={passivePressure} onChange={setPassivePressure} min={0} max={60} step={1} unit="mmHg" />
+        <NumberField label="CVP" value={cvp} onChange={setCvp} min={0} max={30} step={1} unit="mmHg" />
+        <NumberField label="낙차 (RA/캐뉼라 → reservoir 수면)" value={heightCm} onChange={setHeightCm} min={0} max={100} step={1} unit="cm" />
+      </div>
+      <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-slate-700">
+        <span className="font-semibold text-teal-900">자동 계산된 비진공 기여압: {fmt(passivePressure)} mmHg</span>
+        <span className="ml-2 text-slate-600">= CVP {fmt(cvp)} + 낙차 {fmt(heightCm, 0)} cm × 0.736 mmHg/cm</span>
       </div>
     </div>
 
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">선택 전략</p><p className="mt-2 text-base font-bold text-slate-900">FV {fv} Fr · {tube === 0.375 ? '3/8"' : '1/2"'} · {strategies.find((item) => item.value === svc)?.label}</p></div>
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">필요 pressure gradient</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? fmt(selected.result.pressure) + " mmHg" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">{selected?.result ? "FV " + fmt(selected.result.fvFlow) + " + SVC " + fmt(selected.result.svcFlow) + " L/min" : "곡선 외삽을 하지 않음"}</p></div>
-      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p><p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p><p className="mt-1 text-xs text-slate-500">가용 ΔP 기준 {fmt(budget, 0)} mmHg</p></div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p><p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p><p className="mt-1 text-xs text-slate-500">가용 ΔP 기준 {fmt(budget, 0)} mmHg · 자연배액 {fmt(passivePressure)}</p></div>
     </div>
 
     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
@@ -226,7 +234,7 @@ export default function MicsDrainageCalculator() {
         <div className="grid gap-4"><NumberField label="환자 체중" value={weight} onChange={setWeight} min={30} max={150} step={1} unit="kg" /><NumberField label="수술 전 Hct" value={preHct} onChange={setPreHct} min={15} max={55} step={0.1} unit="%" /><NumberField label="추정 혈액량 계수" value={ebvPerKg} onChange={setEbvPerKg} min={50} max={90} step={1} unit="mL/kg" /><NumberField label="기타 회로 prime" value={otherPrime} onChange={setOtherPrime} min={0} max={2500} step={10} unit="mL" /></div>
         <div className="grid content-start gap-3">{hctRows.map((row) => <div key={row.value} className={"rounded-lg border p-4 " + (row.value === tube ? "border-teal-400 bg-teal-50" : "bg-slate-50")}><div className="flex items-baseline justify-between"><span className="font-semibold text-slate-700">FV {row.label} · 200 cm</span><strong className="text-2xl text-slate-900">{fmt(row.postHct)}%</strong></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-teal-600" style={{ width: Math.min(100, (row.postHct / preHct) * 100) + "%" }} /></div><p className="mt-2 text-xs text-slate-500">FV tubing {fmt(row.fvPrime)} mL · total prime {fmt(row.totalPrime)} mL</p></div>)}<div className="rounded-lg bg-emerald-50 p-4 text-emerald-900"><p className="text-sm font-semibold">3/8″ 사용 시 예상 Hct 차이 <span className="ml-2 text-xl">+{fmt(hctDifference, 2)}%p</span></p><p className="mt-1 text-xs">1/2″ FV limb보다 prime이 110.9 mL 적은 효과입니다.</p></div></div>
       </div>
-      <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
+      <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. 비진공 기여압은 CVP + 낙차(cm) × 0.736 mmHg/cm으로 계산한 추정치이며, 실제 정맥 허탈·캐뉼라 위치·reservoir 구조에 따라 달라질 수 있습니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
     </div>
   </div>
 }
