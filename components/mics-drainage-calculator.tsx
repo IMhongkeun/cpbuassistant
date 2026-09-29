@@ -168,7 +168,7 @@ export default function MicsDrainageCalculator() {
   const [passivePressure, setPassivePressure] = useState(0)
   const [weight, setWeight] = useState(70)
   const [preHct, setPreHct] = useState(35)
-  const [ebvPerKg, setEbvPerKg] = useState(70)
+  const [ebvPerKg, setEbvPerKg] = useState(55)
   const [otherPrime, setOtherPrime] = useState(1000)
 
   const rows = useMemo(() => tubeOptions.flatMap((tubeOption) => strategies.map((strategy) => {
