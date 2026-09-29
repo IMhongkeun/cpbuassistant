@@ -207,7 +207,12 @@ export default function MicsDrainageCalculator() {
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
+        <div className="relative rounded-xl border-2 border-teal-500 bg-teal-50/80 p-4 shadow-md ring-4 ring-teal-100/70">
+          <span className="absolute -top-3 left-3 rounded-full bg-teal-600 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white shadow-sm">핵심 입력</span>
+          <div className="pt-1 [&_input[type=number]]:text-lg [&_input[type=number]]:font-bold [&_input[type=number]]:text-teal-800">
+            <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
+          </div>
+        </div>
         <NumberField label="VAVD 기준값 (음압 크기)" value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
         <NumberField label="CVP" value={cvp} onChange={setCvp} min={0} max={30} step={1} unit="mmHg" />
         <NumberField label="낙차 (RA/캐뉼라 → reservoir 수면)" value={heightCm} onChange={setHeightCm} min={0} max={100} step={1} unit="cm" />
