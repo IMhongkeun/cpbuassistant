@@ -13,6 +13,7 @@ const FV_CURVES: Record<number, number[]> = {
 const SVC_CURVES: Record<number, number[]> = {
   15: [0, 5, 14, 26, 45, 88, 99, 137, 185],
   17: [0, 2, 5, 13, 24, 37, 54, 73, 96, 122, 152, 185],
+  19: [0, 2, 5, 9, 15, 23, 32, 42, 55, 69, 85, 104, 125],
 }
 
 const fvSizes = [19, 21, 23, 25, 27, 29]
@@ -20,6 +21,7 @@ const strategies = [
   { value: 0, label: "FV 단독" },
   { value: 15, label: "FV + SVC 15 Fr" },
   { value: 17, label: "FV + SVC 17 Fr" },
+  { value: 19, label: "FV + SVC 19 Fr" },
 ]
 const tubeOptions = [
   { value: 0.375, label: '3/8"' },
