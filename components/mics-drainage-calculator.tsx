@@ -168,7 +168,7 @@ export default function MicsDrainageCalculator() {
   const [targetFlow, setTargetFlow] = useState(5)
   const [vavdLimit, setVavdLimit] = useState(60)
   const [cvp, setCvp] = useState(0)
-  const [heightCm, setHeightCm] = useState(0)
+  const [heightCm, setHeightCm] = useState(30)
   const [weight, setWeight] = useState(70)
   const [preHct, setPreHct] = useState(35)
   const [ebvPerKg, setEbvPerKg] = useState(55)
