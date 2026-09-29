@@ -202,6 +202,10 @@ export default function MicsDrainageCalculator() {
   } : null
   const selectedHct = hctRows.find((row) => row.value === tube)
   const selectedEbv = weight * ebvPerKg
+  const expectedSvcFlow = targetFlow * 0.35
+  const expectedIvcFlow = targetFlow * 0.65
+  const hydraulicSvcFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.svcFlow / selectedResult.totalFlow * 100 : null
+  const hydraulicFvFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.fvFlow / selectedResult.totalFlow * 100 : null
 
   return <div className="space-y-5">
     <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm sm:p-6">
@@ -292,8 +296,37 @@ export default function MicsDrainageCalculator() {
             </div> : null}
           </section>
 
+          <section className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-4 lg:col-span-2">
+            <h4 className="font-bold text-slate-900">4. SVC·IVC 예상 flow와 회로 분배의 해석</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-700">정상 성인 안정 시 참고값은 SVC 약 35%, IVC 약 65%로, SVC:IVC를 대략 1:1.9로 봅니다. 이는 환자 측 venous return의 생리적 분포이며 회로 저항으로 계산한 branch flow와는 다른 개념입니다.</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-cyan-100 bg-white p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">생리적 참고값</p>
+                <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QSVC,ref = Qtotal × 0.35</p>
+                <p className="mt-1 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QIVC,ref = Qtotal × 0.65</p>
+                <div className="mt-3 space-y-1 text-sm text-slate-700">
+                  <p>Total {fmt(targetFlow)} L/min → SVC <strong>{fmt(expectedSvcFlow, 2)} L/min</strong></p>
+                  <p>Total {fmt(targetFlow)} L/min → IVC <strong>{fmt(expectedIvcFlow, 2)} L/min</strong></p>
+                </div>
+              </div>
+              <div className="rounded-lg border border-cyan-100 bg-white p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">현재 회로의 hydraulic 분배</p>
+                {selectedResult ? <div className="mt-3 space-y-1 text-sm text-slate-700">
+                  <p>SVC line {fmt(selectedResult.svcFlow)} L/min <strong>({fmt(hydraulicSvcFraction, 1)}%)</strong></p>
+                  <p>FV line {fmt(selectedResult.fvFlow)} L/min <strong>({fmt(hydraulicFvFraction, 1)}%)</strong></p>
+                  {svc ? <p className="pt-1 text-xs text-slate-500">SVC 회로 계산값과 생리적 SVC 참고값의 차이: {selectedResult.svcFlow >= expectedSvcFlow ? "+" : ""}{fmt(selectedResult.svcFlow - expectedSvcFlow, 2)} L/min</p> : <p className="pt-1 text-xs text-slate-500">별도 SVC line이 없으므로 상체 venous return도 RA/FV drainage 경로에서 함께 받아야 합니다.</p>}
+                </div> : <p className="mt-3 text-sm text-rose-700">선택 조건이 곡선 범위를 벗어나 분배값을 계산하지 않았습니다.</p>}
+              </div>
+            </div>
+            <div className="mt-3 space-y-2 text-xs leading-5 text-slate-600">
+              <p><strong>Snaring으로 caval return을 분리한 경우:</strong> SVC line의 실제 지속 flow는 상체에서 공급되는 venous return에 의해 제한됩니다. 회로 계산 능력이 이를 초과하면 추가 flow보다 SVC pressure 저하, vessel/RA collapse 또는 chatter로 나타날 수 있습니다.</p>
+              <p><strong>Snaring하지 않았거나 RA에서 혼합되는 경우:</strong> 표시되는 FV·SVC 분배는 두 branch의 포획 능력이며 혈액의 해부학적 기원을 직접 뜻하지 않습니다. FV cannula도 tip·side-hole 위치에 따라 IVC뿐 아니라 RA 또는 SVC return 일부를 받을 수 있으므로 FV flow를 곧바로 IVC flow로 동일시하지 않습니다.</p>
+              <p><strong>해석 기준:</strong> 35:65는 안정 시 참고선이며 고정 제한값이 아닙니다. 양압환기·호흡상·체위·혈액량·혈관긴장도·하체 관류 및 cannula 위치에 따라 실제 비율은 변합니다.</p>
+            </div>
+          </section>
+
           <section className="rounded-lg border bg-white p-4">
-            <h4 className="font-bold text-slate-900">4. 자연배액 기여와 필요 VAVD</h4>
+            <h4 className="font-bold text-slate-900">5. 자연배액 기여와 필요 VAVD</h4>
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">비진공 ΔP = CVP + 낙차(cm) × 0.7356</p>
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − 비진공 ΔP)</p>
             <div className="mt-3 space-y-1 text-sm text-slate-700">
@@ -304,7 +337,7 @@ export default function MicsDrainageCalculator() {
           </section>
 
           <section className="rounded-lg border bg-white p-4 lg:col-span-2">
-            <h4 className="font-bold text-slate-900">5. Tubing prime과 예상 Hct</h4>
+            <h4 className="font-bold text-slate-900">6. Tubing prime과 예상 Hct</h4>
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">EBV = 체중 × 혈액량 계수</p>
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">예상 Hct = 수술 전 Hct × EBV / (EBV + total prime)</p>
             <div className="mt-3 space-y-1 text-sm text-slate-700">
@@ -316,8 +349,17 @@ export default function MicsDrainageCalculator() {
         </div>
 
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
-          이 계산은 회로 전략 비교를 위한 추정 모델입니다. Cannula 제조사 곡선은 주로 물 시험 자료이며, SVC에 사용하는 NextGen arterial cannula는 제조사 pressure-loss 곡선의 크기를 drainage 저항으로 적용했습니다. 실제 결과는 혈액 점도·온도·Hct·정맥 허탈·환자 혈액량·캐뉼라 위치와 삽입 깊이·kink·connector·reservoir 구조에 따라 달라질 수 있습니다.
+          이 계산은 회로 전략 비교를 위한 추정 모델입니다. Cannula 제조사 곡선은 주로 물 시험 자료이며, SVC에 사용하는 NextGen arterial cannula는 제조사 pressure-loss 곡선의 크기를 drainage 저항으로 적용했습니다. SVC 35%·IVC 65%는 안정 시 성인 생리의 참고값일 뿐 hydraulic solver의 제한조건으로 강제하지 않습니다. 실제 결과는 혈액 점도·온도·Hct·정맥 허탈·환자 혈액량·호흡·체위·캐뉼라 위치와 삽입 깊이·kink·connector·reservoir 구조에 따라 달라질 수 있습니다.
         </div>
+
+        <section className="mt-4 rounded-lg border bg-white p-4 text-xs leading-5 text-slate-600">
+          <h4 className="font-bold text-slate-900">근거 문헌</h4>
+          <ol className="mt-2 list-decimal space-y-2 pl-5">
+            <li>Mohiaddin RH, et al. Vena caval flow: assessment with cine MR velocity mapping. <em>Radiology</em>. 1990;177:537–541. 건강한 성인에서 평균 SVC flow가 cardiac output의 약 35%로 보고되었습니다. <a className="font-semibold text-teal-700 underline" href="https://doi.org/10.1148/radiology.177.2.2217797" target="_blank" rel="noreferrer">DOI</a></li>
+            <li>Kuzo RS, et al. Measurement of caval blood flow with MRI during respiratory maneuvers. <em>AJR Am J Roentgenol</em>. 2007;188:839–842. 자유호흡에서 SVC 38.9, IVC 74.3 mL/beat였으며 호흡에 따라, 특히 IVC flow가 더 크게 변했습니다. <a className="font-semibold text-teal-700 underline" href="https://doi.org/10.2214/AJR.06.5035" target="_blank" rel="noreferrer">DOI</a></li>
+            <li>Miranda WR, et al. Catheterization in Adults With Congenital Heart Disease: A Primer for the Noncongenital Proceduralist. <em>JACC Cardiovasc Interv</em>. 2022;15(9). 성인 systemic venous return 중 약 2/3가 IVC에서 온다는 임상적 weighting을 기술합니다. <a className="font-semibold text-teal-700 underline" href="https://doi.org/10.1016/j.jcin.2021.12.020" target="_blank" rel="noreferrer">DOI</a></li>
+          </ol>
+        </section>
       </div>
     </details>
   </div>
