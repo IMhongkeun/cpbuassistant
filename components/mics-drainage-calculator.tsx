@@ -329,6 +329,41 @@ export default function MicsDrainageCalculator() {
             <h4 className="font-bold text-slate-900">5. 자연배액 기여와 필요 VAVD</h4>
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">비진공 ΔP = CVP + 낙차(cm) × 0.7356</p>
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − 비진공 ΔP)</p>
+            <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700">
+              <p><strong>쉽게 말하면, 목표 flow를 만들려면 회로 저항을 이길 만큼의 압력차가 필요합니다.</strong> 그 압력차 전부를 VAVD가 만드는 것은 아닙니다. 환자의 CVP가 혈액을 정맥 캐뉼라 쪽으로 밀어 주고, reservoir가 환자보다 아래에 있으면 낙차가 혈액을 아래로 끌어내립니다. 이 두 가지가 vacuum을 켜기 전부터 존재하는 압력차이므로 화면에서는 이를 <strong>비진공 ΔP(자연배액 기여압)</strong>라고 표시합니다.</p>
+
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-bold text-slate-900">① CVP: 환자 쪽에서 미는 힘</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">우심방 또는 caval venous pressure가 atmospheric pressure보다 높은 만큼 drainage의 시작 압력이 됩니다. 화면에는 해당 시점의 실제 CVP를 mmHg로 입력합니다.</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-bold text-slate-900">② 낙차: 아래로 끌어내리는 힘</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">RA/캐뉼라 기준 높이에서 reservoir 혈액면까지의 <strong>수직거리</strong>를 사용합니다. Tubing 전체 길이가 아닙니다. 현재 화면은 1 cmH₂O = 0.7356 mmHg 환산을 적용합니다.</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-bold text-slate-900">③ VAVD: 부족한 만큼 보충</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">Cannula와 tubing 저항을 이기는 데 필요한 전체 ΔP에서 CVP와 낙차 기여를 빼고 남은 값을 reservoir vacuum으로 보충한다고 가정합니다.</p>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
+                <p className="font-semibold text-teal-950">현재 입력값으로 읽는 순서</p>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5 text-slate-700">
+                  <li>선택한 cannula·tubing으로 목표 {fmt(targetFlow)} L/min을 흘리는 데 회로가 요구하는 전체 ΔP는 <strong>{selectedResult ? fmt(selectedResult.pressure) : "—"} mmHg</strong>입니다.</li>
+                  <li>Vacuum을 걸기 전에도 CVP {fmt(cvp)} mmHg와 낙차 {fmt(heightCm, 0)} cm가 합쳐져 <strong>{fmt(passivePressure)} mmHg</strong>를 제공합니다.</li>
+                  <li>따라서 부족분인 <strong>{fmt(selected?.requiredVacuum ?? null)} mmHg</strong>를 VAVD 필요량으로 표시합니다. 화면의 20 mmHg는 임상 설정 표현으로 약 <strong>−20 mmHg</strong>를 뜻합니다.</li>
+                </ol>
+              </div>
+
+              <p className="text-xs leading-5 text-slate-600"><strong>예:</strong> CVP 5 mmHg, 낙차 30 cm이면 비진공 기여는 5 + 30 × 0.7356 = 27.1 mmHg입니다. 회로 필요 ΔP가 45 mmHg라면 추정 필요 VAVD는 45 − 27.1 = 17.9 mmHg, 즉 약 −18 mmHg입니다. 반대로 비진공 기여만으로 필요 ΔP를 충족하면 계산값은 0 mmHg가 됩니다.</p>
+
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+                <p><strong>중요한 해석:</strong> 이 값은 자연배액의 <em>flow</em>가 아니라 자연배액에 사용할 수 있는 이상적인 <em>pressure gradient</em>입니다. 실제 drainage가 시작되면 CVP가 낮아지고, 정맥·RA collapse, cannula side-hole의 혈관벽 밀착, 양압환기·호흡상, 체위, 혈액량, tubing kink 및 reservoir 혈액면 변화가 생기므로 계산값만큼의 자연배액이 항상 유지되는 것은 아닙니다. 계산상 VAVD가 0이어도 임상적으로 충분한 drainage가 보장된다는 뜻은 아닙니다.</p>
+                <p className="mt-2">또한 0.7356 mmHg/cm은 익숙한 물기둥 환산값입니다. 혈액 밀도 1,060 kg/m³를 엄밀히 적용하면 약 0.78 mmHg/cm로 약 6% 높아집니다. 따라서 현재 화면의 낙차 기여는 혈액밀도 기반 이론값보다 조금 낮게 계산됩니다.</p>
+              </div>
+            </div>
+
             <div className="mt-3 space-y-1 text-sm text-slate-700">
               <p>{fmt(cvp)} + {fmt(heightCm, 0)} × 0.7356 = 비진공 <strong>{fmt(passivePressure)} mmHg</strong></p>
               <p>{selectedResult ? fmt(selectedResult.pressure) : '—'} − {fmt(passivePressure)} = 필요 VAVD <strong>{fmt(selected?.requiredVacuum ?? null)} mmHg</strong></p>
@@ -358,6 +393,7 @@ export default function MicsDrainageCalculator() {
             <li>Mohiaddin RH, et al. Vena caval flow: assessment with cine MR velocity mapping. <em>Radiology</em>. 1990;177:537–541. 건강한 성인에서 평균 SVC flow가 cardiac output의 약 35%로 보고되었습니다. <a className="font-semibold text-teal-700 underline" href="https://doi.org/10.1148/radiology.177.2.2217797" target="_blank" rel="noreferrer">DOI</a></li>
             <li>Kuzo RS, et al. Measurement of caval blood flow with MRI during respiratory maneuvers. <em>AJR Am J Roentgenol</em>. 2007;188:839–842. 자유호흡에서 SVC 38.9, IVC 74.3 mL/beat였으며 호흡에 따라, 특히 IVC flow가 더 크게 변했습니다. <a className="font-semibold text-teal-700 underline" href="https://doi.org/10.2214/AJR.06.5035" target="_blank" rel="noreferrer">DOI</a></li>
             <li>Miranda WR, et al. Catheterization in Adults With Congenital Heart Disease: A Primer for the Noncongenital Proceduralist. <em>JACC Cardiovasc Interv</em>. 2022;15(9). 성인 systemic venous return 중 약 2/3가 IVC에서 온다는 임상적 weighting을 기술합니다. <a className="font-semibold text-teal-700 underline" href="https://doi.org/10.1016/j.jcin.2021.12.020" target="_blank" rel="noreferrer">DOI</a></li>
+            <li>American Society of ExtraCorporeal Technology (AmSECT). <em>Vacuum Assisted Venous Drainage (VAVD) Clinical Guideline</em>. 중력·siphon drainage가 부족할 때 조절된 reservoir vacuum으로 venous return을 보조하며, vacuum 적용 전 최대 gravity drainage 확인과 venous/reservoir pressure 감시를 권고합니다. <a className="font-semibold text-teal-700 underline" href="https://amsect.org/Portals/0/VAVD.pdf" target="_blank" rel="noreferrer">Protocol PDF</a></li>
           </ol>
         </section>
       </div>
