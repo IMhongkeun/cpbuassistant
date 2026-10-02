@@ -164,7 +164,7 @@ function NumberField({ label, value, onChange, min, max, step, unit }: {
 export default function MicsDrainageCalculator() {
   const [fv, setFv] = useState(25)
   const [tube, setTube] = useState(0.375)
-  const [svc, setSvc] = useState(17)
+  const [svc, setSvc] = useState(0)
   const [targetFlow, setTargetFlow] = useState(5)
   const [vavdLimit, setVavdLimit] = useState(60)
   const [cvp, setCvp] = useState(0)
@@ -226,7 +226,7 @@ export default function MicsDrainageCalculator() {
             <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
           </div>
         </div>
-        <NumberField label="VAVD 기준값 (음압 크기)" value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
+        <NumberField label="total venous pressure " value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
         <NumberField label="CVP" value={cvp} onChange={setCvp} min={0} max={30} step={1} unit="mmHg" />
         <NumberField label="낙차 (RA/캐뉼라 → reservoir 수면)" value={heightCm} onChange={setHeightCm} min={0} max={100} step={1} unit="cm" />
       </div>
