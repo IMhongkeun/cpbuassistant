@@ -84,7 +84,7 @@ function flowAtPressure(fv: number, tube: number, svc: number, pressure: number)
   const fvFlow = invertBranch(FV_CURVES[fv], pressure, 2, tube)
   if (fvFlow === null) return null
   if (!svc) return { pressure, fvFlow, svcFlow: 0, totalFlow: fvFlow }
-  const svcFlow = invertBranch(SVC_CURVES[svc], pressure, 1, 0.375)
+  const svcFlow = invertBranch(SVC_CURVES[svc], pressure, 1.2, 0.375)
   if (svcFlow === null) return null
   return { pressure, fvFlow, svcFlow, totalFlow: fvFlow + svcFlow }
 }
@@ -96,7 +96,7 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number) 
   let maxPressure = fvMaxPressure
   if (svc) {
     const svcMaxFlow = (SVC_CURVES[svc].length - 1) * 0.5
-    const svcMaxPressure = branchLoss(SVC_CURVES[svc], svcMaxFlow, 1, 0.375)
+    const svcMaxPressure = branchLoss(SVC_CURVES[svc], svcMaxFlow, 1.2, 0.375)
     if (svcMaxPressure === null) return null
     maxPressure = Math.min(maxPressure, svcMaxPressure)
   }
@@ -186,7 +186,7 @@ export default function MicsDrainageCalculator() {
   const selected = rows.find((row) => row.tube.value === tube && row.strategy.value === svc)
   const hctRows = useMemo(() => tubeOptions.map((item) => {
     const fvPrime = item.value === 0.375 ? 142.5 : 253.4
-    const svcPrime = svc ? 71.3 : 0
+    const svcPrime = svc ? 85.5 : 0
     const ebv = weight * ebvPerKg
     const totalPrime = otherPrime + svcPrime + fvPrime
     return { ...item, fvPrime, totalPrime, postHct: preHct * ebv / (ebv + totalPrime) }
@@ -198,7 +198,7 @@ export default function MicsDrainageCalculator() {
     fvCannula: curveLoss(FV_CURVES[fv], selectedResult.fvFlow),
     fvTube: tubeLoss(selectedResult.fvFlow, 2, tube),
     svcCannula: svc ? curveLoss(SVC_CURVES[svc], selectedResult.svcFlow) : 0,
-    svcTube: svc ? tubeLoss(selectedResult.svcFlow, 1, 0.375) : 0,
+    svcTube: svc ? tubeLoss(selectedResult.svcFlow, 1.2, 0.375) : 0,
   } : null
   const selectedHct = hctRows.find((row) => row.value === tube)
   const selectedEbv = weight * ebvPerKg
@@ -282,7 +282,7 @@ export default function MicsDrainageCalculator() {
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">ΔP = f × (L / D) × (ρv² / 2),  v = Q / A</p>
             {selectedResult && selectedBreakdown ? <div className="mt-3 space-y-1 text-sm text-slate-700">
               <p>FV {tube === 0.375 ? '3/8″' : '1/2″'} · 200 cm → <strong>{fmt(selectedBreakdown.fvTube)} mmHg</strong></p>
-              {svc ? <p>SVC 3/8″ · 100 cm → <strong>{fmt(selectedBreakdown.svcTube)} mmHg</strong></p> : null}
+              {svc ? <p>SVC 3/8″ · 120 cm → <strong>{fmt(selectedBreakdown.svcTube)} mmHg</strong></p> : null}
             </div> : null}
           </section>
 
@@ -365,7 +365,7 @@ export default function MicsDrainageCalculator() {
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">예상 Hct = 수술 전 Hct × EBV / (EBV + total prime)</p>
             <div className="mt-3 space-y-1 text-sm text-slate-700">
               <p>EBV = {fmt(weight, 0)} kg × {fmt(ebvPerKg, 0)} mL/kg = <strong>{fmt(selectedEbv, 0)} mL</strong></p>
-              <p>선택 회로 total prime = 기타 {fmt(otherPrime, 0)} + FV tubing {fmt(selectedHct?.fvPrime ?? null)}{svc ? " + SVC tubing 71.3" : ""} = <strong>{fmt(selectedHct?.totalPrime ?? null)} mL</strong></p>
+              <p>선택 회로 total prime = 기타 {fmt(otherPrime, 0)} + FV tubing {fmt(selectedHct?.fvPrime ?? null)}{svc ? " + SVC tubing 85.5" : ""} = <strong>{fmt(selectedHct?.totalPrime ?? null)} mL</strong></p>
               <p>예상 Hct = {fmt(preHct)} × {fmt(selectedEbv, 0)} / ({fmt(selectedEbv, 0)} + {fmt(selectedHct?.totalPrime ?? null)}) = <strong>{fmt(selectedHct?.postHct ?? null)}%</strong></p>
             </div>
           </section>
