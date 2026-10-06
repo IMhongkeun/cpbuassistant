@@ -28,6 +28,18 @@ const tubeOptions = [
   { value: 0.5, label: '1/2"' },
 ]
 
+type FvObservation = {
+  id: string
+  fv: number
+  tube: number
+  heightCm: number
+  ivpMagnitude: number
+  maxFlow: number
+  theoreticalFlow: number | null
+}
+
+const FV_OBSERVATION_STORAGE_KEY = "mics-fv-observations-v1"
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const n = (value: string, fallback: number) => {
   const parsed = Number.parseFloat(value)
@@ -84,7 +96,7 @@ function flowAtPressure(fv: number, tube: number, svc: number, pressure: number)
   const fvFlow = invertBranch(FV_CURVES[fv], pressure, 2, tube)
   if (fvFlow === null) return null
   if (!svc) return { pressure, fvFlow, svcFlow: 0, totalFlow: fvFlow }
-  const svcFlow = invertBranch(SVC_CURVES[svc], pressure, 1, 0.375)
+  const svcFlow = invertBranch(SVC_CURVES[svc], pressure, 1.2, 0.375)
   if (svcFlow === null) return null
   return { pressure, fvFlow, svcFlow, totalFlow: fvFlow + svcFlow }
 }
@@ -96,7 +108,7 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number) 
   let maxPressure = fvMaxPressure
   if (svc) {
     const svcMaxFlow = (SVC_CURVES[svc].length - 1) * 0.5
-    const svcMaxPressure = branchLoss(SVC_CURVES[svc], svcMaxFlow, 1, 0.375)
+    const svcMaxPressure = branchLoss(SVC_CURVES[svc], svcMaxFlow, 1.2, 0.375)
     if (svcMaxPressure === null) return null
     maxPressure = Math.min(maxPressure, svcMaxPressure)
   }
@@ -167,38 +179,63 @@ export default function MicsDrainageCalculator() {
   const [svc, setSvc] = useState(0)
   const [targetFlow, setTargetFlow] = useState(5)
   const [vavdLimit, setVavdLimit] = useState(60)
-  const [cvp, setCvp] = useState(0)
   const [heightCm, setHeightCm] = useState(30)
   const [weight, setWeight] = useState(70)
   const [preHct, setPreHct] = useState(35)
   const [ebvPerKg, setEbvPerKg] = useState(55)
   const [otherPrime, setOtherPrime] = useState(1200)
+  const [observedIvpMagnitude, setObservedIvpMagnitude] = useState(60)
+  const [observedMaxFlow, setObservedMaxFlow] = useState(4)
+  const [observations, setObservations] = useState<FvObservation[]>([])
 
-  const passivePressure = Math.max(0, cvp) + Math.max(0, heightCm) * 0.7356
+  const naturalDrainagePressure = Math.max(0, heightCm) * 0.7356
+
+  useEffect(() => {
+    const loadSaved = () => {
+      try {
+        const saved = window.localStorage.getItem(FV_OBSERVATION_STORAGE_KEY)
+        if (!saved) {
+          setObservations([])
+          return
+        }
+        const parsed = JSON.parse(saved)
+        setObservations(Array.isArray(parsed) ? parsed : [])
+      } catch {
+        setObservations([])
+      }
+    }
+
+    loadSaved()
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === FV_OBSERVATION_STORAGE_KEY) loadSaved()
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   const rows = useMemo(() => tubeOptions.flatMap((tubeOption) => strategies.map((strategy) => {
     const result = pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
     if (!result) return { tube: tubeOption, strategy, result: null, requiredVacuum: null, within: false }
-    const requiredVacuum = Math.max(0, result.pressure - passivePressure)
+    const requiredVacuum = Math.max(0, result.pressure - naturalDrainagePressure)
     return { tube: tubeOption, strategy, result, requiredVacuum, within: requiredVacuum <= vavdLimit }
-  })), [fv, targetFlow, passivePressure, vavdLimit])
+  })), [fv, targetFlow, naturalDrainagePressure, vavdLimit])
 
   const selected = rows.find((row) => row.tube.value === tube && row.strategy.value === svc)
   const hctRows = useMemo(() => tubeOptions.map((item) => {
     const fvPrime = item.value === 0.375 ? 142.5 : 253.4
-    const svcPrime = svc ? 71.3 : 0
+    const svcPrime = svc ? 85.5 : 0
     const ebv = weight * ebvPerKg
     const totalPrime = otherPrime + svcPrime + fvPrime
     return { ...item, fvPrime, totalPrime, postHct: preHct * ebv / (ebv + totalPrime) }
   }), [weight, preHct, ebvPerKg, otherPrime, svc])
   const hctDifference = hctRows[0].postHct - hctRows[1].postHct
-  const budget = passivePressure + vavdLimit
+  const maxFlowAtLimit = flowAtPressure(fv, tube, svc, naturalDrainagePressure + vavdLimit)
   const selectedResult = selected?.result ?? null
   const selectedBreakdown = selectedResult ? {
     fvCannula: curveLoss(FV_CURVES[fv], selectedResult.fvFlow),
     fvTube: tubeLoss(selectedResult.fvFlow, 2, tube),
     svcCannula: svc ? curveLoss(SVC_CURVES[svc], selectedResult.svcFlow) : 0,
-    svcTube: svc ? tubeLoss(selectedResult.svcFlow, 1, 0.375) : 0,
+    svcTube: svc ? tubeLoss(selectedResult.svcFlow, 1.2, 0.375) : 0,
   } : null
   const selectedHct = hctRows.find((row) => row.value === tube)
   const selectedEbv = weight * ebvPerKg
@@ -206,6 +243,69 @@ export default function MicsDrainageCalculator() {
   const expectedIvcFlow = targetFlow * 0.65
   const hydraulicSvcFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.svcFlow / selectedResult.totalFlow * 100 : null
   const hydraulicFvFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.fvFlow / selectedResult.totalFlow * 100 : null
+
+  const readPersistedObservations = () => {
+    try {
+      const saved = window.localStorage.getItem(FV_OBSERVATION_STORAGE_KEY)
+      if (!saved) return [] as FvObservation[]
+      const parsed = JSON.parse(saved)
+      return Array.isArray(parsed) ? parsed as FvObservation[] : []
+    } catch {
+      return observations
+    }
+  }
+
+  const persistObservations = (next: FvObservation[]) => {
+    setObservations(next)
+    try {
+      window.localStorage.setItem(FV_OBSERVATION_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // Keep the in-memory log even when browser storage is unavailable.
+    }
+  }
+
+  const addObservation = () => {
+    if (svc !== 0 || observedMaxFlow <= 0) return
+    const availablePressure = naturalDrainagePressure + Math.max(0, observedIvpMagnitude)
+    const theoretical = flowAtPressure(fv, tube, 0, availablePressure)
+    const entry: FvObservation = {
+      id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+      fv,
+      tube,
+      heightCm,
+      ivpMagnitude: Math.max(0, observedIvpMagnitude),
+      maxFlow: observedMaxFlow,
+      theoreticalFlow: theoretical?.totalFlow ?? null,
+    }
+    persistObservations([entry, ...readPersistedObservations()])
+  }
+
+  const deleteObservation = (id: string) => {
+    persistObservations(readPersistedObservations().filter((item) => item.id !== id))
+  }
+
+  const exportObservations = () => {
+    if (!observations.length) return
+    const rows = [
+      ["fv_fr", "tubing_in", "height_cm", "ivp_mmhg", "observed_max_flow_l_min", "theoretical_flow_l_min"],
+      ...observations.map((item) => [
+        String(item.fv),
+        item.tube === 0.375 ? "3/8" : "1/2",
+        String(item.heightCm),
+        String(-item.ivpMagnitude),
+        String(item.maxFlow),
+        item.theoreticalFlow === null ? "" : String(item.theoreticalFlow),
+      ]),
+    ]
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n")
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "mics-fv-observations.csv"
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   return <div className="space-y-5">
     <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm sm:p-6">
@@ -219,32 +319,41 @@ export default function MicsDrainageCalculator() {
         <div><p className="mb-2 text-sm font-medium text-slate-700">Drainage 전략</p><div className="flex flex-wrap gap-1">{strategies.map((item) => <button key={item.value} onClick={() => setSvc(item.value)} className={"rounded-md border px-3 py-2 text-sm font-semibold " + (svc === item.value ? "border-teal-600 bg-teal-600 text-white" : "bg-white text-slate-600")}>{item.label}</button>)}</div></div>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-5 md:grid-cols-3">
         <div className="relative rounded-xl border-2 border-teal-500 bg-teal-50/80 p-4 shadow-md ring-4 ring-teal-100/70">
           <span className="absolute -top-3 left-3 rounded-full bg-teal-600 px-2.5 py-1 text-[11px] font-bold tracking-wide text-white shadow-sm">핵심 입력</span>
           <div className="pt-1 [&_input[type=number]]:text-lg [&_input[type=number]]:font-bold [&_input[type=number]]:text-teal-800">
             <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
           </div>
         </div>
-        <NumberField label="total venous pressure " value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
-        <NumberField label="CVP" value={cvp} onChange={setCvp} min={0} max={30} step={1} unit="mmHg" />
+        <NumberField label="VAVD reference limit" value={vavdLimit} onChange={setVavdLimit} min={0} max={60} step={1} unit="mmHg" />
         <NumberField label="낙차 (RA/캐뉼라 → reservoir 수면)" value={heightCm} onChange={setHeightCm} min={0} max={100} step={1} unit="cm" />
       </div>
       <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-slate-700">
-        <span className="font-semibold text-teal-900">자동 계산된 비진공 기여압: {fmt(passivePressure)} mmHg</span>
-        <span className="ml-2 text-slate-600">= CVP {fmt(cvp)} + 낙차 {fmt(heightCm, 0)} cm × 0.736 mmHg/cm</span>
+        <span className="font-semibold text-teal-900">자동 계산된 Natural drainage pressure: {fmt(naturalDrainagePressure)} mmHg</span>
+        <span className="ml-2 text-slate-600">= 낙차 {fmt(heightCm, 0)} cm × 0.736 mmHg/cm</span>
+        <span className="ml-2 text-xs text-slate-500">· 회로 비교를 위해 CVP contribution은 0 mmHg로 가정</span>
       </div>
     </div>
 
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">선택 전략</p><p className="mt-2 text-base font-bold text-slate-900">FV {fv} Fr · {tube === 0.375 ? '3/8"' : '1/2"'} · {strategies.find((item) => item.value === svc)?.label}</p></div>
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">필요 pressure gradient</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? fmt(selected.result.pressure) + " mmHg" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">cannula pr. + tubing pr.</p></div>
-      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p><p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p><p className="mt-1 text-xs text-slate-500">설정 total venous pr. {fmt(vavdLimit, 0)} mmHg · 가용 ΔP {fmt(budget, 0)} mmHg</p></div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p>
+        <p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p>
+        <p className="mt-1 text-xs text-slate-500">VAVD limit {fmt(vavdLimit, 0)} mmHg</p>
+        <div className="mt-3 rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 ring-1 ring-teal-100">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">이론적 최대 drainage flow @ VAVD −{fmt(vavdLimit, 0)} mmHg</p>
+          <p className="mt-1 text-2xl font-bold text-teal-800">{maxFlowAtLimit ? fmt(maxFlowAtLimit.totalFlow, 1) + " L/min" : "곡선 범위 밖"}</p>
+          <p className="mt-1 text-[11px] leading-4 text-teal-700">Ideal hydraulic estimate · 실제 지속 가능한 flow는 더 낮을 수 있습니다.</p>
+        </div>
+      </div>
     </div>
 
     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
       <table className="w-full min-w-[720px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">FV tubing</th><th className="px-4 py-3">전략</th><th className="px-4 py-3 text-right">필요 ΔP</th><th className="px-4 py-3 text-right">FV flow</th><th className="px-4 py-3 text-right">SVC flow</th><th className="px-4 py-3 text-right">Total flow</th><th className="px-4 py-3 text-right">판정</th></tr></thead>
-        <tbody>{rows.map((row) => <tr key={row.tube.value + "-" + row.strategy.value} className={(row.tube.value === tube && row.strategy.value === svc ? "bg-teal-50 " : "") + "border-t"}><td className="px-4 py-3">{row.tube.label}</td><td className="px-4 py-3">{row.strategy.label}</td><td className="px-4 py-3 text-right">{row.result ? fmt(row.result.pressure) + " mmHg" : "범위 밖"}</td><td className="px-4 py-3 text-right">{fmt(row.result?.fvFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.svcFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.totalFlow ?? null)}</td><td className="px-4 py-3 text-right"><span className={"rounded-full px-2 py-1 text-xs font-semibold " + (row.within ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>{row.result ? row.within ? "설정 total venous pr. 이내" : "설정 total venous pr. 초과" : "곡선 범위 밖"}</span></td></tr>)}</tbody>
+        <tbody>{rows.map((row) => <tr key={row.tube.value + "-" + row.strategy.value} className={(row.tube.value === tube && row.strategy.value === svc ? "bg-teal-50 " : "") + "border-t"}><td className="px-4 py-3">{row.tube.label}</td><td className="px-4 py-3">{row.strategy.label}</td><td className="px-4 py-3 text-right">{row.result ? fmt(row.result.pressure) + " mmHg" : "범위 밖"}</td><td className="px-4 py-3 text-right">{fmt(row.result?.fvFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.svcFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.totalFlow ?? null)}</td><td className="px-4 py-3 text-right"><span className={"rounded-full px-2 py-1 text-xs font-semibold " + (row.within ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>{row.result ? row.within ? "VAVD limit 이내" : "VAVD limit 초과" : "곡선 범위 밖"}</span></td></tr>)}</tbody>
       </table>
     </div>
 
@@ -254,7 +363,7 @@ export default function MicsDrainageCalculator() {
         <div className="grid gap-4"><NumberField label="환자 체중" value={weight} onChange={setWeight} min={30} max={150} step={1} unit="kg" /><NumberField label="수술 전 Hct" value={preHct} onChange={setPreHct} min={15} max={55} step={0.1} unit="%" /><NumberField label="추정 혈액량 계수" value={ebvPerKg} onChange={setEbvPerKg} min={50} max={90} step={1} unit="mL/kg" /><NumberField label="기타 회로 prime" value={otherPrime} onChange={setOtherPrime} min={0} max={2500} step={10} unit="mL" /></div>
         <div className="grid content-start gap-3">{hctRows.map((row) => <div key={row.value} className={"rounded-lg border p-4 " + (row.value === tube ? "border-teal-400 bg-teal-50" : "bg-slate-50")}><div className="flex items-baseline justify-between"><span className="font-semibold text-slate-700">FV {row.label} · 200 cm</span><strong className="text-2xl text-slate-900">{fmt(row.postHct)}%</strong></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-teal-600" style={{ width: Math.min(100, (row.postHct / preHct) * 100) + "%" }} /></div><p className="mt-2 text-xs text-slate-500">FV tubing {fmt(row.fvPrime)} mL · total prime {fmt(row.totalPrime)} mL</p></div>)}<div className="rounded-lg bg-emerald-50 p-4 text-emerald-900"><p className="text-sm font-semibold">3/8″ 사용 시 예상 Hct 차이 <span className="ml-2 text-xl">+{fmt(hctDifference, 2)}%p</span></p><p className="mt-1 text-xs">1/2″ FV limb보다 prime이 110.9 mL 적은 효과입니다.</p></div></div>
       </div>
-      <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. 비진공 기여압은 CVP + 낙차(cm) × 0.736 mmHg/cm으로 계산한 추정치이며, 실제 정맥 허탈·캐뉼라 위치·reservoir 구조에 따라 달라질 수 있습니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
+      <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. Natural drainage pressure는 환자–reservoir 낙차(cm) × 0.736 mmHg/cm으로 계산한 hydrostatic pressure입니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
     </div>
 
     <details className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -282,7 +391,7 @@ export default function MicsDrainageCalculator() {
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">ΔP = f × (L / D) × (ρv² / 2),  v = Q / A</p>
             {selectedResult && selectedBreakdown ? <div className="mt-3 space-y-1 text-sm text-slate-700">
               <p>FV {tube === 0.375 ? '3/8″' : '1/2″'} · 200 cm → <strong>{fmt(selectedBreakdown.fvTube)} mmHg</strong></p>
-              {svc ? <p>SVC 3/8″ · 100 cm → <strong>{fmt(selectedBreakdown.svcTube)} mmHg</strong></p> : null}
+              {svc ? <p>SVC 3/8″ · 120 cm → <strong>{fmt(selectedBreakdown.svcTube)} mmHg</strong></p> : null}
             </div> : null}
           </section>
 
@@ -327,36 +436,32 @@ export default function MicsDrainageCalculator() {
 
           <section className="rounded-lg border bg-white p-4 lg:col-span-2">
             <h4 className="font-bold text-slate-900">5. 자연배액 기여와 필요 VAVD</h4>
-            <p className="mt-2 text-sm leading-6 text-slate-700">목표 flow에 필요한 전체 압력차 중 <strong>CVP와 reservoir 낙차가 먼저 일부를 만들고</strong>, 부족한 만큼만 VAVD가 보충한다고 계산합니다.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">목표 flow에 필요한 전체 압력차 중 <strong>reservoir 낙차가 natural drainage pressure를 만들고</strong>, 부족한 만큼만 VAVD가 보충한다고 계산합니다.</p>
 
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">비진공 ΔP = CVP + 낙차(cm) × 0.7356</p>
-              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − 비진공 ΔP)</p>
+              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">Natural drainage pressure = 낙차(cm) × 0.7356</p>
+              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − Natural drainage pressure)</p>
             </div>
 
-            <div className="mt-3 grid gap-2 md:grid-cols-3">
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">CVP</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">환자 정맥측에서 drainage line으로 미는 압력</p>
-              </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-bold text-slate-900">낙차</p>
                 <p className="mt-1 text-xs leading-5 text-slate-600">RA/캐뉼라에서 reservoir 혈액면까지의 수직거리</p>
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-bold text-slate-900">필요 VAVD</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">회로 필요 압력에서 비진공 기여를 뺀 부족분</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">회로 필요 압력에서 Natural drainage pressure를 뺀 부족분</p>
               </div>
             </div>
 
             <div className="mt-3 grid gap-2 rounded-md border border-teal-200 bg-teal-50/60 p-3 sm:grid-cols-3">
               <div><p className="text-xs text-slate-600">회로 필요 ΔP</p><p className="mt-1 font-bold text-slate-900">{selectedResult ? fmt(selectedResult.pressure) : "—"} mmHg</p></div>
-              <div><p className="text-xs text-slate-600">비진공 기여</p><p className="mt-1 font-bold text-slate-900">{fmt(cvp)} + {fmt(heightCm, 0)} × 0.7356 = {fmt(passivePressure)} mmHg</p></div>
+              <div><p className="text-xs text-slate-600">Natural drainage pressure</p><p className="mt-1 font-bold text-slate-900">{fmt(heightCm, 0)} × 0.7356 = {fmt(naturalDrainagePressure)} mmHg</p></div>
               <div><p className="text-xs text-slate-600">추정 필요 VAVD</p><p className="mt-1 font-bold text-teal-900">{fmt(selected?.requiredVacuum ?? null)} mmHg <span className="text-xs font-normal text-slate-600">≈ −{fmt(selected?.requiredVacuum ?? null)} mmHg 설정</span></p></div>
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-slate-600">비진공 ΔP는 자연배액의 <strong>flow가 아니라 이론적 구동압</strong>입니다. 실제 drainage는 CVP 변화, 정맥·RA collapse, cannula 위치, 호흡과 reservoir 혈액면에 따라 달라질 수 있습니다. 낙차는 tubing 길이가 아니며, 현재 0.7356 mmHg/cm은 물기둥 환산값입니다.</p>
-            <p className="mt-2 text-xs text-slate-600">설정 total venous pr. {fmt(vavdLimit, 0)} mmHg와 비교 → <strong className={selected?.within ? "text-emerald-700" : "text-rose-700"}>{selectedResult ? selected?.within ? "기준 이내" : "기준 초과" : "판정 불가"}</strong></p>
+            <p className="mt-3 text-xs leading-5 text-slate-600">Natural drainage pressure는 자연배액의 <strong>flow가 아니라 이론적 구동압</strong>입니다. 추정 VAVD는 reservoir vacuum의 필요량을 뜻하며, 실제 venous inlet pressure는 reservoir inlet luer에서 별도 확인합니다.</p>
+            <p className="mt-2 text-xs text-slate-600">VAVD reference limit {fmt(vavdLimit, 0)} mmHg와 비교 → <strong className={selected?.within ? "text-emerald-700" : "text-rose-700"}>{selectedResult ? selected?.within ? "기준 이내" : "기준 초과" : "판정 불가"}</strong></p>
           </section>
 
           <section className="rounded-lg border bg-white p-4 lg:col-span-2">
@@ -365,7 +470,7 @@ export default function MicsDrainageCalculator() {
             <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">예상 Hct = 수술 전 Hct × EBV / (EBV + total prime)</p>
             <div className="mt-3 space-y-1 text-sm text-slate-700">
               <p>EBV = {fmt(weight, 0)} kg × {fmt(ebvPerKg, 0)} mL/kg = <strong>{fmt(selectedEbv, 0)} mL</strong></p>
-              <p>선택 회로 total prime = 기타 {fmt(otherPrime, 0)} + FV tubing {fmt(selectedHct?.fvPrime ?? null)}{svc ? " + SVC tubing 71.3" : ""} = <strong>{fmt(selectedHct?.totalPrime ?? null)} mL</strong></p>
+              <p>선택 회로 total prime = 기타 {fmt(otherPrime, 0)} + FV tubing {fmt(selectedHct?.fvPrime ?? null)}{svc ? " + SVC tubing 85.5" : ""} = <strong>{fmt(selectedHct?.totalPrime ?? null)} mL</strong></p>
               <p>예상 Hct = {fmt(preHct)} × {fmt(selectedEbv, 0)} / ({fmt(selectedEbv, 0)} + {fmt(selectedHct?.totalPrime ?? null)}) = <strong>{fmt(selectedHct?.postHct ?? null)}%</strong></p>
             </div>
           </section>
@@ -386,5 +491,59 @@ export default function MicsDrainageCalculator() {
         </section>
       </div>
     </details>
+
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">FV-only clinical observation log</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">현재 선택한 FV Fr·tubing·낙차를 기준으로 실제 IVP와 지속 유지된 최대 flow를 기록합니다.</p>
+        </div>
+        {observations.length ? <button type="button" onClick={exportObservations} className="w-fit rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">CSV 내보내기</button> : null}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50/60 px-4 py-3 text-sm text-slate-700">
+        현재 설정: <strong>FV {fv} Fr · {tube === 0.375 ? '3/8″' : '1/2″'} · 낙차 {fmt(heightCm, 0)} cm</strong>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <NumberField label="Observed IVP (음압 크기)" value={observedIvpMagnitude} onChange={setObservedIvpMagnitude} min={0} max={80} step={1} unit="mmHg" />
+        <NumberField label="지속 유지 최대 flow" value={observedMaxFlow} onChange={setObservedMaxFlow} min={1} max={7} step={0.1} unit="L/min" />
+        <button type="button" onClick={addObservation} disabled={svc !== 0} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300">기록 저장</button>
+      </div>
+
+      <p className="mt-2 text-xs leading-5 text-slate-500">{svc === 0 ? "IVP는 reservoir venous inlet luer에서 확인한 음압의 절대값으로 입력합니다. 예: −60 mmHg → 60." : "FV 단독 전략을 선택하면 기록할 수 있습니다."} 이 기록은 현재 브라우저에만 저장되며 환자 식별정보·날짜/시간 입력은 받지 않습니다.</p>
+
+      {observations.length ? <div className="mt-4 overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th className="px-3 py-2.5">FV</th>
+              <th className="px-3 py-2.5">Tubing</th>
+              <th className="px-3 py-2.5">Height</th>
+              <th className="px-3 py-2.5">IVP</th>
+              <th className="px-3 py-2.5">Observed max</th>
+              <th className="px-3 py-2.5">Theory</th>
+              <th className="px-3 py-2.5">Observed / theory</th>
+              <th className="px-3 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {observations.map((item) => {
+              const ratio = item.theoreticalFlow && item.theoreticalFlow > 0 ? item.maxFlow / item.theoreticalFlow * 100 : null
+              return <tr key={item.id} className="border-t">
+                <td className="px-3 py-2.5 font-semibold">{item.fv} Fr</td>
+                <td className="px-3 py-2.5">{item.tube === 0.375 ? '3/8″' : '1/2″'}</td>
+                <td className="px-3 py-2.5">{fmt(item.heightCm, 0)} cm</td>
+                <td className="px-3 py-2.5">−{fmt(item.ivpMagnitude, 0)} mmHg</td>
+                <td className="px-3 py-2.5 font-bold text-teal-800">{fmt(item.maxFlow, 1)} L/min</td>
+                <td className="px-3 py-2.5">{item.theoreticalFlow === null ? "—" : fmt(item.theoreticalFlow, 1) + " L/min"}</td>
+                <td className="px-3 py-2.5">{ratio === null ? "—" : fmt(ratio, 0) + "%"}</td>
+                <td className="px-3 py-2.5 text-right"><button type="button" onClick={() => deleteObservation(item.id)} className="text-xs font-semibold text-rose-600 hover:text-rose-700">삭제</button></td>
+              </tr>
+            })}
+          </tbody>
+        </table>
+      </div> : <p className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">아직 저장된 FV-only 관찰값이 없습니다.</p>}
+    </section>
   </div>
 }
