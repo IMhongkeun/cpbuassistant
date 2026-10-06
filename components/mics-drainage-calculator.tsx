@@ -28,6 +28,19 @@ const tubeOptions = [
   { value: 0.5, label: '1/2"' },
 ]
 
+type FvObservation = {
+  id: string
+  recordedAt: string
+  fv: number
+  tube: number
+  heightCm: number
+  ivpMagnitude: number
+  maxFlow: number
+  theoreticalFlow: number | null
+}
+
+const FV_OBSERVATION_STORAGE_KEY = "mics-fv-observations-v1"
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const n = (value: string, fallback: number) => {
   const parsed = Number.parseFloat(value)
@@ -172,8 +185,22 @@ export default function MicsDrainageCalculator() {
   const [preHct, setPreHct] = useState(35)
   const [ebvPerKg, setEbvPerKg] = useState(55)
   const [otherPrime, setOtherPrime] = useState(1200)
+  const [observedIvpMagnitude, setObservedIvpMagnitude] = useState(60)
+  const [observedMaxFlow, setObservedMaxFlow] = useState(4)
+  const [observations, setObservations] = useState<FvObservation[]>([])
 
   const naturalDrainagePressure = Math.max(0, heightCm) * 0.7356
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(FV_OBSERVATION_STORAGE_KEY)
+      if (!saved) return
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) setObservations(parsed)
+    } catch {
+      // Ignore malformed or unavailable local storage and start with an empty log.
+    }
+  }, [])
 
   const rows = useMemo(() => tubeOptions.flatMap((tubeOption) => strategies.map((strategy) => {
     const result = pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
@@ -205,6 +232,60 @@ export default function MicsDrainageCalculator() {
   const expectedIvcFlow = targetFlow * 0.65
   const hydraulicSvcFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.svcFlow / selectedResult.totalFlow * 100 : null
   const hydraulicFvFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.fvFlow / selectedResult.totalFlow * 100 : null
+
+  const persistObservations = (next: FvObservation[]) => {
+    setObservations(next)
+    try {
+      window.localStorage.setItem(FV_OBSERVATION_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // Keep the in-memory log even when browser storage is unavailable.
+    }
+  }
+
+  const addObservation = () => {
+    if (svc !== 0 || observedMaxFlow <= 0) return
+    const availablePressure = naturalDrainagePressure + Math.max(0, observedIvpMagnitude)
+    const theoretical = flowAtPressure(fv, tube, 0, availablePressure)
+    const entry: FvObservation = {
+      id: String(Date.now()),
+      recordedAt: new Date().toISOString(),
+      fv,
+      tube,
+      heightCm,
+      ivpMagnitude: Math.max(0, observedIvpMagnitude),
+      maxFlow: observedMaxFlow,
+      theoreticalFlow: theoretical?.totalFlow ?? null,
+    }
+    persistObservations([entry, ...observations])
+  }
+
+  const deleteObservation = (id: string) => {
+    persistObservations(observations.filter((item) => item.id !== id))
+  }
+
+  const exportObservations = () => {
+    if (!observations.length) return
+    const rows = [
+      ["date", "fv_fr", "tubing_in", "height_cm", "ivp_mmhg", "observed_max_flow_l_min", "theoretical_flow_l_min"],
+      ...observations.map((item) => [
+        item.recordedAt,
+        String(item.fv),
+        item.tube === 0.375 ? "3/8" : "1/2",
+        String(item.heightCm),
+        String(-item.ivpMagnitude),
+        String(item.maxFlow),
+        item.theoreticalFlow === null ? "" : String(item.theoreticalFlow),
+      ]),
+    ]
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n")
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "mics-fv-observations.csv"
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   return <div className="space-y-5">
     <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-4 shadow-sm sm:p-6">
@@ -242,8 +323,9 @@ export default function MicsDrainageCalculator() {
         <p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p>
         <p className="mt-1 text-xs text-slate-500">VAVD limit {fmt(vavdLimit, 0)} mmHg</p>
         <div className="mt-3 rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 ring-1 ring-teal-100">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">VAVD −{fmt(vavdLimit, 0)} mmHg 적용 시 예상 최대 flow</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">이론적 최대 drainage flow @ VAVD −{fmt(vavdLimit, 0)} mmHg</p>
           <p className="mt-1 text-2xl font-bold text-teal-800">{maxFlowAtLimit ? fmt(maxFlowAtLimit.totalFlow, 1) + " L/min" : "곡선 범위 밖"}</p>
+          <p className="mt-1 text-[11px] leading-4 text-teal-700">Ideal hydraulic estimate · 실제 지속 가능한 flow는 더 낮을 수 있습니다.</p>
         </div>
       </div>
     </div>
@@ -388,5 +470,61 @@ export default function MicsDrainageCalculator() {
         </section>
       </div>
     </details>
+
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">FV-only clinical observation log</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">현재 선택한 FV Fr·tubing·낙차를 기준으로 실제 IVP와 지속 유지된 최대 flow를 기록합니다.</p>
+        </div>
+        {observations.length ? <button type="button" onClick={exportObservations} className="w-fit rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">CSV 내보내기</button> : null}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50/60 px-4 py-3 text-sm text-slate-700">
+        현재 설정: <strong>FV {fv} Fr · {tube === 0.375 ? '3/8″' : '1/2″'} · 낙차 {fmt(heightCm, 0)} cm</strong>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <NumberField label="Observed IVP (음압 크기)" value={observedIvpMagnitude} onChange={setObservedIvpMagnitude} min={0} max={80} step={1} unit="mmHg" />
+        <NumberField label="지속 유지 최대 flow" value={observedMaxFlow} onChange={setObservedMaxFlow} min={1} max={7} step={0.1} unit="L/min" />
+        <button type="button" onClick={addObservation} disabled={svc !== 0} className="rounded-md bg-teal-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300">기록 저장</button>
+      </div>
+
+      <p className="mt-2 text-xs leading-5 text-slate-500">{svc === 0 ? "IVP는 reservoir venous inlet luer에서 확인한 음압의 절대값으로 입력합니다. 예: −60 mmHg → 60." : "FV 단독 전략을 선택하면 기록할 수 있습니다."} 이 기록은 현재 브라우저에만 저장되며 환자 식별정보는 저장하지 않습니다.</p>
+
+      {observations.length ? <div className="mt-4 overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+              <th className="px-3 py-2.5">Date</th>
+              <th className="px-3 py-2.5">FV</th>
+              <th className="px-3 py-2.5">Tubing</th>
+              <th className="px-3 py-2.5">Height</th>
+              <th className="px-3 py-2.5">IVP</th>
+              <th className="px-3 py-2.5">Observed max</th>
+              <th className="px-3 py-2.5">Theory</th>
+              <th className="px-3 py-2.5">Observed / theory</th>
+              <th className="px-3 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {observations.map((item) => {
+              const ratio = item.theoreticalFlow && item.theoreticalFlow > 0 ? item.maxFlow / item.theoreticalFlow * 100 : null
+              return <tr key={item.id} className="border-t">
+                <td className="px-3 py-2.5">{new Date(item.recordedAt).toLocaleDateString("ko-KR")}</td>
+                <td className="px-3 py-2.5 font-semibold">{item.fv} Fr</td>
+                <td className="px-3 py-2.5">{item.tube === 0.375 ? '3/8″' : '1/2″'}</td>
+                <td className="px-3 py-2.5">{fmt(item.heightCm, 0)} cm</td>
+                <td className="px-3 py-2.5">−{fmt(item.ivpMagnitude, 0)} mmHg</td>
+                <td className="px-3 py-2.5 font-bold text-teal-800">{fmt(item.maxFlow, 1)} L/min</td>
+                <td className="px-3 py-2.5">{item.theoreticalFlow === null ? "—" : fmt(item.theoreticalFlow, 1) + " L/min"}</td>
+                <td className="px-3 py-2.5">{ratio === null ? "—" : fmt(ratio, 0) + "%"}</td>
+                <td className="px-3 py-2.5 text-right"><button type="button" onClick={() => deleteObservation(item.id)} className="text-xs font-semibold text-rose-600 hover:text-rose-700">삭제</button></td>
+              </tr>
+            })}
+          </tbody>
+        </table>
+      </div> : <p className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">아직 저장된 FV-only 관찰값이 없습니다.</p>}
+    </section>
   </div>
 }
