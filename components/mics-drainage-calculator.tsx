@@ -306,7 +306,7 @@ export default function MicsDrainageCalculator() {
             <NumberField label="목표 total flow" value={targetFlow} onChange={setTargetFlow} min={2} max={7} step={0.1} unit="L/min" />
           </div>
         </div>
-        <NumberField label="VAVD reference limit" value={vavdLimit} onChange={setVavdLimit} min={0} max={80} step={1} unit="mmHg" />
+        <NumberField label="VAVD reference limit" value={vavdLimit} onChange={setVavdLimit} min={0} max={60} step={1} unit="mmHg" />
         <NumberField label="낙차 (RA/캐뉼라 → reservoir 수면)" value={heightCm} onChange={setHeightCm} min={0} max={100} step={1} unit="cm" />
       </div>
       <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-slate-700">
