@@ -231,7 +231,7 @@ export default function MicsDrainageCalculator() {
         <NumberField label="낙차 (RA/캐뉼라 → reservoir 수면)" value={heightCm} onChange={setHeightCm} min={0} max={100} step={1} unit="cm" />
       </div>
       <div className="mt-4 rounded-lg border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-slate-700">
-        <span className="font-semibold text-teal-900">자동 계산된 비진공 기여압: {fmt(passivePressure)} mmHg</span>
+        <span className="font-semibold text-teal-900">자동 계산된 Natural drainage pressure: {fmt(passivePressure)} mmHg</span>
         <span className="ml-2 text-slate-600">= CVP {fmt(cvp)} + 낙차 {fmt(heightCm, 0)} cm × 0.736 mmHg/cm</span>
       </div>
     </div>
@@ -254,7 +254,7 @@ export default function MicsDrainageCalculator() {
         <div className="grid gap-4"><NumberField label="환자 체중" value={weight} onChange={setWeight} min={30} max={150} step={1} unit="kg" /><NumberField label="수술 전 Hct" value={preHct} onChange={setPreHct} min={15} max={55} step={0.1} unit="%" /><NumberField label="추정 혈액량 계수" value={ebvPerKg} onChange={setEbvPerKg} min={50} max={90} step={1} unit="mL/kg" /><NumberField label="기타 회로 prime" value={otherPrime} onChange={setOtherPrime} min={0} max={2500} step={10} unit="mL" /></div>
         <div className="grid content-start gap-3">{hctRows.map((row) => <div key={row.value} className={"rounded-lg border p-4 " + (row.value === tube ? "border-teal-400 bg-teal-50" : "bg-slate-50")}><div className="flex items-baseline justify-between"><span className="font-semibold text-slate-700">FV {row.label} · 200 cm</span><strong className="text-2xl text-slate-900">{fmt(row.postHct)}%</strong></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-teal-600" style={{ width: Math.min(100, (row.postHct / preHct) * 100) + "%" }} /></div><p className="mt-2 text-xs text-slate-500">FV tubing {fmt(row.fvPrime)} mL · total prime {fmt(row.totalPrime)} mL</p></div>)}<div className="rounded-lg bg-emerald-50 p-4 text-emerald-900"><p className="text-sm font-semibold">3/8″ 사용 시 예상 Hct 차이 <span className="ml-2 text-xl">+{fmt(hctDifference, 2)}%p</span></p><p className="mt-1 text-xs">1/2″ FV limb보다 prime이 110.9 mL 적은 효과입니다.</p></div></div>
       </div>
-      <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. 비진공 기여압은 CVP + 낙차(cm) × 0.736 mmHg/cm으로 계산한 추정치이며, 실제 정맥 허탈·캐뉼라 위치·reservoir 구조에 따라 달라질 수 있습니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
+      <p className="mt-5 border-t pt-3 text-xs leading-5 text-slate-500">Cannula ΔP는 PerfusionTools에 digitize된 Medtronic NextGen curve를 선형 보간했고, tubing loss는 혈액 ρ 1,060 kg/m³·μ 3.5 mPa·s에서 Darcy–Weisbach/Churchill friction factor로 계산했습니다. Natural drainage pressure는 CVP + 낙차(cm) × 0.736 mmHg/cm으로 계산한 추정치이며, 실제 정맥 허탈·캐뉼라 위치·reservoir 구조에 따라 달라질 수 있습니다. Hct는 단순 crystalloid dilution 모델이며 출혈, 수혈, ultrafiltration, fluid shift, cannula·connector prime은 별도 반영해야 합니다.</p>
     </div>
 
     <details className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -330,8 +330,8 @@ export default function MicsDrainageCalculator() {
             <p className="mt-2 text-sm leading-6 text-slate-700">목표 flow에 필요한 전체 압력차 중 <strong>CVP와 reservoir 낙차가 먼저 일부를 만들고</strong>, 부족한 만큼만 VAVD가 보충한다고 계산합니다.</p>
 
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">비진공 ΔP = CVP + 낙차(cm) × 0.7356</p>
-              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − 비진공 ΔP)</p>
+              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">Natural drainage pressure = CVP + 낙차(cm) × 0.7356</p>
+              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − Natural drainage pressure)</p>
             </div>
 
             <div className="mt-3 grid gap-2 md:grid-cols-3">
@@ -345,17 +345,17 @@ export default function MicsDrainageCalculator() {
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-bold text-slate-900">필요 VAVD</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">회로 필요 압력에서 비진공 기여를 뺀 부족분</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">회로 필요 압력에서 Natural drainage pressure를 뺀 부족분</p>
               </div>
             </div>
 
             <div className="mt-3 grid gap-2 rounded-md border border-teal-200 bg-teal-50/60 p-3 sm:grid-cols-3">
               <div><p className="text-xs text-slate-600">회로 필요 ΔP</p><p className="mt-1 font-bold text-slate-900">{selectedResult ? fmt(selectedResult.pressure) : "—"} mmHg</p></div>
-              <div><p className="text-xs text-slate-600">비진공 기여</p><p className="mt-1 font-bold text-slate-900">{fmt(cvp)} + {fmt(heightCm, 0)} × 0.7356 = {fmt(passivePressure)} mmHg</p></div>
+              <div><p className="text-xs text-slate-600">Natural drainage pressure</p><p className="mt-1 font-bold text-slate-900">{fmt(cvp)} + {fmt(heightCm, 0)} × 0.7356 = {fmt(passivePressure)} mmHg</p></div>
               <div><p className="text-xs text-slate-600">추정 필요 VAVD</p><p className="mt-1 font-bold text-teal-900">{fmt(selected?.requiredVacuum ?? null)} mmHg <span className="text-xs font-normal text-slate-600">≈ −{fmt(selected?.requiredVacuum ?? null)} mmHg 설정</span></p></div>
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-slate-600">비진공 ΔP는 자연배액의 <strong>flow가 아니라 이론적 구동압</strong>입니다. 실제 drainage는 CVP 변화, 정맥·RA collapse, cannula 위치, 호흡과 reservoir 혈액면에 따라 달라질 수 있습니다. 낙차는 tubing 길이가 아니며, 현재 0.7356 mmHg/cm은 물기둥 환산값입니다.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-600">Natural drainage pressure는 자연배액의 <strong>flow가 아니라 이론적 구동압</strong>입니다. 실제 drainage는 CVP 변화, 정맥·RA collapse, cannula 위치, 호흡과 reservoir 혈액면에 따라 달라질 수 있습니다. 낙차는 tubing 길이가 아니며, 현재 0.7356 mmHg/cm은 물기둥 환산값입니다.</p>
             <p className="mt-2 text-xs text-slate-600">설정 total venous pr. {fmt(vavdLimit, 0)} mmHg와 비교 → <strong className={selected?.within ? "text-emerald-700" : "text-rose-700"}>{selectedResult ? selected?.within ? "기준 이내" : "기준 초과" : "판정 불가"}</strong></p>
           </section>
 
