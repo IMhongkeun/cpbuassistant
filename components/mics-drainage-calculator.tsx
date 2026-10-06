@@ -192,7 +192,7 @@ export default function MicsDrainageCalculator() {
     return { ...item, fvPrime, totalPrime, postHct: preHct * ebv / (ebv + totalPrime) }
   }), [weight, preHct, ebvPerKg, otherPrime, svc])
   const hctDifference = hctRows[0].postHct - hctRows[1].postHct
-  const budget = passivePressure + vavdLimit
+  const maxFlowAtLimit = flowAtPressure(fv, tube, svc, passivePressure + vavdLimit)
   const selectedResult = selected?.result ?? null
   const selectedBreakdown = selectedResult ? {
     fvCannula: curveLoss(FV_CURVES[fv], selectedResult.fvFlow),
@@ -239,7 +239,7 @@ export default function MicsDrainageCalculator() {
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">선택 전략</p><p className="mt-2 text-base font-bold text-slate-900">FV {fv} Fr · {tube === 0.375 ? '3/8"' : '1/2"'} · {strategies.find((item) => item.value === svc)?.label}</p></div>
       <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">필요 pressure gradient</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? fmt(selected.result.pressure) + " mmHg" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">cannula pr. + tubing pr.</p></div>
-      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p><p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p><p className="mt-1 text-xs text-slate-500">VAVD limit {fmt(vavdLimit, 0)} mmHg · 가용 ΔP {fmt(budget, 0)} mmHg</p></div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p><p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p><p className="mt-1 text-xs text-slate-500">VAVD limit {fmt(vavdLimit, 0)} mmHg</p><p className="mt-1 text-xs font-medium text-slate-600">VAVD −{fmt(vavdLimit, 0)} mmHg 적용 시 예상 최대 flow {maxFlowAtLimit ? fmt(maxFlowAtLimit.totalFlow, 1) + " L/min" : "곡선 범위 밖"}</p></div>
     </div>
 
     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
