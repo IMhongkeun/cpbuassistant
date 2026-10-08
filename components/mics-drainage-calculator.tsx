@@ -113,6 +113,42 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number) 
   return flowAtPressure(fv, tube, svc, (low + high) / 2)
 }
 
+// With caval snaring, allocate the assumed regional return before computing each limb loss.
+// The maximum limb loss is the minimum common pressure budget under the model's equal-head
+// and zero-CVP assumptions; it is NOT a prediction of actual regional venous pressures.
+function pressureForSnaredFlow(fv: number, tube: number, svc: number, totalFlow: number, svcPercent: number) {
+  if (!svc || totalFlow < 0 || svcPercent <= 0 || svcPercent >= 100) return null
+  const svcFlow = totalFlow * svcPercent / 100
+  const fvFlow = totalFlow - svcFlow
+  const fvPressure = branchLoss(FV_CURVES[fv], fvFlow, 2, tube)
+  const svcPressure = branchLoss(SVC_CURVES[svc], svcFlow, 1.2, 0.375)
+  if (fvPressure === null || svcPressure === null) return null
+  return { pressure: Math.max(fvPressure, svcPressure), fvFlow, svcFlow, totalFlow }
+}
+
+// Find the greatest flow within BOTH source-curve ranges and the pressure budget.
+// If the curve endpoints limit the answer first, flag it rather than extrapolating.
+function maxSnaredFlowAtPressure(fv: number, tube: number, svc: number, svcPercent: number, pressure: number) {
+  if (!svc || pressure < 0 || svcPercent <= 0 || svcPercent >= 100) return null
+  const fraction = svcPercent / 100
+  const maxFv = (FV_CURVES[fv].length - 1) * 0.5
+  const maxSvc = (SVC_CURVES[svc].length - 1) * 0.5
+  const curveMax = Math.min(maxFv / (1 - fraction), maxSvc / fraction)
+  const curveEndpoint = pressureForSnaredFlow(fv, tube, svc, curveMax, svcPercent)
+  if (curveEndpoint && curveEndpoint.pressure <= pressure) return { ...curveEndpoint, curveLimited: true }
+
+  let low = 0
+  let high = curveMax
+  for (let i = 0; i < 70; i += 1) {
+    const mid = (low + high) / 2
+    const result = pressureForSnaredFlow(fv, tube, svc, mid, svcPercent)
+    if (result && result.pressure <= pressure) low = mid
+    else high = mid
+  }
+  const result = pressureForSnaredFlow(fv, tube, svc, low, svcPercent)
+  return result ? { ...result, curveLimited: false } : null
+}
+
 function NumberField({ label, value, onChange, min, max, step, unit }: {
   label: string; value: number; onChange: (value: number) => void; min: number; max: number; step: number; unit: string
 }) {
@@ -165,6 +201,8 @@ export default function MicsDrainageCalculator() {
   const [fv, setFv] = useState(25)
   const [tube, setTube] = useState(0.375)
   const [svc, setSvc] = useState(0)
+  const [snaring, setSnaring] = useState(false)
+  const [svcPercent, setSvcPercent] = useState(35)
   const [targetFlow, setTargetFlow] = useState(5)
   const [vavdLimit, setVavdLimit] = useState(60)
   const [heightCm, setHeightCm] = useState(30)
@@ -173,13 +211,16 @@ export default function MicsDrainageCalculator() {
   const [ebvPerKg, setEbvPerKg] = useState(55)
   const [otherPrime, setOtherPrime] = useState(1200)
   const naturalDrainagePressure = Math.max(0, heightCm) * 0.7356
+  const isSnaring = snaring && svc !== 0
 
   const rows = useMemo(() => tubeOptions.flatMap((tubeOption) => strategies.map((strategy) => {
-    const result = pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
+    const result = isSnaring && strategy.value !== 0
+      ? pressureForSnaredFlow(fv, tubeOption.value, strategy.value, targetFlow, svcPercent)
+      : pressureForFlow(fv, tubeOption.value, strategy.value, targetFlow)
     if (!result) return { tube: tubeOption, strategy, result: null, requiredVacuum: null, within: false }
     const requiredVacuum = Math.max(0, result.pressure - naturalDrainagePressure)
     return { tube: tubeOption, strategy, result, requiredVacuum, within: requiredVacuum <= vavdLimit }
-  })), [fv, targetFlow, naturalDrainagePressure, vavdLimit])
+  })), [fv, targetFlow, naturalDrainagePressure, vavdLimit, isSnaring, svcPercent])
 
   const selected = rows.find((row) => row.tube.value === tube && row.strategy.value === svc)
   const hctRows = useMemo(() => tubeOptions.map((item) => {
@@ -190,7 +231,9 @@ export default function MicsDrainageCalculator() {
     return { ...item, fvPrime, totalPrime, postHct: preHct * ebv / (ebv + totalPrime) }
   }), [weight, preHct, ebvPerKg, otherPrime, svc])
   const hctDifference = hctRows[0].postHct - hctRows[1].postHct
-  const maxFlowAtLimit = flowAtPressure(fv, tube, svc, naturalDrainagePressure + vavdLimit)
+  const maxFlowAtLimit = isSnaring
+    ? maxSnaredFlowAtPressure(fv, tube, svc, svcPercent, naturalDrainagePressure + vavdLimit)
+    : flowAtPressure(fv, tube, svc, naturalDrainagePressure + vavdLimit)
   const selectedResult = selected?.result ?? null
   const selectedBreakdown = selectedResult ? {
     fvCannula: curveLoss(FV_CURVES[fv], selectedResult.fvFlow),
@@ -198,10 +241,17 @@ export default function MicsDrainageCalculator() {
     svcCannula: svc ? curveLoss(SVC_CURVES[svc], selectedResult.svcFlow) : 0,
     svcTube: svc ? tubeLoss(selectedResult.svcFlow, 1.2, 0.375) : 0,
   } : null
+  const snaredFvPressure = isSnaring && selectedResult ? branchLoss(FV_CURVES[fv], selectedResult.fvFlow, 2, tube) : null
+  const snaredSvcPressure = isSnaring && selectedResult ? branchLoss(SVC_CURVES[svc], selectedResult.svcFlow, 1.2, 0.375) : null
+  const snaredFvVacuum = snaredFvPressure === null ? null : Math.max(0, snaredFvPressure - naturalDrainagePressure)
+  const snaredSvcVacuum = snaredSvcPressure === null ? null : Math.max(0, snaredSvcPressure - naturalDrainagePressure)
+  const snaredBottleneck = snaredFvPressure !== null && snaredSvcPressure !== null
+    ? Math.abs(snaredFvPressure - snaredSvcPressure) < 0.01 ? "FV · SVC 동일" : snaredFvPressure > snaredSvcPressure ? "FV" : "SVC"
+    : null
   const selectedHct = hctRows.find((row) => row.value === tube)
   const selectedEbv = weight * ebvPerKg
-  const expectedSvcFlow = targetFlow * 0.35
-  const expectedIvcFlow = targetFlow * 0.65
+  const expectedSvcFlow = targetFlow * svcPercent / 100
+  const expectedIvcFlow = targetFlow * (1 - svcPercent / 100)
   const hydraulicSvcFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.svcFlow / selectedResult.totalFlow * 100 : null
   const hydraulicFvFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.fvFlow / selectedResult.totalFlow * 100 : null
 
@@ -214,7 +264,22 @@ export default function MicsDrainageCalculator() {
       <div className="grid gap-5 md:grid-cols-3">
         <div><p className="mb-2 text-sm font-medium text-slate-700">FV cannula</p><div className="flex flex-wrap gap-1">{fvSizes.map((size) => <button key={size} onClick={() => setFv(size)} className={"rounded-md border px-3 py-2 text-sm font-semibold " + (fv === size ? "border-teal-600 bg-teal-600 text-white" : "bg-white text-slate-600")}>{size} Fr</button>)}</div></div>
         <div><p className="mb-2 text-sm font-medium text-slate-700">FV tubing · 200 cm</p><div className="flex gap-2">{tubeOptions.map((item) => <button key={item.value} onClick={() => setTube(item.value)} className={"rounded-md border px-4 py-2 text-sm font-semibold " + (tube === item.value ? "border-teal-600 bg-teal-600 text-white" : "bg-white text-slate-600")}>{item.label}</button>)}</div></div>
-        <div><p className="mb-2 text-sm font-medium text-slate-700">Drainage 전략</p><div className="flex flex-wrap gap-1">{strategies.map((item) => <button key={item.value} onClick={() => setSvc(item.value)} className={"rounded-md border px-3 py-2 text-sm font-semibold " + (svc === item.value ? "border-teal-600 bg-teal-600 text-white" : "bg-white text-slate-600")}>{item.label}</button>)}</div></div>
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700">Drainage 전략</p>
+          <div className="flex flex-wrap gap-1">
+            {strategies.map((item) => <button key={item.value} onClick={() => { setSvc(item.value); if (item.value === 0) setSnaring(false) }} className={"rounded-md border px-3 py-2 text-sm font-semibold " + (svc === item.value ? "border-teal-600 bg-teal-600 text-white" : "bg-white text-slate-600")}>{item.label}</button>)}
+          </div>
+          <label className={"mt-3 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold " + (svc === 0 ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : isSnaring ? "border-teal-400 bg-teal-50 text-teal-900" : "border-slate-200 bg-white text-slate-700")}>
+            <input type="checkbox" checked={isSnaring} disabled={svc === 0} onChange={(e) => setSnaring(e.target.checked)} className="h-4 w-4 accent-teal-600" />
+            Snaring (RA open)
+          </label>
+          {svc === 0 ? <p className="mt-1 text-xs text-slate-500">FV + SVC 전략 선택 시 활성화됩니다.</p> : null}
+          {isSnaring ? <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50/70 p-3">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold text-teal-900"><span>가정 SVC return 비율</span><span>{svcPercent}% · FV {100 - svcPercent}%</span></div>
+            <input type="range" aria-label="가정 SVC venous return 비율" min={25} max={45} step={5} value={svcPercent} onChange={(e) => setSvcPercent(Number(e.target.value))} className="w-full accent-teal-600" />
+            <div className="flex justify-between text-[11px] text-slate-500"><span>25%</span><span>35% 기본</span><span>45%</span></div>
+          </div> : null}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-3">
@@ -235,8 +300,8 @@ export default function MicsDrainageCalculator() {
     </div>
 
     <div className="grid gap-3 sm:grid-cols-3">
-      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">선택 전략</p><p className="mt-2 text-base font-bold text-slate-900">FV {fv} Fr · {tube === 0.375 ? '3/8"' : '1/2"'} · {strategies.find((item) => item.value === svc)?.label}</p></div>
-      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">필요 pressure gradient</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? fmt(selected.result.pressure) + " mmHg" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">cannula pr. + tubing pr.</p></div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">선택 전략</p><p className="mt-2 text-base font-bold text-slate-900">FV {fv} Fr · {tube === 0.375 ? '3/8"' : '1/2"'} · {strategies.find((item) => item.value === svc)?.label}</p>{isSnaring ? <p className="mt-2 text-xs font-semibold text-teal-700">Snaring (RA open) · SVC {svcPercent}% / FV {100 - svcPercent}% 가정</p> : <p className="mt-2 text-xs text-slate-500">{svc ? "Non-snaring · 공통 ΔP 병렬 분배" : "FV 단독 drainage"}</p>}</div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{isSnaring ? "최대 branch pressure loss" : "필요 pressure gradient"}</p><p className="mt-2 text-2xl font-bold text-teal-700">{selected?.result ? fmt(selected.result.pressure) + " mmHg" : "곡선 범위 밖"}</p><p className="mt-1 text-xs text-slate-500">{isSnaring ? "FV·SVC 중 큰 (cannula + tubing) loss" : "cannula pr. + tubing pr."}</p></div>
       <div className="rounded-lg border bg-white p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">추정 VAVD 필요량</p>
         <p className={"mt-2 text-2xl font-bold " + (selected?.within ? "text-emerald-700" : "text-rose-700")}>{selected?.requiredVacuum === null ? "—" : fmt(selected.requiredVacuum) + " mmHg"}</p>
@@ -244,12 +309,40 @@ export default function MicsDrainageCalculator() {
         <div className="mt-3 rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 ring-1 ring-teal-100">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">이론적 최대 drainage flow @ VAVD −{fmt(vavdLimit, 0)} mmHg</p>
           <p className="mt-1 text-2xl font-bold text-teal-800">{maxFlowAtLimit ? fmt(maxFlowAtLimit.totalFlow, 1) + " L/min" : "곡선 범위 밖"}</p>
-          <p className="mt-1 text-[11px] leading-4 text-teal-700">Ideal hydraulic estimate · 실제 지속 가능한 flow는 더 낮을 수 있습니다.</p>
+          <p className="mt-1 text-[11px] leading-4 text-teal-700">{isSnaring ? "가정한 SVC/FV 비율에서의 회로 압력상한 추정 · 실제 환류량 및 정맥 허탈은 미반영" : "Ideal hydraulic estimate · 실제 지속 가능한 flow는 더 낮을 수 있습니다."}</p>
+          {isSnaring && maxFlowAtLimit && "curveLimited" in maxFlowAtLimit && maxFlowAtLimit.curveLimited ? <p className="mt-1 text-[11px] font-semibold text-amber-800">원자료 곡선 상한 도달 · 물리적 최대 flow를 뜻하지 않습니다.</p> : null}
         </div>
       </div>
     </div>
 
+    {isSnaring ? <section className="rounded-xl border border-teal-200 bg-teal-50/40 p-4 shadow-sm sm:p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-slate-900">Snaring mode · branch별 예상 pressure loss</h3>
+        <span className="text-xs font-semibold text-teal-800">Total {fmt(targetFlow)} L/min · SVC {svcPercent}% / FV {100 - svcPercent}%</span>
+      </div>
+      {selectedResult && selectedBreakdown ? <div className="grid gap-3 md:grid-cols-2">
+        <div className={"rounded-lg border bg-white p-4 " + (snaredBottleneck === "FV" ? "border-rose-300" : "border-slate-200")}>
+          <div className="flex items-center justify-between gap-2"><p className="font-bold text-slate-900">FV · {fv} Fr</p>{snaredBottleneck === "FV" ? <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-700">압력 병목</span> : null}</div>
+          <p className="mt-2 text-xl font-bold text-teal-800">{fmt(selectedResult.fvFlow, 2)} L/min</p>
+          <p className="mt-2 text-xs text-slate-600">Cannula {fmt(selectedBreakdown.fvCannula)} + tubing {fmt(selectedBreakdown.fvTube)} mmHg</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">Total ΔP {fmt(snaredFvPressure)} mmHg</p>
+          <p className="mt-1 text-xs font-semibold text-rose-700">부족한 VAVD ≈ {fmt(snaredFvVacuum)} mmHg</p>
+        </div>
+        <div className={"rounded-lg border bg-white p-4 " + (snaredBottleneck === "SVC" ? "border-rose-300" : "border-slate-200")}>
+          <div className="flex items-center justify-between gap-2"><p className="font-bold text-slate-900">SVC · {svc} Fr</p>{snaredBottleneck === "SVC" ? <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-700">압력 병목</span> : null}</div>
+          <p className="mt-2 text-xl font-bold text-teal-800">{fmt(selectedResult.svcFlow, 2)} L/min</p>
+          <p className="mt-2 text-xs text-slate-600">Cannula {fmt(selectedBreakdown.svcCannula)} + tubing {fmt(selectedBreakdown.svcTube)} mmHg</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">Total ΔP {fmt(snaredSvcPressure)} mmHg</p>
+          <p className="mt-1 text-xs font-semibold text-rose-700">부족한 VAVD ≈ {fmt(snaredSvcVacuum)} mmHg</p>
+        </div>
+      </div> : <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">선택한 목표 유량이 cannula 제조사 곡선 범위를 벗어나 branch별 계산이 불가능합니다.</p>}
+      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900">
+        <strong>공통 reservoir VAVD 참고값:</strong> 두 branch의 부족 압력 중 큰 값({snaredBottleneck ?? "판정 불가"} 기준)을 사용합니다. 실제 SVC·FV upstream pressure는 다를 수 있고, 공급량 제한·chatter·collapse로 실제 안정 flow는 이 추정보다 낮을 수 있습니다. IVP 측정값은 reservoir vacuum과 구별해야 합니다.
+      </div>
+    </section> : null}
+
     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+      {isSnaring ? <p className="border-b bg-teal-50 px-4 py-2 text-xs text-teal-900">Snaring ON: FV + SVC 행은 설정한 SVC return 비율로 계산하며, FV 단독 행은 기존 회로 저항 모델로 계산합니다.</p> : null}
       <table className="w-full min-w-[720px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">FV tubing</th><th className="px-4 py-3">전략</th><th className="px-4 py-3 text-right">필요 ΔP</th><th className="px-4 py-3 text-right">FV flow</th><th className="px-4 py-3 text-right">SVC flow</th><th className="px-4 py-3 text-right">Total flow</th><th className="px-4 py-3 text-right">판정</th></tr></thead>
         <tbody>{rows.map((row) => <tr key={row.tube.value + "-" + row.strategy.value} className={(row.tube.value === tube && row.strategy.value === svc ? "bg-teal-50 " : "") + "border-t"}><td className="px-4 py-3">{row.tube.label}</td><td className="px-4 py-3">{row.strategy.label}</td><td className="px-4 py-3 text-right">{row.result ? fmt(row.result.pressure) + " mmHg" : "범위 밖"}</td><td className="px-4 py-3 text-right">{fmt(row.result?.fvFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.svcFlow ?? null)}</td><td className="px-4 py-3 text-right">{fmt(row.result?.totalFlow ?? null)}</td><td className="px-4 py-3 text-right"><span className={"rounded-full px-2 py-1 text-xs font-semibold " + (row.within ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")}>{row.result ? row.within ? "VAVD limit 이내" : "VAVD limit 초과" : "곡선 범위 밖"}</span></td></tr>)}</tbody>
       </table>
@@ -294,51 +387,57 @@ export default function MicsDrainageCalculator() {
           </section>
 
           <section className="rounded-lg border bg-white p-4">
-            <h4 className="font-bold text-slate-900">3. FV·SVC 병렬 flow 분배</h4>
-            <p className="mt-2 text-sm leading-6 text-slate-600">두 branch가 같은 reservoir에 연결되므로 동일한 pressure gradient가 걸린다고 보고, 아래 조건을 만족하는 ΔP를 반복 계산합니다.</p>
-            <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QFV(ΔP) + QSVC(ΔP) = 목표 total flow</p>
+            <h4 className="font-bold text-slate-900">3. {isSnaring ? "Snaring return 기반 branch별 저항 계산" : "FV·SVC 병렬 flow 분배"}</h4>
+            {isSnaring ? <>
+              <p className="mt-2 text-sm leading-6 text-slate-600">RA open / caval snaring 상황에서는 SVC {svcPercent}%·FV {100 - svcPercent}%를 우선 가정한 뒤 각 branch의 cannula + tubing loss를 계산합니다. 공통 reservoir라도 분리된 정맥계의 upstream pressure는 서로 다를 수 있습니다.</p>
+              <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QSVC = Qtotal × {svcPercent / 100} · QFV = Qtotal × {(100 - svcPercent) / 100}</p>
+              <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">ΔP기준 = max(ΔPFV, ΔPSVC)</p>
+            </> : <>
+              <p className="mt-2 text-sm leading-6 text-slate-600">두 branch가 같은 upstream pressure와 reservoir pressure를 공유한다고 근사하고, 동일 pressure gradient에서의 flow 합이 목표값이 되도록 반복 계산합니다.</p>
+              <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QFV(ΔP) + QSVC(ΔP) = 목표 total flow</p>
+            </>}
             {selectedResult ? <div className="mt-3 text-sm text-slate-700">
-              <p>필요 ΔP <strong>{fmt(selectedResult.pressure)} mmHg</strong></p>
+              <p>{isSnaring ? "최대 branch ΔP" : "필요 ΔP"} <strong>{fmt(selectedResult.pressure)} mmHg</strong></p>
               <p className="mt-1">FV {fmt(selectedResult.fvFlow)} + SVC {fmt(selectedResult.svcFlow)} = <strong>{fmt(selectedResult.totalFlow)} L/min</strong></p>
             </div> : null}
           </section>
 
           <section className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-4 lg:col-span-2">
             <h4 className="font-bold text-slate-900">4. SVC·IVC 예상 flow와 회로 분배의 해석</h4>
-            <p className="mt-2 text-sm leading-6 text-slate-700">정상 성인 안정 시 참고값은 SVC 약 35%, IVC 약 65%로, SVC:IVC를 대략 1:1.9로 봅니다. 이는 환자 측 venous return의 생리적 분포이며 회로 저항으로 계산한 branch flow와는 다른 개념입니다.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">정상 성인의 SVC return은 약 35%라는 생리적 참고값이 있습니다. 이는 CPB 중 일정하게 유지되는 고정 비율이 아니며, snaring 시 설정한 {svcPercent}%를 모델의 추정 입력으로 사용합니다.</p>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-cyan-100 bg-white p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">생리적 참고값</p>
-                <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QSVC,ref = Qtotal × 0.35</p>
-                <p className="mt-1 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QIVC,ref = Qtotal × 0.65</p>
+                <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QSVC,ref = Qtotal × {svcPercent / 100}</p>
+                <p className="mt-1 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QFV,ref = Qtotal × {(100 - svcPercent) / 100}</p>
                 <div className="mt-3 space-y-1 text-sm text-slate-700">
                   <p>Total {fmt(targetFlow)} L/min → SVC <strong>{fmt(expectedSvcFlow, 2)} L/min</strong></p>
                   <p>Total {fmt(targetFlow)} L/min → IVC <strong>{fmt(expectedIvcFlow, 2)} L/min</strong></p>
                 </div>
               </div>
               <div className="rounded-lg border border-cyan-100 bg-white p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">현재 회로의 hydraulic 분배</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">{isSnaring ? "현재 Snaring 가정 분배" : "현재 회로의 hydraulic 분배"}</p>
                 {selectedResult ? <div className="mt-3 space-y-1 text-sm text-slate-700">
                   <p>SVC line {fmt(selectedResult.svcFlow)} L/min <strong>({fmt(hydraulicSvcFraction, 1)}%)</strong></p>
                   <p>FV line {fmt(selectedResult.fvFlow)} L/min <strong>({fmt(hydraulicFvFraction, 1)}%)</strong></p>
-                  {svc ? <p className="pt-1 text-xs text-slate-500">SVC 회로 계산값과 생리적 SVC 참고값의 차이: {selectedResult.svcFlow >= expectedSvcFlow ? "+" : ""}{fmt(selectedResult.svcFlow - expectedSvcFlow, 2)} L/min</p> : <p className="pt-1 text-xs text-slate-500">별도 SVC line이 없으므로 상체 venous return도 RA/FV drainage 경로에서 함께 받아야 합니다.</p>}
+                  {isSnaring ? <p className="pt-1 text-xs text-slate-500">해당 분배는 측정된 venous flow가 아닌 설정한 생리적 return 비율의 가정값입니다.</p> : svc ? <p className="pt-1 text-xs text-slate-500">SVC 회로 계산값과 생리적 SVC 참고값의 차이: {selectedResult.svcFlow >= expectedSvcFlow ? "+" : ""}{fmt(selectedResult.svcFlow - expectedSvcFlow, 2)} L/min</p> : <p className="pt-1 text-xs text-slate-500">별도 SVC line이 없으므로 상체 venous return도 RA/FV drainage 경로에서 함께 받아야 합니다.</p>}
                 </div> : <p className="mt-3 text-sm text-rose-700">선택 조건이 곡선 범위를 벗어나 분배값을 계산하지 않았습니다.</p>}
               </div>
             </div>
             <div className="mt-3 space-y-2 text-xs leading-5 text-slate-600">
               <p><strong>Snaring으로 caval return을 분리한 경우:</strong> SVC line의 실제 지속 flow는 상체에서 공급되는 venous return에 의해 제한됩니다. 회로 계산 능력이 이를 초과하면 추가 flow보다 SVC pressure 저하, vessel/RA collapse 또는 chatter로 나타날 수 있습니다.</p>
               <p><strong>Snaring하지 않았거나 RA에서 혼합되는 경우:</strong> 표시되는 FV·SVC 분배는 두 branch의 포획 능력이며 혈액의 해부학적 기원을 직접 뜻하지 않습니다. FV cannula도 tip·side-hole 위치에 따라 IVC뿐 아니라 RA 또는 SVC return 일부를 받을 수 있으므로 FV flow를 곧바로 IVC flow로 동일시하지 않습니다.</p>
-              <p><strong>해석 기준:</strong> 35:65는 안정 시 참고선이며 고정 제한값이 아닙니다. 양압환기·호흡상·체위·혈액량·혈관긴장도·하체 관류 및 cannula 위치에 따라 실제 비율은 변합니다.</p>
+              <p><strong>해석 기준:</strong> 35:65는 안정 시 참고선이며 고정 제한값이 아닙니다. Snaring 모드에서는 선택한 비율을 가정하고, Non-snaring 모드에서는 flow 제한조건에 사용하지 않습니다. 양압환기·호흡상·체위·혈액량·혈관긴장도·하체 관류 및 cannula 위치에 따라 실제 비율은 변합니다.</p>
             </div>
           </section>
 
           <section className="rounded-lg border bg-white p-4 lg:col-span-2">
             <h4 className="font-bold text-slate-900">5. 자연배액 기여와 필요 VAVD</h4>
-            <p className="mt-2 text-sm leading-6 text-slate-700">목표 flow에 필요한 전체 압력차 중 <strong>reservoir 낙차가 natural drainage pressure를 만들고</strong>, 부족한 만큼만 VAVD가 보충한다고 계산합니다.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">목표 flow에 필요한 압력차 중 <strong>reservoir 낙차가 natural drainage pressure를 만들고</strong>, 부족한 만큼만 VAVD가 보충한다고 계산합니다. {isSnaring ? "Snaring에서는 각 branch의 부족 압력을 먼저 구한 뒤 더 큰 값을 공통 reservoir VAVD의 이론적 기준으로 표시합니다." : null}</p>
 
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">Natural drainage pressure = 낙차(cm) × 0.7356</p>
-              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">필요 VAVD = max(0, 필요 ΔP − Natural drainage pressure)</p>
+              <p className="rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{isSnaring ? "필요 VAVD ≈ max(0, ΔPFV − head, ΔPSVC − head)" : "필요 VAVD = max(0, 필요 ΔP − Natural drainage pressure)"}</p>
             </div>
 
             <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -348,17 +447,17 @@ export default function MicsDrainageCalculator() {
               </div>
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs font-bold text-slate-900">필요 VAVD</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">회로 필요 압력에서 Natural drainage pressure를 뺀 부족분</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">회로 필요 압력에서 Natural drainage pressure를 뺀 부족분{isSnaring ? " (branch별로 계산한 후 큰 값)" : ""}</p>
               </div>
             </div>
 
             <div className="mt-3 grid gap-2 rounded-md border border-teal-200 bg-teal-50/60 p-3 sm:grid-cols-3">
-              <div><p className="text-xs text-slate-600">회로 필요 ΔP</p><p className="mt-1 font-bold text-slate-900">{selectedResult ? fmt(selectedResult.pressure) : "—"} mmHg</p></div>
+              <div><p className="text-xs text-slate-600">{isSnaring ? "최대 branch ΔP" : "회로 필요 ΔP"}</p><p className="mt-1 font-bold text-slate-900">{selectedResult ? fmt(selectedResult.pressure) : "—"} mmHg</p></div>
               <div><p className="text-xs text-slate-600">Natural drainage pressure</p><p className="mt-1 font-bold text-slate-900">{fmt(heightCm, 0)} × 0.7356 = {fmt(naturalDrainagePressure)} mmHg</p></div>
               <div><p className="text-xs text-slate-600">추정 필요 VAVD</p><p className="mt-1 font-bold text-teal-900">{fmt(selected?.requiredVacuum ?? null)} mmHg <span className="text-xs font-normal text-slate-600">≈ −{fmt(selected?.requiredVacuum ?? null)} mmHg 설정</span></p></div>
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-slate-600">Natural drainage pressure는 자연배액의 <strong>flow가 아니라 이론적 구동압</strong>입니다. 추정 VAVD는 reservoir vacuum의 필요량을 뜻하며, 실제 venous inlet pressure는 reservoir inlet luer에서 별도 확인합니다.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-600">Natural drainage pressure는 자연배액의 <strong>flow가 아니라 이론적 구동압</strong>입니다. 추정 VAVD는 reservoir vacuum 요구량의 참고치이며, 실제 venous inlet pressure는 reservoir inlet luer에서 별도 확인합니다. {isSnaring ? "Snaring 시 upstream 정맥압 차이와 공급량 제한은 이 계산에 포함되지 않습니다." : null}</p>
             <p className="mt-2 text-xs text-slate-600">VAVD reference limit {fmt(vavdLimit, 0)} mmHg와 비교 → <strong className={selected?.within ? "text-emerald-700" : "text-rose-700"}>{selectedResult ? selected?.within ? "기준 이내" : "기준 초과" : "판정 불가"}</strong></p>
           </section>
 
@@ -375,7 +474,7 @@ export default function MicsDrainageCalculator() {
         </div>
 
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
-          이 계산은 회로 전략 비교를 위한 추정 모델입니다. Cannula 제조사 곡선은 주로 물 시험 자료이며, SVC에 사용하는 NextGen arterial cannula는 제조사 pressure-loss 곡선의 크기를 drainage 저항으로 적용했습니다. SVC 35%·IVC 65%는 안정 시 성인 생리의 참고값일 뿐 hydraulic solver의 제한조건으로 강제하지 않습니다. 실제 결과는 혈액 점도·온도·Hct·정맥 허탈·환자 혈액량·호흡·체위·캐뉼라 위치와 삽입 깊이·kink·connector·reservoir 구조에 따라 달라질 수 있습니다.
+          이 계산은 회로 전략 비교를 위한 추정 모델입니다. Cannula 제조사 곡선은 주로 물 시험 자료이며, SVC에 사용하는 NextGen arterial cannula는 제조사 pressure-loss 곡선의 크기를 drainage 저항으로 적용했습니다. SVC 35%·IVC/FV 65%는 안정 시 성인 생리의 참고값으로, Snaring에서만 선택한 비율을 유량 배분의 가정으로 사용합니다. Non-snaring에서는 회로 저항으로 flow를 분배합니다. 실제 결과는 혈액 점도·온도·Hct·정맥 허탈·환자 혈액량·호흡·체위·캐뉼라 위치와 삽입 깊이·kink·connector·reservoir 구조에 따라 달라질 수 있습니다.
         </div>
 
         <section className="mt-4 rounded-lg border bg-white p-4 text-xs leading-5 text-slate-600">
