@@ -250,8 +250,9 @@ export default function MicsDrainageCalculator() {
     : null
   const selectedHct = hctRows.find((row) => row.value === tube)
   const selectedEbv = weight * ebvPerKg
-  const expectedSvcFlow = targetFlow * svcPercent / 100
-  const expectedIvcFlow = targetFlow * (1 - svcPercent / 100)
+  const referenceSvcPercent = isSnaring ? svcPercent : 35
+  const expectedSvcFlow = targetFlow * referenceSvcPercent / 100
+  const expectedIvcFlow = targetFlow * (1 - referenceSvcPercent / 100)
   const hydraulicSvcFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.svcFlow / selectedResult.totalFlow * 100 : null
   const hydraulicFvFraction = selectedResult && selectedResult.totalFlow > 0 ? selectedResult.fvFlow / selectedResult.totalFlow * 100 : null
 
@@ -404,12 +405,12 @@ export default function MicsDrainageCalculator() {
 
           <section className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-4 lg:col-span-2">
             <h4 className="font-bold text-slate-900">4. SVC·IVC 예상 flow와 회로 분배의 해석</h4>
-            <p className="mt-2 text-sm leading-6 text-slate-700">정상 성인의 SVC return은 약 35%라는 생리적 참고값이 있습니다. 이는 CPB 중 일정하게 유지되는 고정 비율이 아니며, snaring 시 설정한 {svcPercent}%를 모델의 추정 입력으로 사용합니다.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">정상 성인의 SVC return은 약 35%라는 생리적 참고값이 있습니다. 이는 CPB 중 일정하게 유지되는 고정 비율이 아니며, snaring 시에는 사용자가 설정한 {svcPercent}%를 flow 분배의 가정으로 사용합니다.</p>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-cyan-100 bg-white p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-cyan-800">생리적 참고값</p>
-                <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QSVC,ref = Qtotal × {svcPercent / 100}</p>
-                <p className="mt-1 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QFV,ref = Qtotal × {(100 - svcPercent) / 100}</p>
+                <p className="mt-2 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QSVC,ref = Qtotal × {referenceSvcPercent / 100}</p>
+                <p className="mt-1 rounded bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">QFV,ref = Qtotal × {(100 - referenceSvcPercent) / 100}</p>
                 <div className="mt-3 space-y-1 text-sm text-slate-700">
                   <p>Total {fmt(targetFlow)} L/min → SVC <strong>{fmt(expectedSvcFlow, 2)} L/min</strong></p>
                   <p>Total {fmt(targetFlow)} L/min → IVC <strong>{fmt(expectedIvcFlow, 2)} L/min</strong></p>
