@@ -1010,14 +1010,14 @@ export default function BloodHemodilutionCalculator() {
             description="Pre-CPB planning과 intraoperative simulation에서 공통으로 사용하는 값입니다. 환자별 입력값은 새 환자 시작 시 초기화됩니다."
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4">
-              <InputBlock id="blood-weight" label="Weight kg" value={weightKg} onChange={setWeightKg} />
+              <InputBlock id="blood-weight" label="Weight (kg)" value={weightKg} onChange={setWeightKg} />
               <InputBlock
                 id="blood-volume-coefficient"
-                label="Blood volume coefficient mL/kg"
+                label="Blood volume coefficient (mL/kg)"
                 value={bloodVolumeCoefficient}
                 onChange={setBloodVolumeCoefficient}
               />
-              <InputBlock id="pre-hct" label="Pre-Hct %" value={preHct} onChange={setPreHct} />
+              <InputBlock id="pre-hct" label="Pre-Hct (%)" value={preHct} onChange={setPreHct} />
               <div className="space-y-1.5 md:col-span-3 xl:col-span-4">
                 <Label htmlFor="tubing-set" className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
                   Tubing set selector
@@ -1039,7 +1039,7 @@ export default function BloodHemodilutionCalculator() {
                   </SelectContent>
                 </Select>
               </div>
-              <InputBlock id="prime-volume" label="Prime volume mL" value={primeVolume} onChange={setPrimeVolume} />
+              <InputBlock id="prime-volume" label="Prime volume (mL)" value={primeVolume} onChange={setPrimeVolume} />
               <InputBlock
                 id="rbc-product-hct"
                 label="RBC product Hct"
@@ -1049,7 +1049,7 @@ export default function BloodHemodilutionCalculator() {
               />
               <InputBlock
                 id="rbc-unit-volume"
-                label="RBC-LF unit volume mL/unit"
+                label="RBC-LF (Leukocyte filtered) unit volume (mL/unit)"
                 value={rbcUnitVolume}
                 onChange={setRbcUnitVolume}
                 helperText="Department default: 200 mL/unit."
