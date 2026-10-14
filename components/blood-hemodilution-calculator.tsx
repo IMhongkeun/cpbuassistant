@@ -662,7 +662,7 @@ export default function BloodHemodilutionCalculator() {
     ) {
       return {
         status: "message",
-        message: "Shared setup을 입력하면 RBC 추가 전 CPB 시작 후 예상 Hct가 표시됩니다.",
+        message: "Shared setup을 입력하면 CPB 시작 후 예상 Hct가 표시됩니다.",
       }
     }
 
@@ -1091,7 +1091,7 @@ export default function BloodHemodilutionCalculator() {
                     </Card>
                   ) : (
                     <ResultCard
-                      label="RBC 추가 전 CPB 시작 후 예상 Hct (%)"
+                      label="CPB 시작 후 예상 Hct(%)"
                       value={formatNumber(preCpbBaseResult.expectedHctWithoutRbc, 1)}
                       unit="%"
                       tone={
