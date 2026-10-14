@@ -382,6 +382,8 @@ const InputBlock = ({
   onChange,
   helperText,
   placeholder,
+  alignTallLabel = false,
+  required = false,
 }: {
   id: string
   label: string
@@ -389,15 +391,23 @@ const InputBlock = ({
   onChange: (value: string) => void
   helperText?: string
   placeholder?: string
+  alignTallLabel?: boolean
+  required?: boolean
 }) => (
   <div className="space-y-1.5">
-    <Label htmlFor={id} className="flex min-h-6 items-end text-xs font-semibold tracking-wide text-muted-foreground">
+    <Label
+      htmlFor={id}
+      className={`flex items-end text-xs font-semibold tracking-wide text-muted-foreground ${alignTallLabel ? "min-h-14" : "min-h-6"}`}
+    >
       {label}
+      {required && <span aria-hidden="true" className="ml-1 text-red-600 dark:text-red-400">*</span>}
     </Label>
     <Input
       id={id}
       type="text"
       inputMode="decimal"
+      required={required}
+      aria-required={required}
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
@@ -1039,10 +1049,11 @@ export default function BloodHemodilutionCalculator() {
                   </SelectContent>
                 </Select>
               </div>
-              <InputBlock id="prime-volume" label="Prime volume (mL)" value={primeVolume} onChange={setPrimeVolume} />
+              <InputBlock id="prime-volume" label="Prime volume (mL)" value={primeVolume} onChange={setPrimeVolume} alignTallLabel />
               <InputBlock
                 id="rbc-product-hct"
                 label="RBC product Hct"
+                alignTallLabel
                 value={rbcProductHct}
                 onChange={setRbcProductHct}
                 helperText="Enter as fraction, e.g. 0.66 for 66%."
@@ -1050,6 +1061,7 @@ export default function BloodHemodilutionCalculator() {
               <InputBlock
                 id="rbc-unit-volume"
                 label="RBC-LF (Leukocyte filtered) unit volume (mL/unit)"
+                alignTallLabel
                 value={rbcUnitVolume}
                 onChange={setRbcUnitVolume}
                 helperText="Department default: 200 mL/unit."
@@ -1175,6 +1187,7 @@ export default function BloodHemodilutionCalculator() {
                       <InputBlock
                         id="current-hct"
                         label="Current Hct (%)"
+                        required
                         value={currentHct}
                         onChange={setCurrentHct}
                         placeholder="0"
