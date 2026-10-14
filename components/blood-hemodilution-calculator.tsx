@@ -462,7 +462,6 @@ const TargetOptionCard = ({
   tone,
   main,
   secondary,
-  condition,
   finalVolume,
   expectedHct,
   badge,
@@ -471,7 +470,6 @@ const TargetOptionCard = ({
   tone: "green" | "rose" | "blue"
   main: React.ReactNode
   secondary?: React.ReactNode
-  condition: string
   finalVolume: number
   expectedHct: number
   badge?: string
@@ -490,7 +488,6 @@ const TargetOptionCard = ({
         <div className="text-2xl font-bold leading-none tracking-tight">{main}</div>
         {secondary && <div className="text-sm font-semibold leading-snug text-muted-foreground">{secondary}</div>}
       </div>
-      <div className="text-xs leading-relaxed text-muted-foreground">{condition}</div>
       <div className="mt-auto border-t border-border/60 pt-2 text-xs leading-relaxed text-muted-foreground">
         Final volume: <span className="font-semibold text-foreground">{formatNumber(finalVolume, 1)} mL</span> · Expected Hct:{" "}
         <span className="font-semibold text-foreground">{formatNumber(expectedHct, 1)}%</span>
@@ -1264,7 +1261,7 @@ export default function BloodHemodilutionCalculator() {
                   intraoperativeResult.fluidAdjustmentExpectedHct !== null ? (
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <TargetOptionCard
-                      title="RBC only"
+                      title="RBC 주입 (HF ❌)"
                       tone="rose"
                       main={
                         intraoperativeResult.rbcOnlyVolume <= FLUID_ADJUSTMENT_THRESHOLD_ML
@@ -1272,12 +1269,11 @@ export default function BloodHemodilutionCalculator() {
                           : `${formatNumber(intraoperativeResult.rbcOnlyVolume, 1)} mL`
                       }
                       secondary={`≈ ${formatNumber(intraoperativeResult.rbcOnlyUnitCount, 1)} unit`}
-                      condition="HF/UF 없이 pRBC만 추가"
                       finalVolume={intraoperativeResult.rbcOnlyFinalVolume}
                       expectedHct={intraoperativeResult.rbcOnlyExpectedHct}
                     />
                     <TargetOptionCard
-                      title="RBC + neutral HF"
+                      title="RBC 주입 (HF ⭕)"
                       tone="green"
                       badge="Volume-neutral"
                       main={`RBC ${formatNumber(intraoperativeResult.volumeNeutralRbcVolume, 1)} mL`}
@@ -1286,15 +1282,13 @@ export default function BloodHemodilutionCalculator() {
                           HF/UF {formatNumber(intraoperativeResult.volumeNeutralRbcVolume, 1)} mL<br />≈ {formatNumber(intraoperativeResult.volumeNeutralRbcUnitCount, 1)} unit
                         </>
                       }
-                      condition="RBC 증가분만큼 net HF/UF 시행"
                       finalVolume={intraoperativeResult.volumeNeutralFinalVolume ?? intraoperativeResult.currentTotalVolume}
                       expectedHct={intraoperativeResult.volumeNeutralExpectedHct}
                     />
                     <TargetOptionCard
-                      title="HF/UF only"
+                      title="fluid만 제거 시"
                       tone="blue"
                       main={getFluidAdjustmentCopy(intraoperativeResult.fluidAdjustmentToTarget).label}
-                      condition="RBC 추가 없이 fluid만 제거"
                       finalVolume={intraoperativeResult.fluidAdjustmentFinalVolume}
                       expectedHct={intraoperativeResult.fluidAdjustmentExpectedHct}
                     />
