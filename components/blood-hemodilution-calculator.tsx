@@ -1072,7 +1072,7 @@ export default function BloodHemodilutionCalculator() {
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(180px,220px)_1fr] lg:items-start">
                 <InputBlock
                   id="pre-desired-hct"
-                  label="Desired Hct %"
+                  label="Desired Hct (%)"
                   value={preDesiredHct}
                   onChange={setPreDesiredHct}
                 />
@@ -1164,14 +1164,14 @@ export default function BloodHemodilutionCalculator() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <InputBlock
                         id="current-hct"
-                        label="Current Hct %"
+                        label="Current Hct (%)"
                         value={currentHct}
                         onChange={setCurrentHct}
                         placeholder="0"
                       />
                       <InputBlock
                         id="intra-net-volume-change-from-base"
-                        label="Net volume change from base mL"
+                        label="Net volume change from base (mL)"
                         value={intraNetVolumeChangeFromBase}
                         onChange={setIntraNetVolumeChangeFromBase}
                         placeholder="0"
@@ -1233,7 +1233,7 @@ export default function BloodHemodilutionCalculator() {
                   <div className="w-full md:w-56">
                     <InputBlock
                       id="intra-desired-hct"
-                      label="Intraoperative desired Hct %"
+                      label="Intraoperative desired Hct (%)"
                       value={intraDesiredHct}
                       onChange={setIntraDesiredHct}
                       placeholder="0"
@@ -1307,7 +1307,7 @@ export default function BloodHemodilutionCalculator() {
                 <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-3">
                   <InputBlock
                     id="planned-rbc-addition"
-                    label="Planned RBC addition mL"
+                    label="Planned RBC addition (mL)"
                     value={plannedRbcAddition}
                     onChange={setPlannedRbcAddition}
                     placeholder="0"
@@ -1315,7 +1315,7 @@ export default function BloodHemodilutionCalculator() {
                   />
                   <InputBlock
                     id="added-crystalloid-volume"
-                    label="Planned crystalloid addition mL"
+                    label="Planned crystalloid addition (mL)"
                     value={addedCrystalloidVolume}
                     onChange={setAddedCrystalloidVolume}
                     placeholder="0"
@@ -1323,7 +1323,7 @@ export default function BloodHemodilutionCalculator() {
                   />
                   <InputBlock
                     id="removed-fluid-volume"
-                    label="Planned HF/UF fluid removal mL"
+                    label="Planned HF/UF fluid removal (mL)"
                     value={removedFluidVolume}
                     onChange={setRemovedFluidVolume}
                     placeholder="0"
