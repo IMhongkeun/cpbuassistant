@@ -412,7 +412,7 @@ const CPBUassistant = () => {
       <header className="cpbu-header">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="flex shrink-0 items-center gap-3">
-            <img src="/asan-foundation-mark.png" alt="아산재단 로고" width={42} height={42} className="h-10 w-10 shrink-0 object-contain" />
+            <img src="/asan-foundation-mark.svg" alt="아산재단 로고" width={42} height={42} className="h-10 w-10 shrink-0 object-contain" />
             <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-[#173940] sm:text-2xl">CPBU assistant</h1>
           </div>
           {/* A compact underline navigation matching the supplied reference layout. */}
