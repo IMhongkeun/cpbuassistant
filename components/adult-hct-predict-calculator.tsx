@@ -233,7 +233,6 @@ export default function AdultHctPredictCalculator() {
           <ResultCard
             label="CPB 시작 후 예상 Hct (%)"
             value={preResult ? format(preResult.predictedNoRbcHctPercent) + "%" : "—"}
-            caption="RBC 대체 전 예상값"
             prominent
           />
           <NumericField
