@@ -1,0 +1,38 @@
+name: Minimal dashboard design checks
+
+on:
+  push:
+    branches:
+      - style/asan-inspired-minimal-dashboard
+  pull_request:
+    paths:
+      - "app/page.tsx"
+      - "app/globals.css"
+      - "public/asan-foundation-mark.svg"
+      - "tests/dashboard-visual-theme.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Test existing clinical workflows
+        run: pnpm run test:hct
+      - name: Test visual style invariants
+        run: node --test tests/dashboard-visual-theme.test.mjs
+      - name: Build production Next.js site
+        run: pnpm run build
