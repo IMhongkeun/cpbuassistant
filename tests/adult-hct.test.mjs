@@ -84,7 +84,7 @@ test("crystalloid alone dilutes Hct; fluid removal alone concentrates it", () =>
   near(removed.totalUfMl, 500)
 })
 
-test("target helper rounds up to minimum whole KRC units after fluid changes", () => {
+test("target helper is based on measured Current Hct and baseline EBV plus prime", () => {
   const result = predictAdultOnPumpHct({
     currentTotalVolumeMl: 5050, currentHctPercent: 24, krcUnits: 0,
     crystalloidAddedMl: 0, fluidRemovedMl: 0,
@@ -93,6 +93,9 @@ test("target helper rounds up to minimum whole KRC units after fluid changes", (
   assert.equal(result.requiredKrcUnits, 2)
   assert.equal(result.requiredKrcMl, 500)
   near(result.requiredMatchedUfMl, 500)
+  near(result.requiredKrcExactMl, (0.30 - 0.24) * 5050 / 0.66)
+  near(result.requiredKrcEquivalentUnits, (0.30 - 0.24) * 5050 / 0.66 / 250)
+  near(result.fluidOnlyAdjustmentMl, (5050 * 0.24) / 0.30 - 5050)
   assert.equal(result.targetFeasible, true)
   near(result.projectedTargetHctPercent, (5050 * 0.24 + 500 * 0.66) / 5050 * 100)
 })
@@ -118,4 +121,56 @@ test("overconcentration is flagged instead of returning a Hct above 100%", () =>
   })
   assert.equal(result.plannedFeasible, false)
   assert.equal(result.predictedHctPercent, null)
+})
+
+test("Desired Hct helper ignores planned KRC and crystalloid changes", () => {
+  const base = {
+    currentTotalVolumeMl: 3950, currentHctPercent: 23, productHctPercent: 66,
+    desiredHctPercent: 30,
+  }
+  const unchanged = predictAdultOnPumpHct({
+    ...base, krcUnits: 0, crystalloidAddedMl: 0, fluidRemovedMl: 0,
+  })
+  const planned = predictAdultOnPumpHct({
+    ...base, krcUnits: 3, crystalloidAddedMl: 600, fluidRemovedMl: 100,
+  })
+  // Target result must derive from initial measured Hct and 3950 mL baseline.
+  const requiredMl = (0.30 - 0.23) * 3950 / 0.66
+  const fluidDelta = (3950 * 0.23) / 0.30 - 3950
+  near(planned.requiredKrcExactMl, requiredMl)
+  near(planned.requiredKrcEquivalentUnits, requiredMl / 250)
+  near(planned.fluidOnlyAdjustmentMl, fluidDelta)
+  near(planned.requiredKrcExactMl, unchanged.requiredKrcExactMl)
+  near(planned.fluidOnlyAdjustmentMl, unchanged.fluidOnlyAdjustmentMl)
+  assert.equal(planned.requiredKrcUnits, 2)
+  near(planned.projectedTargetHctPercent, (3950 * 0.23 + 500 * 0.66) / 3950 * 100)
+  near(planned.finalVolumeMl, 4450)
+})
+
+test("fluid-only adjustment returns signed positive mL for dilution and negative for concentration", () => {
+  const base = {
+    currentTotalVolumeMl: 3950, currentHctPercent: 23, productHctPercent: 66,
+    krcUnits: 0, crystalloidAddedMl: 0, fluidRemovedMl: 0,
+  }
+  const higher = predictAdultOnPumpHct({ ...base, desiredHctPercent: 30 })
+  const lower = predictAdultOnPumpHct({ ...base, desiredHctPercent: 20 })
+  const same = predictAdultOnPumpHct({ ...base, desiredHctPercent: 23 })
+  near(higher.fluidOnlyAdjustmentMl, 3950 * 0.23 / 0.30 - 3950)
+  assert.ok(higher.fluidOnlyAdjustmentMl < 0)
+  near(lower.fluidOnlyAdjustmentMl, 3950 * 0.23 / 0.20 - 3950)
+  assert.ok(lower.fluidOnlyAdjustmentMl > 0)
+  near(same.fluidOnlyAdjustmentMl, 0)
+  near(same.requiredKrcExactMl, 0)
+  assert.equal(same.requiredKrcUnits, 0)
+  assert.equal(lower.rbcOnlyReachable, false)
+  assert.equal(lower.requiredKrcExactMl, null)
+})
+
+test("invalid desired Hct is rejected", () => {
+  const params = {
+    currentTotalVolumeMl: 3950, currentHctPercent: 23, productHctPercent: 66,
+    krcUnits: 0, crystalloidAddedMl: 0, fluidRemovedMl: 0,
+  }
+  assert.throws(() => predictAdultOnPumpHct({ ...params, desiredHctPercent: 0 }), RangeError)
+  assert.throws(() => predictAdultOnPumpHct({ ...params, desiredHctPercent: 105 }), RangeError)
 })
