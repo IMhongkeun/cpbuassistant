@@ -242,7 +242,7 @@ export default function AdultHctPredictCalculator() {
                 : " — 완전한 unit 용량이 priming volume을 초과함"}
             </p>
           )}
-          {!preResult && <p className="text-sm text-amber-700" role="status">Shared setup의 유효한 값을 입력해주세요.</p>
+          {!preResult && <p className="text-sm text-amber-700" role="status">Shared setup의 유효한 값을 입력해주세요.</p>}
           {preResult && !desiredPreHct.trim() && (
             <p className="text-sm text-slate-500">Desired Hct를 입력하면 필요한 RBC 대체 용량을 계산합니다.</p>
           )}
