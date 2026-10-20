@@ -859,31 +859,19 @@ const CPBUassistant = () => {
           <div className="cpbu-subtabs grid grid-cols-3 gap-1">
             <button
               onClick={() => setPcsSubTab("echo")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "echo"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
+              className={"cpbu-subtab whitespace-nowrap " + (pcsSubTab === "echo" ? "cpbu-subtab-active" : "")}
             >
               Echo Z-Score
             </button>
             <button
               onClick={() => setPcsSubTab("scmp")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "scmp"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
+              className={"cpbu-subtab whitespace-nowrap " + (pcsSubTab === "scmp" ? "cpbu-subtab-active" : "")}
             >
               SCMP Flow
             </button>
             <button
               onClick={() => setPcsSubTab("qpqs")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "qpqs"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
+              className={"cpbu-subtab whitespace-nowrap " + (pcsSubTab === "qpqs" ? "cpbu-subtab-active" : "")}
             >
               Qp/Qs
             </button>
@@ -905,8 +893,7 @@ const CPBUassistant = () => {
               role="tab"
               aria-selected={hctSubTab === "ahd"}
               onClick={() => setHctSubTab("ahd")}
-              className={"min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors " +
-                (hctSubTab === "ahd" ? "bg-white text-teal-700 shadow-sm" : "text-gray-600 hover:bg-gray-100")}
+              className={"cpbu-subtab " + (hctSubTab === "ahd" ? "cpbu-subtab-active" : "")}
             >
               AHD · Adult
             </button>
@@ -915,8 +902,7 @@ const CPBUassistant = () => {
               role="tab"
               aria-selected={hctSubTab === "pcs"}
               onClick={() => setHctSubTab("pcs")}
-              className={"min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors " +
-                (hctSubTab === "pcs" ? "bg-white text-green-700 shadow-sm" : "text-gray-600 hover:bg-gray-100")}
+              className={"cpbu-subtab " + (hctSubTab === "pcs" ? "cpbu-subtab-active" : "")}
             >
               PCS · Pediatric
             </button>
