@@ -136,3 +136,170 @@ body {
   background-color: var(--background);
   color: var(--foreground);
 }
+
+/*
+ * CPBU Assistant clinical dashboard theme.
+ * Inspired by the supplied Asan corporate palette, not a reproduction of
+ * official website branding. One teal hue and its lighter tints are used
+ * throughout the transplant timing UI to keep the clinical information clear.
+ */
+:root {
+  --cpbu-brand: #006b6e;
+  --cpbu-brand-deep: #005559;
+  --cpbu-brand-soft: #e9f5f4;
+  --cpbu-brand-softest: #f3faf9;
+  --cpbu-ink: #18323b;
+  --cpbu-muted: #62777c;
+  --cpbu-border: #dfe9e7;
+  --cpbu-page: #f8fafa;
+}
+
+.cpbu-shell {
+  min-height: 100vh;
+  background: var(--cpbu-page);
+  color: var(--cpbu-ink);
+}
+.cpbu-header {
+  background: #fff;
+  border-bottom: 1px solid var(--cpbu-border);
+}
+.cpbu-nav { scrollbar-width: thin; }
+.cpbu-nav-tab {
+  min-height: 44px;
+  min-width: 78px;
+  padding: 0.65rem 1.15rem;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 0 0;
+  color: var(--cpbu-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color .18s, background-color .18s, border-color .18s;
+}
+.cpbu-nav-tab:hover { color: var(--cpbu-brand); background: #f4f8f7; }
+.cpbu-nav-tab-active,
+.cpbu-nav-tab-active:hover {
+  color: var(--cpbu-brand-deep);
+  background: var(--cpbu-brand-soft);
+  border-bottom-color: var(--cpbu-brand);
+}
+.cpbu-subtabs {
+  padding: 4px;
+  border: 1px solid var(--cpbu-border);
+  border-radius: 10px;
+  background: #f1f5f4;
+}
+.cpbu-subtab {
+  min-height: 43px;
+  padding: .6rem 1rem;
+  border-bottom: 2px solid transparent;
+  border-radius: 7px 7px 3px 3px;
+  color: var(--cpbu-muted);
+  font-size: .925rem;
+  font-weight: 600;
+  transition: background-color .18s, color .18s, border-color .18s;
+}
+.cpbu-subtab:hover { color: var(--cpbu-brand-deep); background: #f7faf9; }
+.cpbu-subtab-active,
+.cpbu-subtab-active:hover {
+  background: #fff;
+  border-bottom-color: var(--cpbu-brand);
+  color: var(--cpbu-brand-deep);
+}
+.cpbu-panel {
+  border: 1px solid var(--cpbu-border);
+  border-radius: 14px;
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 3px 18px rgba(22, 67, 68, .035);
+}
+.cpbu-lung-panel {
+  padding: 1rem;
+  border: 1px solid var(--cpbu-border);
+  border-radius: 11px;
+  background: #fff;
+}
+.cpbu-time-section {
+  padding: 1.1rem 0;
+  border-bottom: 1px solid #e9efee;
+}
+.cpbu-time-section:last-child { border-bottom: 0; }
+.cpbu-time-input {
+  height: 46px;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #d7e3e1;
+  border-radius: 8px;
+  padding: 8px 40px 8px 12px;
+  color: var(--cpbu-ink);
+  background: #fff;
+  font-size: .925rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: border-color .15s, box-shadow .15s;
+}
+.cpbu-time-input:focus {
+  outline: none;
+  border-color: var(--cpbu-brand);
+  box-shadow: 0 0 0 3px rgba(0, 107, 110, .12);
+}
+.cpbu-time-input:read-only {
+  background: #f1f5f4;
+  color: #60767a;
+  padding-right: 12px;
+  cursor: default;
+}
+.cpbu-clock-button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border-radius: 7px;
+  color: var(--cpbu-brand);
+  background: var(--cpbu-brand-soft);
+  transition: background-color .15s;
+}
+.cpbu-clock-button:hover { background: #d5eae7; }
+.cpbu-clock-button:focus-visible,
+.cpbu-nav-tab:focus-visible,
+.cpbu-subtab:focus-visible {
+  outline: 2px solid var(--cpbu-brand);
+  outline-offset: 2px;
+}
+.cpbu-duration {
+  display: flex;
+  height: 46px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #cae4e1;
+  border-radius: 8px;
+  background: var(--cpbu-brand-soft);
+  color: var(--cpbu-brand-deep);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cpbu-total {
+  margin-top: .75rem;
+  padding: .85rem 1rem;
+  border: 1px solid #cae4e1;
+  border-radius: 9px;
+  background: var(--cpbu-brand-softest);
+  color: var(--cpbu-brand-deep);
+}
+.cpbu-note {
+  padding: 1rem;
+  border: 1px solid var(--cpbu-border);
+  border-left: 3px solid #8bbfba;
+  border-radius: 9px;
+  background: #f8faf9;
+  color: #526b6f;
+  font-size: .875rem;
+}
+@media (min-width: 640px) {
+  .cpbu-panel { padding: 1.5rem; }
+  .cpbu-lung-panel { padding: 1rem 1.2rem; }
+}
