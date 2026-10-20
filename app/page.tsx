@@ -284,7 +284,7 @@ const timeToMinutes = (timeStr) => {
         <div className="flex items-start min-[360px]:items-center min-[360px]:whitespace-nowrap">
           <span>{title} {side && `(${side})`}</span>
         </div>
-        {description && <p className="mt-1 text-xs font-normal text-[#657a7e]">{description}</p> {/* Added description */}
+        {description && <p className="mt-1 text-xs font-normal text-[#657a7e]">{description}</p>}
       </h4>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <TimeInput
