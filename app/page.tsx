@@ -6,6 +6,7 @@ import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
 import ScmpFlowCalculator from "../components/scmp-flow-calculator"
 import BloodHemodilutionCalculator from "../components/blood-hemodilution-calculator"
+import AdultHctPredictCalculator from "../components/adult-hct-predict-calculator"
 import QpQsCalculator from "../components/qp-qs-calculator"
 import GDPCalculator from "../components/gdp-calculator" // Import the GDPCalculator component
 import MicsDrainageCalculator from "../components/mics-drainage-calculator"
@@ -25,8 +26,9 @@ const timeToMinutes = (timeStr) => {
 const CPBUassistant = () => {
   // State to manage the active tab (lung, heart, pediatric, cpb, or gdp)
   const [activeTab, setActiveTab] = useState("lung")
-  // State to manage PCS sub-tabs (echo, scmp, blood, or qpqs)
+  // Pediatric surgery utilities; the existing Hct calculator is now under Hct > PCS.
   const [pcsSubTab, setPcsSubTab] = useState("echo")
+  const [hctSubTab, setHctSubTab] = useState("ahd")
 
   // State for Lung Transplant data
   const [lungData, setLungData] = useState({
@@ -405,7 +407,7 @@ const CPBUassistant = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6 shadow-inner">
+      <div className="flex gap-1 overflow-x-auto bg-gray-100 p-1 rounded-lg mb-6 shadow-inner">
         <button
           onClick={() => setActiveTab("lung")}
           className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
@@ -465,6 +467,15 @@ const CPBUassistant = () => {
           }`}
         >
           {"MICS"}
+        </button>
+        <button
+          onClick={() => setActiveTab("hct")}
+          className={"min-w-[84px] shrink-0 flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out " +
+            (activeTab === "hct"
+              ? "bg-white text-teal-700 shadow-md transform scale-105"
+              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50")}
+        >
+          Hct
         </button>
       </div>
 
@@ -865,7 +876,7 @@ const CPBUassistant = () => {
       {activeTab === "pediatric" && (
         <div className="space-y-6">
           {/* Sub-tab Navigation */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-1 bg-gray-50 p-1 rounded-lg shadow-sm">
+          <div className="grid grid-cols-3 gap-1 bg-gray-50 p-1 rounded-lg shadow-sm">
             <button
               onClick={() => setPcsSubTab("echo")}
               className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
@@ -887,16 +898,6 @@ const CPBUassistant = () => {
               SCMP Flow
             </button>
             <button
-              onClick={() => setPcsSubTab("blood")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "blood"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
-            >
-              Hct predict
-            </button>
-            <button
               onClick={() => setPcsSubTab("qpqs")}
               className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
                 pcsSubTab === "qpqs"
@@ -911,8 +912,37 @@ const CPBUassistant = () => {
           {/* Sub-tab Content */}
           {pcsSubTab === "echo" && <EchoZScoreTool />}
           {pcsSubTab === "scmp" && <ScmpFlowCalculator />}
-          {pcsSubTab === "blood" && <BloodHemodilutionCalculator />}
           {pcsSubTab === "qpqs" && <QpQsCalculator />}
+        </div>
+      )}
+
+      {/* Hct calculators: AHD = adult, PCS = existing pediatric predictor. */}
+      {activeTab === "hct" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-50 p-1 shadow-sm" role="tablist" aria-label="Hct calculator type">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={hctSubTab === "ahd"}
+              onClick={() => setHctSubTab("ahd")}
+              className={"min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors " +
+                (hctSubTab === "ahd" ? "bg-white text-teal-700 shadow-sm" : "text-gray-600 hover:bg-gray-100")}
+            >
+              AHD · Adult
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={hctSubTab === "pcs"}
+              onClick={() => setHctSubTab("pcs")}
+              className={"min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors " +
+                (hctSubTab === "pcs" ? "bg-white text-green-700 shadow-sm" : "text-gray-600 hover:bg-gray-100")}
+            >
+              PCS · Pediatric
+            </button>
+          </div>
+          {hctSubTab === "ahd" && <AdultHctPredictCalculator />}
+          {hctSubTab === "pcs" && <BloodHemodilutionCalculator />}
         </div>
       )}
 
