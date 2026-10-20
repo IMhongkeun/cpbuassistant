@@ -410,7 +410,7 @@ const CPBUassistant = () => {
       <div className="flex gap-1 overflow-x-auto bg-gray-100 p-1 rounded-lg mb-6 shadow-inner">
         <button
           onClick={() => setActiveTab("lung")}
-          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
             activeTab === "lung"
               ? "bg-white text-blue-600 shadow-md transform scale-105"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -420,7 +420,7 @@ const CPBUassistant = () => {
         </button>
         <button
           onClick={() => setActiveTab("heart")}
-          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
             activeTab === "heart"
               ? "bg-white text-red-600 shadow-md transform scale-105"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -430,7 +430,7 @@ const CPBUassistant = () => {
         </button>
         <button
           onClick={() => setActiveTab("pediatric")}
-          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
             activeTab === "pediatric"
               ? "bg-white text-green-600 shadow-md transform scale-105"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -440,7 +440,7 @@ const CPBUassistant = () => {
         </button>
         <button
           onClick={() => setActiveTab("cpb")}
-          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
             activeTab === "cpb"
               ? "bg-white text-purple-600 shadow-md transform scale-105"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -450,7 +450,7 @@ const CPBUassistant = () => {
         </button>
         <button
           onClick={() => setActiveTab("gdp")}
-          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
             activeTab === "gdp"
               ? "bg-white text-orange-600 shadow-md transform scale-105"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -460,7 +460,7 @@ const CPBUassistant = () => {
         </button>
         <button
           onClick={() => setActiveTab("mics")}
-          className={`flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
+          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
             activeTab === "mics"
               ? "bg-white text-teal-600 shadow-md transform scale-105"
               : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
