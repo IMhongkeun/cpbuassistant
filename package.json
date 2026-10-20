@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "test:hct": "node --experimental-strip-types --test tests/adult-hct.test.mjs tests/hct-navigation.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
