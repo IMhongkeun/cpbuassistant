@@ -24,6 +24,8 @@ test("primary nav is compact, underlined, and keeps all six calculator labels", 
   assert.match(page, /cpbu-subtab-active/)
   assert.match(css, /border-bottom: 2px solid transparent/)
   assert.match(css, /--cpbu-brand: #006b6e;/)
+  assert.match(css, /\.cpbu-nav-tab\s*\{[^}]*display: inline-flex;[^}]*justify-content: center;[^}]*text-align: center;/s)
+  assert.match(css, /\.cpbu-subtab\s*\{[^}]*justify-content: center;[^}]*text-align: center;/s)
 })
 
 test("time controls use a single restrained brand palette and preserve focus semantics", () => {
