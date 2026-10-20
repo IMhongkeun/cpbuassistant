@@ -22,59 +22,7 @@ const timeToMinutes = (timeStr) => {
   return hours * 60 + minutes
 }
 
-// Main CPBU Assistant component
-const CPBUassistant = () => {
-  // State to manage the active tab (lung, heart, pediatric, cpb, or gdp)
-  const [activeTab, setActiveTab] = useState("lung")
-  // Pediatric surgery utilities; the existing Hct calculator is now under Hct > PCS.
-  const [pcsSubTab, setPcsSubTab] = useState("echo")
-  const [hctSubTab, setHctSubTab] = useState("ahd")
-
-  // State for Lung Transplant data
-  const [lungData, setLungData] = useState({
-    donorAccTime: "", // Donor ACC Time
-    coldIschemicTime: {
-      // Cold Ischemic Time for Left and Right Lungs
-      lt: { start: "", end: "" },
-      rt: { start: "", end: "" },
-    },
-    warmIschemicTime: {
-      // Warm Ischemic Time for Left and Right Lungs
-      lt: { start: "", end: "" },
-      rt: { start: "", end: "" },
-    },
-    anastomosisTime: {
-      // Anastomosis Time for Left and Right Lungs
-      lt: { start: "", end: "" },
-      rt: { start: "", end: "" },
-    },
-    // New state for Pump Time
-    pumpTime: { start: "", end: "" },
-  })
-
-  // State for Heart Transplant data
-  const [heartData, setHeartData] = useState({
-    donorAccTime: "", // Donor ACC Time
-    coldIschemicTime: { start: "", end: "" }, // Cold Ischemic Time
-    warmIschemicTime: { start: "", end: "" }, // Warm Ischemic Time
-    anastomosisTime: { start: "", end: "" }, // Anastomosis Time
-  })
-
-  // State for Pediatric Cardiac Surgery data
-  const [pediatricData, setPediatricData] = useState({
-    // Placeholder for pediatric-specific data
-  })
-
-  // Function to calculate duration between two time strings (HH:MM) in minutes
-  const calculateDuration = (start, end) => {
-    if (!start || !end) return "" // Return empty if start or end time is missing
-    const startMinutes = timeToMinutes(start)
-    const endMinutes = timeToMinutes(end)
-
-    const diffMinutes = endMinutes - startMinutes
-    return diffMinutes >= 0 ? `${diffMinutes}분` : "" // Return duration in minutes or empty string, handle negative for invalid input
-  }
-
+// Stable module-scoped time inputs preserve focus as transplant data updates.
   // Function to get current time in HH:MM format
   const getCurrentTime = () => {
     const now = new Date() // Get current Date object
@@ -83,55 +31,9 @@ const CPBUassistant = () => {
     return `${hours}:${minutes}` // Return formatted time string
   }
 
-  // Effect hook to automatically set Cold Ischemic Time start when Donor ACC Time changes for Lung Transplant
-  useEffect(() => {
-    if (activeTab === "lung" && lungData.donorAccTime) {
-      setLungData((prev) => ({
-        ...prev,
-        coldIschemicTime: {
-          ...prev.coldIschemicTime,
-          lt: { ...prev.coldIschemicTime.lt, start: lungData.donorAccTime },
-          rt: { ...prev.coldIschemicTime.rt, start: lungData.donorAccTime },
-        },
-      }))
-    }
-  }, [lungData.donorAccTime, activeTab]) // Dependencies: lungData.donorAccTime and activeTab
-
-  // Effect hook to automatically set Warm Ischemic Time start when Cold Ischemic Time end changes for Lung Transplant
-  useEffect(() => {
-    if (activeTab === "lung") {
-      setLungData((prev) => ({
-        ...prev,
-        warmIschemicTime: {
-          lt: { ...prev.warmIschemicTime.lt, start: prev.coldIschemicTime.lt.end },
-          rt: { ...prev.warmIschemicTime.rt, start: prev.coldIschemicTime.rt.end },
-        },
-      }))
-    }
-  }, [lungData.coldIschemicTime.lt.end, lungData.coldIschemicTime.rt.end, activeTab]) // Dependencies: cold ischemic end times and activeTab
-
-  // Effect hook to automatically set Cold Ischemic Time start when Donor ACC Time changes for Heart Transplant
-  useEffect(() => {
-    if (activeTab === "heart" && heartData.donorAccTime) {
-      setHeartData((prev) => ({
-        ...prev,
-        coldIschemicTime: { ...prev.coldIschemicTime, start: heartData.donorAccTime },
-      }))
-    }
-  }, [heartData.donorAccTime, activeTab]) // Dependencies: heartData.donorAccTime and activeTab
-
-  // Effect hook to automatically set Warm Ischemic Time start when Cold Ischemic Time end changes for Heart Transplant
-  useEffect(() => {
-    if (activeTab === "heart") {
-      setHeartData((prev) => ({
-        ...prev,
-        warmIschemicTime: { ...prev.warmIschemicTime, start: prev.coldIschemicTime.end },
-      }))
-    }
-  }, [heartData.coldIschemicTime.end, activeTab]) // Dependencies: cold ischemic end time and activeTab
 
   // Reusable TimeInput component for time selection
-  const TimeInput = ({ label, value, onChange, readOnly = false }) => {
+  const TimeInput = ({ label, value, onChange, readOnly = false, skipTab = false }) => {
     // Internal state for the raw input string, allowing user to type freely
     const [inputValue, setInputValue] = useState(value)
 
@@ -230,6 +132,7 @@ const CPBUassistant = () => {
               }
             }}
             readOnly={readOnly}
+            tabIndex={readOnly || skipTab ? -1 : 0}
             placeholder="시간:분" // Modified placeholder text
             maxLength={5}
             className={`h-12 w-full min-w-0 rounded-md border py-2 pl-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:pl-3 ${
@@ -240,6 +143,7 @@ const CPBUassistant = () => {
             <button
               type="button"
               onClick={handleCurrentTime}
+              tabIndex={-1}
               className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
               title="현재 시간 입력"
               aria-label={`${label}에 현재 시간 입력`}
@@ -349,6 +253,7 @@ const CPBUassistant = () => {
           <button
             type="button"
             onClick={handleCurrentTime}
+            tabIndex={-1}
             className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
             title="현재 시간 입력"
             aria-label="Donor ACC Time에 현재 시간 입력"
@@ -371,6 +276,8 @@ const CPBUassistant = () => {
     duration,
     side = "",
     readOnlyStart = false,
+    skipStartTab = false,
+    skipEndTab = false,
   }) => (
     <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
       <h4 className="mb-3 flex flex-col items-start font-semibold text-gray-800">
@@ -388,8 +295,9 @@ const CPBUassistant = () => {
           value={startTime}
           onChange={onStartChange}
           readOnly={readOnlyStart} // Use readOnlyStart prop
+          skipTab={skipStartTab}
         />
-        <TimeInput label="종료 시간" value={endTime} onChange={onEndChange} />
+        <TimeInput label="종료 시간" value={endTime} onChange={onEndChange} skipTab={skipEndTab} />
         <div className="flex min-w-0 flex-col gap-2">
           <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">소요 시간</label>
           <div className="flex h-12 items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800">
@@ -400,87 +308,153 @@ const CPBUassistant = () => {
     </div>
   )
 
+
+// Main CPBU Assistant component
+const CPBUassistant = () => {
+  // State to manage the active tab (lung, heart, pediatric, cpb, or gdp)
+  const [activeTab, setActiveTab] = useState("transplant")
+  const [transplantSubTab, setTransplantSubTab] = useState("lung")
+  // Pediatric surgery utilities; the existing Hct calculator is now under Hct > PCS.
+  const [pcsSubTab, setPcsSubTab] = useState("echo")
+  const [hctSubTab, setHctSubTab] = useState("ahd")
+
+  // State for Lung Transplant data
+  const [lungData, setLungData] = useState({
+    donorAccTime: "", // Donor ACC Time
+    coldIschemicTime: {
+      // Cold Ischemic Time for Left and Right Lungs
+      lt: { start: "", end: "" },
+      rt: { start: "", end: "" },
+    },
+    warmIschemicTime: {
+      // Warm Ischemic Time for Left and Right Lungs
+      lt: { start: "", end: "" },
+      rt: { start: "", end: "" },
+    },
+    anastomosisTime: {
+      // Anastomosis Time for Left and Right Lungs
+      lt: { start: "", end: "" },
+      rt: { start: "", end: "" },
+    },
+    // New state for Pump Time
+    pumpTime: { start: "", end: "" },
+  })
+
+  // State for Heart Transplant data
+  const [heartData, setHeartData] = useState({
+    donorAccTime: "", // Donor ACC Time
+    coldIschemicTime: { start: "", end: "" }, // Cold Ischemic Time
+    warmIschemicTime: { start: "", end: "" }, // Warm Ischemic Time
+    anastomosisTime: { start: "", end: "" }, // Anastomosis Time
+  })
+
+  // State for Pediatric Cardiac Surgery data
+  const [pediatricData, setPediatricData] = useState({
+    // Placeholder for pediatric-specific data
+  })
+
+  // Function to calculate duration between two time strings (HH:MM) in minutes
+  const calculateDuration = (start, end) => {
+    if (!start || !end) return "" // Return empty if start or end time is missing
+    const startMinutes = timeToMinutes(start)
+    const endMinutes = timeToMinutes(end)
+
+    const diffMinutes = endMinutes - startMinutes
+    return diffMinutes >= 0 ? `${diffMinutes}분` : "" // Return duration in minutes or empty string, handle negative for invalid input
+  }
+
+  // Effect hook to automatically set Cold Ischemic Time start when Donor ACC Time changes for Lung Transplant
+  useEffect(() => {
+    if ((activeTab === "transplant" && transplantSubTab === "lung") && lungData.donorAccTime) {
+      setLungData((prev) => ({
+        ...prev,
+        coldIschemicTime: {
+          ...prev.coldIschemicTime,
+          lt: { ...prev.coldIschemicTime.lt, start: lungData.donorAccTime },
+          rt: { ...prev.coldIschemicTime.rt, start: lungData.donorAccTime },
+        },
+      }))
+    }
+  }, [lungData.donorAccTime, activeTab, transplantSubTab]) // Dependencies: lungData.donorAccTime and activeTab
+
+  // Effect hook to automatically set Warm Ischemic Time start when Cold Ischemic Time end changes for Lung Transplant
+  useEffect(() => {
+    if ((activeTab === "transplant" && transplantSubTab === "lung")) {
+      setLungData((prev) => ({
+        ...prev,
+        warmIschemicTime: {
+          lt: { ...prev.warmIschemicTime.lt, start: prev.coldIschemicTime.lt.end },
+          rt: { ...prev.warmIschemicTime.rt, start: prev.coldIschemicTime.rt.end },
+        },
+      }))
+    }
+  }, [lungData.coldIschemicTime.lt.end, lungData.coldIschemicTime.rt.end, activeTab, transplantSubTab]) // Dependencies: cold ischemic end times and activeTab
+
+  // Effect hook to automatically set Cold Ischemic Time start when Donor ACC Time changes for Heart Transplant
+  useEffect(() => {
+    if ((activeTab === "transplant" && transplantSubTab === "heart") && heartData.donorAccTime) {
+      setHeartData((prev) => ({
+        ...prev,
+        coldIschemicTime: { ...prev.coldIschemicTime, start: heartData.donorAccTime },
+      }))
+    }
+  }, [heartData.donorAccTime, activeTab, transplantSubTab]) // Dependencies: heartData.donorAccTime and activeTab
+
+  // Effect hook to automatically set Warm Ischemic Time start when Cold Ischemic Time end changes for Heart Transplant
+  useEffect(() => {
+    if ((activeTab === "transplant" && transplantSubTab === "heart")) {
+      setHeartData((prev) => ({
+        ...prev,
+        warmIschemicTime: { ...prev.warmIschemicTime, start: prev.coldIschemicTime.end },
+      }))
+    }
+  }, [heartData.coldIschemicTime.end, activeTab, transplantSubTab]) // Dependencies: cold ischemic end time and activeTab
+
   return (
     <div className="mx-auto max-w-6xl rounded-xl bg-white p-3 shadow-lg sm:p-6">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center">CPBU assistant</h1>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 overflow-x-auto bg-gray-100 p-1 rounded-lg mb-6 shadow-inner">
-        <button
-          onClick={() => setActiveTab("lung")}
-          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
-            activeTab === "lung"
-              ? "bg-white text-blue-600 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          폐이식
-        </button>
-        <button
-          onClick={() => setActiveTab("heart")}
-          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
-            activeTab === "heart"
-              ? "bg-white text-red-600 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          심장이식
-        </button>
-        <button
-          onClick={() => setActiveTab("pediatric")}
-          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
-            activeTab === "pediatric"
-              ? "bg-white text-green-600 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          {"PCS"}
-        </button>
-        <button
-          onClick={() => setActiveTab("cpb")}
-          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
-            activeTab === "cpb"
-              ? "bg-white text-purple-600 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          {"Lean body mass"}
-        </button>
-        <button
-          onClick={() => setActiveTab("gdp")}
-          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
-            activeTab === "gdp"
-              ? "bg-white text-orange-600 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          {"GDP"}
-        </button>
-        <button
-          onClick={() => setActiveTab("mics")}
-          className={`min-w-[92px] shrink-0 sm:min-w-0 sm:flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out ${
-            activeTab === "mics"
-              ? "bg-white text-teal-600 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-          }`}
-        >
-          {"MICS"}
-        </button>
-        <button
-          onClick={() => setActiveTab("hct")}
-          className={"min-w-[84px] shrink-0 flex-1 flex items-center justify-center py-3 px-4 rounded-md transition-all duration-300 ease-in-out " +
-            (activeTab === "hct"
-              ? "bg-white text-teal-700 shadow-md transform scale-105"
-              : "text-gray-500 hover:text-gray-700 hover:bg-gray-50")}
-        >
-          Hct
-        </button>
-      </div>
+      {/* Frequently used tools first; transplant specialties share a top-level tab. */}
+      <nav className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1 shadow-inner" aria-label="주요 계산기 및 이식 관리">
+        {[
+          { id: "transplant", label: "이식관리", color: "text-blue-700" },
+          { id: "hct", label: "Hct", color: "text-teal-700" },
+          { id: "pediatric", label: "PCS", color: "text-green-700" },
+          { id: "gdp", label: "GDP", color: "text-orange-700" },
+          { id: "mics", label: "MICS", color: "text-teal-700" },
+          { id: "cpb", label: "LBM", color: "text-purple-700" },
+        ].map((tab) => (
+          <button key={tab.id} type="button"
+            aria-current={activeTab === tab.id ? "page" : undefined}
+            onClick={() => setActiveTab(tab.id)}
+            className={"min-w-[84px] shrink-0 flex-1 rounded-md px-3 py-3 text-sm font-semibold transition-colors sm:min-w-0 sm:text-base " +
+              (activeTab === tab.id ? "bg-white shadow-md " + tab.color : "text-gray-500 hover:bg-white/70 hover:text-gray-800")}>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === "transplant" && (
+        <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-blue-50 p-1" role="tablist" aria-label="이식 종류">
+          <button type="button" role="tab" aria-selected={transplantSubTab === "lung"}
+            onClick={() => setTransplantSubTab("lung")}
+            className={"min-h-11 rounded-md px-3 text-sm font-semibold sm:text-base " +
+              (transplantSubTab === "lung" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:bg-blue-100")}>
+            폐이식
+          </button>
+          <button type="button" role="tab" aria-selected={transplantSubTab === "heart"}
+            onClick={() => setTransplantSubTab("heart")}
+            className={"min-h-11 rounded-md px-3 text-sm font-semibold sm:text-base " +
+              (transplantSubTab === "heart" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:bg-blue-100")}>
+            심장이식
+          </button>
+        </div>
+      )}
 
       {/* Lung Transplant Section */}
-      {activeTab === "lung" && (
+      {(activeTab === "transplant" && transplantSubTab === "lung") && (
         <div className="space-y-6">
           <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md sm:p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
@@ -548,6 +522,7 @@ const CPBUassistant = () => {
                   duration={calculateDuration(lungData.warmIschemicTime.lt.start, lungData.warmIschemicTime.lt.end)}
                   side="Lt"
                   readOnlyStart={false} // Warm Ischemic Time start is editable
+                  skipStartTab={true} // Auto-populated from cold end
                 />
                 {calculateDuration(lungData.coldIschemicTime.lt.start, lungData.coldIschemicTime.lt.end) &&
                   calculateDuration(lungData.warmIschemicTime.lt.start, lungData.warmIschemicTime.lt.end) && (
@@ -599,6 +574,7 @@ const CPBUassistant = () => {
                   }
                   duration={calculateDuration(lungData.anastomosisTime.lt.start, lungData.anastomosisTime.lt.end)}
                   side="Lt"
+                  skipEndTab={true} // Auto-populated from warm end
                 />
               </div>
 
@@ -655,6 +631,7 @@ const CPBUassistant = () => {
                   duration={calculateDuration(lungData.warmIschemicTime.rt.start, lungData.warmIschemicTime.rt.end)}
                   side="Rt"
                   readOnlyStart={false} // Warm Ischemic Time start is editable
+                  skipStartTab={true} // Auto-populated from cold end
                 />
                 {calculateDuration(lungData.coldIschemicTime.rt.start, lungData.coldIschemicTime.rt.end) &&
                   calculateDuration(lungData.warmIschemicTime.rt.start, lungData.warmIschemicTime.rt.end) && (
@@ -706,6 +683,7 @@ const CPBUassistant = () => {
                   }
                   duration={calculateDuration(lungData.anastomosisTime.rt.start, lungData.anastomosisTime.rt.end)}
                   side="Rt"
+                  skipEndTab={true} // Auto-populated from warm end
                 />
               </div>
             </div>
@@ -743,7 +721,7 @@ const CPBUassistant = () => {
       )}
 
       {/* Heart Transplant Section */}
-      {activeTab === "heart" && (
+      {(activeTab === "transplant" && transplantSubTab === "heart") && (
         <div className="space-y-6">
           <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md sm:p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
@@ -791,7 +769,8 @@ const CPBUassistant = () => {
                   }))
                 }
                 duration={calculateDuration(heartData.warmIschemicTime.start, heartData.warmIschemicTime.end)}
-                readOnlyStart={false} // Warm Ischemic Time start is now editable
+                readOnlyStart={false}
+                skipStartTab={true} // Warm start auto-filled from cold end // Warm Ischemic Time start is now editable
               />
 
               {(() => {
