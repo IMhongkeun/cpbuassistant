@@ -149,7 +149,7 @@ body {
   --cpbu-brand-soft: #e9f5f4;
   --cpbu-brand-softest: #f3faf9;
   --cpbu-ink: #18323b;
-  --cpbu-muted: #62777c;
+  --cpbu-muted: #52686d;
   --cpbu-border: #dfe9e7;
   --cpbu-page: #f8fafa;
 }
@@ -241,7 +241,8 @@ body {
   padding: 8px 40px 8px 12px;
   color: var(--cpbu-ink);
   background: #fff;
-  font-size: .925rem;
+  /* iOS Safari zooms focused inputs below 16px. */
+  font-size: 1rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   transition: border-color .15s, box-shadow .15s;
@@ -253,7 +254,7 @@ body {
 }
 .cpbu-time-input:read-only {
   background: #f1f5f4;
-  color: #60767a;
+  color: #52686d;
   padding-right: 12px;
   cursor: default;
 }
@@ -311,4 +312,17 @@ body {
 @media (min-width: 640px) {
   .cpbu-panel { padding: 1.5rem; }
   .cpbu-lung-panel { padding: 1rem 1.2rem; }
+}
+
+/* The PCS subnav has three equally sized tracks; narrow phones need
+ * reduced side padding and wrapping instead of overflowing the tracks. */
+@media (max-width: 639px) {
+  .cpbu-subtabs.grid-cols-3 .cpbu-subtab {
+    min-width: 0;
+    padding: .6rem .25rem;
+    font-size: .8125rem;
+    line-height: 1.3;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
