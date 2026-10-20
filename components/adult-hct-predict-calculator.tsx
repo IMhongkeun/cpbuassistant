@@ -263,59 +263,75 @@ export default function AdultHctPredictCalculator() {
 
       <Card className="border-slate-200">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">On-pump · RBC + volume-neutral HF/UF</CardTitle>
+          <CardTitle className="text-lg">수술 중 Hct 계산</CardTitle>
           <p className="text-xs text-slate-600">
-            CPB 진행 중 RBC 주입량과 HF/UF 제거량을 동일하게 적용합니다. HF/UF에서 적혈구 소실이 없다고 가정합니다.
+            실측 Hct를 기준으로 Crystalloid 추가·제거 및 KRC 주입 후 예상 Hct를 계산합니다. KRC는 1 unit당 250 mL이며 동량 HF/UF를 자동 적용합니다.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <NumericField id="ahd-current-hct" label="Current Hct (%)" value={currentHct} onChange={setCurrentHct} min="0.1" required />
-            <NumericField
-              id="ahd-net"
-              label="Net volume change from CPB base (mL)"
-              value={netVolumeChange}
-              onChange={setNetVolumeChange}
-              note="수액·출혈·UF 등 기존 순 volume 변화 (+ / −)"
-            />
-            <NumericField id="ahd-planned-rbc" label="Planned RBC addition (mL)" value={plannedRbc} onChange={setPlannedRbc} min="0" />
+            <NumericField id="ahd-crystalloid-added" label="Crystalloid 추가 (mL)" value={crystalloidAdded} onChange={setCrystalloidAdded} min="0" />
+            <NumericField id="ahd-fluid-removed" label="Crystalloid/수분 제거 (mL)" value={fluidRemoved} onChange={setFluidRemoved} min="0" note="KRC에 대응하는 HF/UF 외에 추가로 제거할 수분량" />
+            <div className="space-y-2 sm:col-span-2 rounded-xl border border-teal-200 bg-teal-50/50 p-3">
+              <NumericField id="ahd-krc-units" label="RBC (KRC) 주입 (unit)" value={plannedKrcUnits} onChange={setPlannedKrcUnits} min="0" step="1" note="정수 unit만 허용 · 1 unit = 250 mL" />
+              <div className="flex flex-wrap gap-2" aria-label="KRC unit 빠른 선택">
+                {[0, 1, 2, 3, 4].map((unit) => (
+                  <button key={unit} type="button" onClick={() => setPlannedKrcUnits(String(unit))}
+                    aria-pressed={plannedKrcUnits === String(unit)}
+                    className={"min-h-10 min-w-12 rounded-lg border px-3 font-semibold " +
+                    (plannedKrcUnits === String(unit) ? "border-teal-700 bg-teal-700 text-white" : "border-slate-300 bg-white text-slate-700")}
+                  >{unit}</button>
+                ))}
+              </div>
+            </div>
             <NumericField id="ahd-pump-desired" label="Desired Hct (%)" value={desiredOnPumpHct} onChange={setDesiredOnPumpHct} min="0.1" />
           </div>
           <p className="text-xs text-slate-600">
-            Current total volume estimate: {currentEstimatedVolume === null ? "—" : format(currentEstimatedVolume, 0) + " mL"}
-            {" · "}EBV + initial prime + net volume change
+            Current volume estimate: {currentEstimatedVolume === null ? "—" : format(currentEstimatedVolume, 0) + " mL"}
+            {" · "}Weight × 55 mL/kg + initial priming (실제 circulating volume과 다를 수 있음)
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ResultCard
-              prominent
-              label="Predicted Hct after RBC + HF (%)"
-              value={onPumpResult?.plannedFeasible ? format(onPumpResult.predictedHctPercent) + "%" : "—"}
-              caption="현재 측정 Hct를 기준으로 계산"
-            />
-            <ResultCard
-              label="Matched HF/UF removal (mL)"
-              value={onPumpResult?.plannedFeasible ? format(onPumpResult.matchedUfMl, 0) + " mL" : "—"}
-              caption="주입하는 RBC 전체 용량과 동일"
-            />
-            <ResultCard
-              label="Desired Hct를 위한 RBC (mL)"
-              value={onPumpResult && onPumpResult.requiredRbcMl !== null ? format(onPumpResult.requiredRbcMl, 0) + " mL" : "—"}
-              caption={onPumpResult && onPumpResult.requiredRbcUnits !== null ? format(onPumpResult.requiredRbcUnits, 2) + " unit" : undefined}
-            />
-            <ResultCard
-              label="Target용 matched HF/UF (mL)"
-              value={onPumpResult && onPumpResult.requiredMatchedUfMl !== null ? format(onPumpResult.requiredMatchedUfMl, 0) + " mL" : "—"}
-            />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-live="polite">
+            <ResultCard prominent label="수술 중 예상 Hct (%)"
+              value={onPumpResult?.plannedFeasible && onPumpResult.predictedHctPercent !== null ? format(onPumpResult.predictedHctPercent) + "%" : "—"}
+              caption={onPumpResult?.hctChangePoints !== null && onPumpResult?.hctChangePoints !== undefined
+                ? "현재 Hct 대비 " + (onPumpResult.hctChangePoints >= 0 ? "+" : "") + format(onPumpResult.hctChangePoints) + " %p" : undefined} />
+            <ResultCard label="예상 최종 Volume (mL)"
+              value={onPumpResult?.plannedFeasible ? format(onPumpResult.finalVolumeMl, 0) + " mL" : "—"}
+              caption="Crystalloid 추가 − 별도 수분 제거 (KRC 주입과 동량 HF/UF는 상쇄)" />
+            <ResultCard label="KRC 주입에 따른 HF/UF (mL)"
+              value={onPumpResult?.plannedFeasible ? format(onPumpResult.matchedKrcUfMl, 0) + " mL" : "—"}
+              caption="KRC 주입량과 동일한 수분량" />
+            <ResultCard label="총 수분 제거 (mL)"
+              value={onPumpResult?.plannedFeasible ? format(onPumpResult.totalUfMl, 0) + " mL" : "—"}
+              caption="KRC 동량 HF/UF + 별도로 입력한 제거량" />
           </div>
-          {!onPumpResult && <p className="text-sm text-amber-700" role="status">현재 Hct와 유효한 shared setup 값을 입력해주세요.</p>}
+          {onPumpResult && onPumpResult.requiredKrcUnits !== null && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold">Desired Hct에 필요한 KRC (정수 unit 기준)</p>
+              {onPumpResult.targetFeasible ? (
+                <p className="mt-2 text-sm">
+                  <strong>{onPumpResult.requiredKrcUnits} unit</strong>
+                  {" ("}{format(onPumpResult.requiredKrcMl ?? 0, 0)} mL{")"}
+                  {" · "}동량 HF/UF {format(onPumpResult.requiredMatchedUfMl ?? 0, 0)} mL
+                  {" · "}예상 Hct {format(onPumpResult.projectedTargetHctPercent ?? 0)}%
+                </p>
+              ) : <p className="mt-2 text-sm text-amber-800" role="alert">정수 unit로 목표 달성이 불가능한 추정 volume입니다.</p>}
+              <p className="mt-1 text-xs text-slate-500">Crystalloid 추가·제거량을 반영한 독립적인 목표 계산입니다.</p>
+            </div>
+          )}
+          {plannedKrcUnits.trim() && !Number.isSafeInteger(asNumber(plannedKrcUnits)) && (
+            <p className="text-sm text-amber-800" role="alert">KRC는 0, 1, 2, 3 ... 정수 unit로 입력해주세요.</p>
+          )}
+          {!onPumpResult && <p className="text-sm text-amber-700" role="status">현재 Hct, Crystalloid 추가·제거량, KRC 주입 unit를 확인해주세요.</p>}
           {onPumpResult?.plannedFeasible === false && (
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="alert">
-              이 RBC/HF 조합은 추정 가능한 plasma volume을 초과합니다. 결과를 표시하지 않습니다.
+              수분 제거 후 적혈구량이 전체 volume보다 많아 계산 조건이 성립하지 않습니다.
             </p>
           )}
           {onPumpResult?.targetFeasible === false && (
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="alert">
-              목표 Hct는 추정 가능한 plasma volume 범위를 넘습니다. HF/UF 가능성과 실제 circulating volume을 재평가하세요.
+              목표 Hct에 필요한 KRC unit가 추정 volume에서 성립하지 않습니다.
             </p>
           )}
         </CardContent>
