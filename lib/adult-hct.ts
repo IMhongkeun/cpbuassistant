@@ -1,50 +1,39 @@
 "use strict"
 
-/**
- * Adult CPB hematocrit planning, simplified well-mixed red-cell mass balance.
- *
- * Pre-CPB: Packed RBC product replaces an equal volume of cell-free priming fluid,
- * without increasing the stated total priming volume.
- * On-pump: Packed RBC product is added and an equal volume of cell-free
- * plasma water is removed by HF/UF, without changing circulating volume.
- *
- * Assumptions must be checked against measured Hct, circuit volumes, and
- * actual blood product Hct. These are planning estimates, not transfusion orders.
- */
+// AHD adult CPB fixed local conventions: EBV 55 mL/kg; KRC 250 mL per unit.
+// Pre-CPB: KRC replaces crystalloid within a fixed priming volume.
+// On-pump: KRC addition is always matched 1:1 by RBC-free HF/UF volume.
+// Separately entered crystalloid and fluid removal change total volume.
+// Simplified red-cell mass balance; verify against actual measured Hct and volumes.
+export const ADULT_BLOOD_VOLUME_ML_PER_KG = 55
+export const KRC_VOLUME_ML_PER_UNIT = 250
 
 export type AdultPreCpbInputs = {
   weightKg: number
-  bloodVolumeCoefficientMlPerKg: number
   preCpbHctPercent: number
   primeVolumeMl: number
   productHctPercent: number
-  rbcUnitVolumeMl: number
   desiredHctPercent?: number
 }
 
 export type AdultOnPumpInputs = {
   currentTotalVolumeMl: number
   currentHctPercent: number
-  plannedRbcMl: number
+  krcUnits: number
+  crystalloidAddedMl: number
+  fluidRemovedMl: number
   productHctPercent: number
-  rbcUnitVolumeMl: number
   desiredHctPercent?: number
 }
 
 function positive(value: number, field: string) {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new RangeError(field + " must be greater than zero.")
-  }
+  if (!Number.isFinite(value) || value <= 0) throw new RangeError(field + " must be greater than zero.")
   return value
 }
-
 function nonnegative(value: number, field: string) {
-  if (!Number.isFinite(value) || value < 0) {
-    throw new RangeError(field + " must be zero or greater.")
-  }
+  if (!Number.isFinite(value) || value < 0) throw new RangeError(field + " must be zero or greater.")
   return value
 }
-
 function percent(value: number, field: string) {
   if (!Number.isFinite(value) || value <= 0 || value > 100) {
     throw new RangeError(field + " must be greater than zero and no more than 100%.")
@@ -53,84 +42,82 @@ function percent(value: number, field: string) {
 }
 
 export function predictAdultPreCpbHct(input: AdultPreCpbInputs) {
-  const patientVolumeMl = positive(input.weightKg, "Weight") *
-    positive(input.bloodVolumeCoefficientMlPerKg, "EBV coefficient")
-  const preHctFraction = percent(input.preCpbHctPercent, "Pre-CPB Hct")
+  const patientVolumeMl = positive(input.weightKg, "Weight") * ADULT_BLOOD_VOLUME_ML_PER_KG
+  const preFraction = percent(input.preCpbHctPercent, "Pre-CPB Hct")
   const primeVolumeMl = nonnegative(input.primeVolumeMl, "Priming volume")
-  const productFraction = percent(input.productHctPercent, "RBC product Hct")
-  const unitVolumeMl = positive(input.rbcUnitVolumeMl, "RBC unit volume")
-
+  const productFraction = percent(input.productHctPercent, "KRC product Hct")
   const totalVolumeMl = patientVolumeMl + primeVolumeMl
-  const startingRedCellMl = patientVolumeMl * preHctFraction
-  const predictedNoRbcHctPercent = 100 * startingRedCellMl / totalVolumeMl
+  const redCellMl = patientVolumeMl * preFraction
+  const predictedNoRbcHctPercent = redCellMl / totalVolumeMl * 100
   const maximumHctWithPrimeReplacementPercent =
-    100 * (startingRedCellMl + primeVolumeMl * productFraction) / totalVolumeMl
+    (redCellMl + primeVolumeMl * productFraction) / totalVolumeMl * 100
 
-  if (input.desiredHctPercent === undefined) {
-    return {
-      patientVolumeMl,
-      totalVolumeMl,
-      predictedNoRbcHctPercent,
-      maximumHctWithPrimeReplacementPercent,
-      requiredRbcMl: null,
-      requiredRbcUnits: null,
-      feasible: null,
-      targetHctAfterReplacementPercent: null,
-    }
+  if (input.desiredHctPercent === undefined) return {
+    patientVolumeMl, totalVolumeMl, predictedNoRbcHctPercent,
+    maximumHctWithPrimeReplacementPercent,
+    requiredRbcMl: null, requiredRbcUnits: null, minimumWholeKrcUnits: null,
+    wholeKrcProjectedHctPercent: null, feasible: null
   }
 
-  const targetFraction = percent(input.desiredHctPercent, "Desired Hct")
-  // Denominator stays EBV + original prime: product replaces cell-free prime.
-  const requiredRbcMl = Math.max(0, (targetFraction * totalVolumeMl - startingRedCellMl) / productFraction)
+  const target = percent(input.desiredHctPercent, "Desired Hct")
+  // Fixed prime denominator: KRC volume replaces the same crystalloid volume.
+  const requiredRbcMl = Math.max(0, (target * totalVolumeMl - redCellMl) / productFraction)
+  const requiredRbcUnits = requiredRbcMl / KRC_VOLUME_ML_PER_UNIT
+  const minimumWholeKrcUnits = Math.ceil(Math.max(0, requiredRbcUnits - 1e-10))
   const feasible = requiredRbcMl <= primeVolumeMl + 1e-8
+  const wholeKrcFitsPrime = minimumWholeKrcUnits * KRC_VOLUME_ML_PER_UNIT <= primeVolumeMl + 1e-8
   return {
-    patientVolumeMl,
-    totalVolumeMl,
-    predictedNoRbcHctPercent,
-    maximumHctWithPrimeReplacementPercent,
-    requiredRbcMl,
-    requiredRbcUnits: requiredRbcMl / unitVolumeMl,
-    feasible,
-    targetHctAfterReplacementPercent: feasible
-      ? 100 * (startingRedCellMl + requiredRbcMl * productFraction) / totalVolumeMl
-      : null,
+    patientVolumeMl, totalVolumeMl, predictedNoRbcHctPercent,
+    maximumHctWithPrimeReplacementPercent, requiredRbcMl, requiredRbcUnits,
+    minimumWholeKrcUnits, feasible,
+    wholeKrcProjectedHctPercent: feasible && wholeKrcFitsPrime
+      ? (redCellMl + minimumWholeKrcUnits * KRC_VOLUME_ML_PER_UNIT * productFraction) / totalVolumeMl * 100
+      : null
   }
 }
 
 export function predictAdultOnPumpHct(input: AdultOnPumpInputs) {
-  const volumeMl = positive(input.currentTotalVolumeMl, "Current circulating volume")
+  const baselineVolumeMl = positive(input.currentTotalVolumeMl, "Estimated current CPB volume")
   const currentFraction = percent(input.currentHctPercent, "Current Hct")
-  const plannedRbcMl = nonnegative(input.plannedRbcMl, "Planned RBC")
-  const productFraction = percent(input.productHctPercent, "RBC product Hct")
-  const unitVolumeMl = positive(input.rbcUnitVolumeMl, "RBC unit volume")
+  const productFraction = percent(input.productHctPercent, "KRC product Hct")
+  const krcUnits = nonnegative(input.krcUnits, "KRC units")
+  if (!Number.isSafeInteger(krcUnits)) throw new RangeError("KRC units must be whole numbers.")
+  const crystalloidAddedMl = nonnegative(input.crystalloidAddedMl, "Crystalloid addition")
+  const fluidRemovedMl = nonnegative(input.fluidRemovedMl, "Fluid removal")
+  const krcAddedMl = krcUnits * KRC_VOLUME_ML_PER_UNIT
+  const matchedKrcUfMl = krcAddedMl
+  const totalUfMl = matchedKrcUfMl + fluidRemovedMl
+  const netCrystalloidChangeMl = crystalloidAddedMl - fluidRemovedMl
 
-  const baselineRedCellMl = volumeMl * currentFraction
-  const resultRedCellMl = baselineRedCellMl + plannedRbcMl * productFraction
-  const predictedHctPercent = 100 * resultRedCellMl / volumeMl
-  // HF/UF removal is RBC-free fluid in this simplified model.
-  // Removing product volume 1:1 with HF/UF cannot exceed available plasma water.
-  const plannedFeasible = plannedRbcMl * productFraction <=
-    volumeMl * (1 - currentFraction) + 1e-8
+  // KRC volume and matched UF cancel; only independent fluid change affects volume.
+  const finalVolumeMl = baselineVolumeMl + netCrystalloidChangeMl
+  if (finalVolumeMl <= 0) throw new RangeError("Final circulating volume must be positive.")
+  const baselineRedCellMl = baselineVolumeMl * currentFraction
+  const finalRedCellMl = baselineRedCellMl + krcAddedMl * productFraction
+  const plannedFeasible = finalRedCellMl <= finalVolumeMl + 1e-8
+  const predictedHctPercent = plannedFeasible ? finalRedCellMl / finalVolumeMl * 100 : null
 
-  let requiredRbcMl: number | null = null
+  let requiredKrcUnits: number | null = null
+  let requiredKrcMl: number | null = null
+  let projectedTargetHctPercent: number | null = null
   let targetFeasible: boolean | null = null
   if (input.desiredHctPercent !== undefined) {
-    const desiredFraction = percent(input.desiredHctPercent, "Desired Hct")
-    requiredRbcMl = Math.max(0, (volumeMl * desiredFraction - baselineRedCellMl) / productFraction)
-    targetFeasible = requiredRbcMl * productFraction <= volumeMl * (1 - currentFraction) + 1e-8
+    const target = percent(input.desiredHctPercent, "Desired Hct")
+    const exactUnits = Math.max(0, (target * finalVolumeMl - baselineRedCellMl) /
+      (KRC_VOLUME_ML_PER_UNIT * productFraction))
+    // Adult transfusion is whole KRC units, never fractional bags.
+    requiredKrcUnits = Math.ceil(Math.max(0, exactUnits - 1e-10))
+    requiredKrcMl = requiredKrcUnits * KRC_VOLUME_ML_PER_UNIT
+    const targetRedCellMl = baselineRedCellMl + requiredKrcMl * productFraction
+    targetFeasible = targetRedCellMl <= finalVolumeMl + 1e-8
+    projectedTargetHctPercent = targetFeasible ? targetRedCellMl / finalVolumeMl * 100 : null
   }
-
   return {
-    estimatedVolumeMl: volumeMl,
-    plannedRbcMl,
-    matchedUfMl: plannedRbcMl,
-    finalVolumeMl: volumeMl,
+    baselineVolumeMl, finalVolumeMl, krcUnits, krcAddedMl,
+    matchedKrcUfMl, crystalloidAddedMl, fluidRemovedMl, totalUfMl, netCrystalloidChangeMl,
     predictedHctPercent,
-    hctChangePoints: predictedHctPercent - input.currentHctPercent,
-    plannedFeasible,
-    requiredRbcMl,
-    requiredRbcUnits: requiredRbcMl === null ? null : requiredRbcMl / unitVolumeMl,
-    requiredMatchedUfMl: requiredRbcMl,
-    targetFeasible,
+    hctChangePoints: predictedHctPercent === null ? null : predictedHctPercent - input.currentHctPercent,
+    plannedFeasible, requiredKrcUnits, requiredKrcMl,
+    requiredMatchedUfMl: requiredKrcMl, projectedTargetHctPercent, targetFeasible
   }
 }
