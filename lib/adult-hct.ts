@@ -97,20 +97,42 @@ export function predictAdultOnPumpHct(input: AdultOnPumpInputs) {
   const plannedFeasible = finalRedCellMl <= finalVolumeMl + 1e-8
   const predictedHctPercent = plannedFeasible ? finalRedCellMl / finalVolumeMl * 100 : null
 
+  // Target helper: two *independent* scenarios from the measured Current Hct,
+  // using EBV + priming as the baseline. Planned KRC/crystalloid changes above
+  // must not be included in either target recommendation.
   let requiredKrcUnits: number | null = null
   let requiredKrcMl: number | null = null
+  let requiredKrcExactMl: number | null = null
+  let requiredKrcEquivalentUnits: number | null = null
   let projectedTargetHctPercent: number | null = null
   let targetFeasible: boolean | null = null
+  let rbcOnlyReachable: boolean | null = null
+  let fluidOnlyAdjustmentMl: number | null = null
+  let fluidOnlyFinalVolumeMl: number | null = null
   if (input.desiredHctPercent !== undefined) {
     const target = percent(input.desiredHctPercent, "Desired Hct")
-    const exactUnits = Math.max(0, (target * finalVolumeMl - baselineRedCellMl) /
-      (KRC_VOLUME_ML_PER_UNIT * productFraction))
-    // Adult transfusion is whole KRC units, never fractional bags.
-    requiredKrcUnits = Math.ceil(Math.max(0, exactUnits - 1e-10))
-    requiredKrcMl = requiredKrcUnits * KRC_VOLUME_ML_PER_UNIT
-    const targetRedCellMl = baselineRedCellMl + requiredKrcMl * productFraction
-    targetFeasible = targetRedCellMl <= finalVolumeMl + 1e-8
-    projectedTargetHctPercent = targetFeasible ? targetRedCellMl / finalVolumeMl * 100 : null
+
+    // KRC-only target: each transfused product volume is offset by equal UF,
+    // so the denominator remains the INITIAL estimated CPB volume.
+    rbcOnlyReachable = target >= currentFraction - 1e-10
+    if (rbcOnlyReachable) {
+      requiredKrcExactMl = Math.max(0, (target * baselineVolumeMl - baselineRedCellMl) / productFraction)
+      requiredKrcEquivalentUnits = requiredKrcExactMl / KRC_VOLUME_ML_PER_UNIT
+      // Whole units are a separate practical estimate, not the exact target dose.
+      requiredKrcUnits = Math.ceil(Math.max(0, requiredKrcEquivalentUnits - 1e-10))
+      requiredKrcMl = requiredKrcUnits * KRC_VOLUME_ML_PER_UNIT
+      const targetRedCellMl = baselineRedCellMl + requiredKrcMl * productFraction
+      targetFeasible = targetRedCellMl <= baselineVolumeMl + 1e-8
+      projectedTargetHctPercent = targetFeasible ? targetRedCellMl / baselineVolumeMl * 100 : null
+    } else {
+      targetFeasible = false
+    }
+
+    // Crystalloid-only target: preserve the measured baseline red-cell mass.
+    // Signed delta > 0 means add crystalloid; delta < 0 means remove water.
+    fluidOnlyFinalVolumeMl = baselineRedCellMl / target
+    fluidOnlyAdjustmentMl = fluidOnlyFinalVolumeMl - baselineVolumeMl
+    if (Math.abs(fluidOnlyAdjustmentMl) < 1e-8) fluidOnlyAdjustmentMl = 0
   }
   return {
     baselineVolumeMl, finalVolumeMl, krcUnits, krcAddedMl,
@@ -118,6 +140,8 @@ export function predictAdultOnPumpHct(input: AdultOnPumpInputs) {
     predictedHctPercent,
     hctChangePoints: predictedHctPercent === null ? null : predictedHctPercent - input.currentHctPercent,
     plannedFeasible, requiredKrcUnits, requiredKrcMl,
-    requiredMatchedUfMl: requiredKrcMl, projectedTargetHctPercent, targetFeasible
+    requiredKrcExactMl, requiredKrcEquivalentUnits, rbcOnlyReachable,
+    requiredMatchedUfMl: requiredKrcMl, projectedTargetHctPercent, targetFeasible,
+    fluidOnlyAdjustmentMl, fluidOnlyFinalVolumeMl
   }
 }
