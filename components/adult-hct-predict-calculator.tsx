@@ -127,12 +127,30 @@ export default function AdultHctPredictCalculator() {
         crystalloidAddedMl: asNumber(crystalloidAdded),
         fluidRemovedMl: asNumber(fluidRemoved),
         productHctPercent: asNumber(productHct),
-        desiredHctPercent: desiredOnPumpHct.trim() ? asNumber(desiredOnPumpHct) : undefined,
       })
     } catch {
       return null
     }
-  }, [currentEstimatedVolume, currentHct, plannedKrcUnits, crystalloidAdded, fluidRemoved, productHct, desiredOnPumpHct])
+  }, [currentEstimatedVolume, currentHct, plannedKrcUnits, crystalloidAdded, fluidRemoved, productHct])
+
+  // Independent desired-Hct scenarios always start at the *measured* Current Hct
+  // and (weight × 55) + edited priming volume, not after planned interventions.
+  const targetResult = useMemo(() => {
+    if (currentEstimatedVolume === null || !desiredOnPumpHct.trim()) return null
+    try {
+      return predictAdultOnPumpHct({
+        currentTotalVolumeMl: currentEstimatedVolume,
+        currentHctPercent: asNumber(currentHct),
+        krcUnits: 0,
+        crystalloidAddedMl: 0,
+        fluidRemovedMl: 0,
+        productHctPercent: asNumber(productHct),
+        desiredHctPercent: asNumber(desiredOnPumpHct),
+      })
+    } catch {
+      return null
+    }
+  }, [currentEstimatedVolume, currentHct, productHct, desiredOnPumpHct])
 
   const reset = () => {
     setWeight("")
@@ -275,17 +293,7 @@ export default function AdultHctPredictCalculator() {
             <NumericField id="ahd-fluid-removed" label="Crystalloid/수분 제거 (mL)" value={fluidRemoved} onChange={setFluidRemoved} min="0" note="KRC에 대응하는 HF/UF 외에 추가로 제거할 수분량" />
             <div className="space-y-2 sm:col-span-2 rounded-xl border border-teal-200 bg-teal-50/50 p-3">
               <NumericField id="ahd-krc-units" label="RBC (KRC) 주입 (unit)" value={plannedKrcUnits} onChange={setPlannedKrcUnits} min="0" step="1" note="정수 unit만 허용 · 1 unit = 250 mL" />
-              <div className="flex flex-wrap gap-2" aria-label="KRC unit 빠른 선택">
-                {[0, 1, 2, 3, 4].map((unit) => (
-                  <button key={unit} type="button" onClick={() => setPlannedKrcUnits(String(unit))}
-                    aria-pressed={plannedKrcUnits === String(unit)}
-                    className={"min-h-10 min-w-12 rounded-lg border px-3 font-semibold " +
-                    (plannedKrcUnits === String(unit) ? "border-teal-700 bg-teal-700 text-white" : "border-slate-300 bg-white text-slate-700")}
-                  >{unit}</button>
-                ))}
-              </div>
             </div>
-            <NumericField id="ahd-pump-desired" label="Desired Hct (%)" value={desiredOnPumpHct} onChange={setDesiredOnPumpHct} min="0.1" />
           </div>
           <p className="text-xs text-slate-600">
             Current volume estimate: {currentEstimatedVolume === null ? "—" : format(currentEstimatedVolume, 0) + " mL"}
@@ -306,20 +314,61 @@ export default function AdultHctPredictCalculator() {
               value={onPumpResult?.plannedFeasible ? format(onPumpResult.totalUfMl, 0) + " mL" : "—"}
               caption="KRC 동량 HF/UF + 별도로 입력한 제거량" />
           </div>
-          {onPumpResult && onPumpResult.requiredKrcUnits !== null && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold">Desired Hct에 필요한 KRC (정수 unit 기준)</p>
-              {onPumpResult.targetFeasible ? (
-                <p className="mt-2 text-sm">
-                  <strong>{onPumpResult.requiredKrcUnits} unit</strong>
-                  {" ("}{format(onPumpResult.requiredKrcMl ?? 0, 0)} mL{")"}
-                  {" · "}동량 HF/UF {format(onPumpResult.requiredMatchedUfMl ?? 0, 0)} mL
-                  {" · "}예상 Hct {format(onPumpResult.projectedTargetHctPercent ?? 0)}%
-                </p>
-              ) : <p className="mt-2 text-sm text-amber-800" role="alert">정수 unit로 목표 달성이 불가능한 추정 volume입니다.</p>}
-              <p className="mt-1 text-xs text-slate-500">Crystalloid 추가·제거량을 반영한 독립적인 목표 계산입니다.</p>
-            </div>
-          )}
+          <div className="space-y-3 border-t border-slate-200 pt-5">
+            <NumericField id="ahd-pump-desired" label="Desired Hct (%)" value={desiredOnPumpHct} onChange={setDesiredOnPumpHct} min="0.1" />
+            <p className="text-xs text-slate-600">
+              목표 계산은 위의 KRC 주입·Crystalloid 변경 시뮬레이션과 별개입니다.
+              Current Hct와 기본 순환혈액량 (Weight × 55 mL/kg + priming)을 그대로 사용합니다.
+            </p>
+            {targetResult && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-live="polite">
+                <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+                  <p className="text-xs font-semibold text-slate-700">KRC만 주입 · 동량 HF/UF (Net volume 0)</p>
+                  {targetResult.rbcOnlyReachable && targetResult.targetFeasible && targetResult.requiredKrcExactMl !== null && targetResult.requiredKrcEquivalentUnits !== null ? (
+                    <>
+                      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
+                        {format(targetResult.requiredKrcExactMl, 0)} mL
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-700">
+                        {format(targetResult.requiredKrcEquivalentUnits, 2)} unit (250 mL/unit 환산)
+                      </p>
+                      <p className="mt-2 text-xs text-slate-600">
+                        실제 정수 unit 기준 {targetResult.requiredKrcUnits} unit
+                        {" · "}예상 Hct {format(targetResult.projectedTargetHctPercent ?? 0)}%
+                        {" · "}KRC 주입량만큼 HF/UF 동량 제거
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm text-amber-800">
+                      {targetResult.rbcOnlyReachable === false
+                        ? "현재 Hct보다 낮은 목표는 KRC 주입만으로 달성할 수 없습니다."
+                        : "해당 목표는 이 모델의 volume-neutral KRC 주입 조건에서 달성할 수 없습니다."}
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold text-slate-700">Crystalloid/수분만 변화 시 (mL)</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
+                    {targetResult.fluidOnlyAdjustmentMl === null ? "—"
+                      : (targetResult.fluidOnlyAdjustmentMl > 0 ? "+" : "") + format(targetResult.fluidOnlyAdjustmentMl, 0) + " mL"}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    {targetResult.fluidOnlyAdjustmentMl === null ? "—" : targetResult.fluidOnlyAdjustmentMl > 0
+                      ? "양수 (+): Crystalloid 추가"
+                      : targetResult.fluidOnlyAdjustmentMl < 0
+                        ? "음수 (−): 수분 제거 (HF/UF)"
+                        : "추가·제거가 필요하지 않습니다."}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    KRC 없이 적혈구량이 유지된다고 가정하며, 유체 변화량이 임상적으로 시행 가능한지를 의미하지는 않습니다.
+                  </p>
+                </div>
+              </div>
+            )}
+            {desiredOnPumpHct.trim() && !targetResult && (
+              <p className="text-sm text-amber-700" role="status">Desired Hct, Current Hct, Weight와 prime 입력값을 확인해주세요.</p>
+            )}
+          </div>
           {plannedKrcUnits.trim() && !Number.isSafeInteger(asNumber(plannedKrcUnits)) && (
             <p className="text-sm text-amber-800" role="alert">KRC는 0, 1, 2, 3 ... 정수 unit로 입력해주세요.</p>
           )}
