@@ -1,7 +1,7 @@
 "use client" // Add this directive at the top to mark this as a client component
 
 import { useState, useEffect } from "react"
-import { Clock, Timer } from "lucide-react"
+import { Clock } from "lucide-react"
 import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
 import ScmpFlowCalculator from "../components/scmp-flow-calculator"
@@ -118,7 +118,7 @@ const timeToMinutes = (timeStr) => {
 
     return (
       <div className="flex min-w-0 flex-col gap-2">
-        <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">{label}</label>
+        <label className="whitespace-nowrap text-sm font-medium leading-5 text-[#536a70]">{label}</label>
         <div className="relative">
           <input
             type="text"
@@ -135,16 +135,14 @@ const timeToMinutes = (timeStr) => {
             tabIndex={readOnly || skipTab ? -1 : 0}
             placeholder="시간:분" // Modified placeholder text
             maxLength={5}
-            className={`h-12 w-full min-w-0 rounded-md border py-2 pl-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:pl-3 ${
-              readOnly ? "bg-gray-100 pr-3 text-gray-600" : "bg-white pr-10"
-            }`}
+            className="cpbu-time-input"
           />
           {!readOnly && (
             <button
               type="button"
               onClick={handleCurrentTime}
               tabIndex={-1}
-              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
+              className="cpbu-clock-button"
               title="현재 시간 입력"
               aria-label={`${label}에 현재 시간 입력`}
             >
@@ -227,15 +225,15 @@ const timeToMinutes = (timeStr) => {
     }
 
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <label className="text-sm font-medium text-gray-700">{label}</label>
-          <div className="text-xs leading-5 text-gray-500 sm:text-sm">
+      <div className="flex flex-col gap-3 rounded-lg border border-[#DFE9E7] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-semibold text-[#18323B]">{label}</label>
+          <div className="text-xs leading-5 text-[#657a7e] sm:text-sm">
             <Clock className="inline-block w-4 h-4 mr-1 align-middle" />
             시계 아이콘을 누르면 현재 시간이 입력됩니다.
           </div>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:max-w-[310px]">
           <input
             type="text"
             value={inputValue}
@@ -248,13 +246,13 @@ const timeToMinutes = (timeStr) => {
             }}
             placeholder="시간:분"
             maxLength={5}
-            className="h-12 w-full rounded-md border bg-white py-2 pl-3 pr-12 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+            className="cpbu-time-input"
           />
           <button
             type="button"
             onClick={handleCurrentTime}
             tabIndex={-1}
-            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
+            className="cpbu-clock-button"
             title="현재 시간 입력"
             aria-label="Donor ACC Time에 현재 시간 입력"
           >
@@ -279,15 +277,14 @@ const timeToMinutes = (timeStr) => {
     skipStartTab = false,
     skipEndTab = false,
   }) => (
-    <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+    <div className="cpbu-time-section">
       <h4 className="mb-3 flex flex-col items-start font-semibold text-gray-800">
         {" "}
         {/* Changed to flex-col for description below title */}
         <div className="flex items-start min-[360px]:items-center min-[360px]:whitespace-nowrap">
-          <Timer className="mr-2 h-4 w-4 shrink-0" /> {/* Timer icon */}
-          <span>{title} {side && `(${side})`}</span> {/* Display title and side if provided */}
+          <span>{title} {side && `(${side})`}</span>
         </div>
-        {description && <p className="text-xs text-gray-500 mt-1 ml-6">{description}</p>} {/* Added description */}
+        {description && <p className="mt-1 text-xs font-normal text-[#657a7e]">{description}</p> {/* Added description */}
       </h4>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <TimeInput
@@ -299,8 +296,8 @@ const timeToMinutes = (timeStr) => {
         />
         <TimeInput label="종료 시간" value={endTime} onChange={onEndChange} skipTab={skipEndTab} />
         <div className="flex min-w-0 flex-col gap-2">
-          <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">소요 시간</label>
-          <div className="flex h-12 items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800">
+          <label className="whitespace-nowrap text-sm font-medium leading-5 text-[#536a70]">소요 시간</label>
+          <div className="cpbu-duration">
             {duration || "-"} {/* Display duration or '-' if not available */}
           </div>
         </div>
