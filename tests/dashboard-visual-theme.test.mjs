@@ -51,3 +51,41 @@ test("transplant sections keep clinical headings and preserve original logic hoo
   assert.match(page, /heartData\.coldIschemicTime\.end/)
   assert.match(page, /calculateDuration\(/)
 })
+
+// Codex review regression coverage: WCAG contrast, iOS focus zoom, compact PCS tabs.
+const luminance = (hex) => {
+  const channels = hex.slice(1).match(/../g).map((pair) => Number.parseInt(pair, 16) / 255)
+    .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+}
+const contrast = (foreground, background) => {
+  const first = luminance(foreground)
+  const second = luminance(background)
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+}
+
+test("focused clinical time inputs remain at least 16px for iOS Safari", () => {
+  const inputStyle = css.match(/\.cpbu-time-input\s*\{([^}]*)\}/s)?.[1]
+  assert.ok(inputStyle, "shared time field styles must exist")
+  assert.match(inputStyle, /font-size:\s*1rem\s*;/)
+  assert.doesNotMatch(css, /@media[^}]*\.cpbu-time-input[^}]*font-size:\s*\.(?:7|8|9)\d*rem/s)
+})
+
+test("muted subtabs and readonly time values meet 4.5:1 contrast against tinted controls", () => {
+  const muted = css.match(/--cpbu-muted:\s*(#[a-f\d]{6})\s*;/i)?.[1]
+  const readonly = css.match(/\.cpbu-time-input:read-only\s*\{[^}]*color:\s*(#[a-f\d]{6})\s*;/s)?.[1]
+  assert.ok(muted && readonly)
+  assert.ok(contrast(muted, "#f1f5f4") >= 4.5, "inactive subtab text contrast")
+  assert.ok(contrast(readonly, "#f1f5f4") >= 4.5, "readonly time contrast")
+})
+
+test("three PCS subtabs fit mobile grid tracks without forced no-wrap", () => {
+  assert.match(page, /cpbu-subtabs grid grid-cols-3 gap-1/)
+  assert.match(css, /@media \(max-width:\s*639px\)/)
+  const rules = css.match(/\.cpbu-subtabs\.grid-cols-3 \.cpbu-subtab\s*\{([^}]*)\}/s)?.[1]
+  assert.ok(rules, "mobile PCS subtab override is required")
+  assert.match(rules, /min-width:\s*0\s*;/)
+  assert.match(rules, /white-space:\s*normal\s*;/)
+  assert.match(rules, /overflow-wrap:\s*anywhere\s*;/)
+  assert.match(rules, /padding:\s*\.6rem\s*\.25rem\s*;/)
+})
