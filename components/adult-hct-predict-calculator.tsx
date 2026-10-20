@@ -213,9 +213,6 @@ export default function AdultHctPredictCalculator() {
               </div>
               <NumericField id="ahd-product-hct" label="KRC product Hct (%)" value={productHct} onChange={setProductHct} min="0.1" required />
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              AHD는 leukocyte filter를 별도로 사용하지 않는 KRC 기준입니다. KRC는 250 mL/unit로 고정하며, product Hct 가정(기본 66%)은 실제 제제에 맞게 변경 가능합니다.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -289,11 +286,9 @@ export default function AdultHctPredictCalculator() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <NumericField id="ahd-current-hct" label="Current Hct (%)" value={currentHct} onChange={setCurrentHct} min="0.1" required />
+            <NumericField id="ahd-krc-units" label="RBC (KRC) 주입 (unit)" value={plannedKrcUnits} onChange={setPlannedKrcUnits} min="0" step="1" note="정수 unit만 허용 · 1 unit = 250 mL" />
             <NumericField id="ahd-crystalloid-added" label="Crystalloid 추가 (mL)" value={crystalloidAdded} onChange={setCrystalloidAdded} min="0" />
             <NumericField id="ahd-fluid-removed" label="Crystalloid/수분 제거 (mL)" value={fluidRemoved} onChange={setFluidRemoved} min="0" note="KRC에 대응하는 HF/UF 외에 추가로 제거할 수분량" />
-            <div className="space-y-2 sm:col-span-2 rounded-xl border border-teal-200 bg-teal-50/50 p-3">
-              <NumericField id="ahd-krc-units" label="RBC (KRC) 주입 (unit)" value={plannedKrcUnits} onChange={setPlannedKrcUnits} min="0" step="1" note="정수 unit만 허용 · 1 unit = 250 mL" />
-            </div>
           </div>
           <p className="text-xs text-slate-600">
             Current volume estimate: {currentEstimatedVolume === null ? "—" : format(currentEstimatedVolume, 0) + " mL"}
@@ -314,7 +309,11 @@ export default function AdultHctPredictCalculator() {
               value={onPumpResult?.plannedFeasible ? format(onPumpResult.totalUfMl, 0) + " mL" : "—"}
               caption="KRC 동량 HF/UF + 별도로 입력한 제거량" />
           </div>
-          <div className="space-y-3 border-t border-slate-200 pt-5">
+          <section aria-labelledby="ahd-target-heading" className="space-y-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-4 sm:p-5">
+            <div className="border-b border-indigo-200 pb-3">
+              <h3 id="ahd-target-heading" className="text-lg font-bold text-indigo-950 sm:text-xl">목표 Hct 맞추기</h3>
+              <p className="mt-1 text-xs font-medium text-indigo-700">별도 계산 · 위의 수술 중 변경값과 독립적</p>
+            </div>
             <NumericField id="ahd-pump-desired" label="Desired Hct (%)" value={desiredOnPumpHct} onChange={setDesiredOnPumpHct} min="0.1" />
             <p className="text-xs text-slate-600">
               목표 계산은 위의 KRC 주입·Crystalloid 변경 시뮬레이션과 별개입니다.
@@ -368,7 +367,7 @@ export default function AdultHctPredictCalculator() {
             {desiredOnPumpHct.trim() && !targetResult && (
               <p className="text-sm text-amber-700" role="status">Desired Hct, Current Hct, Weight와 prime 입력값을 확인해주세요.</p>
             )}
-          </div>
+          </section>
           {plannedKrcUnits.trim() && !Number.isSafeInteger(asNumber(plannedKrcUnits)) && (
             <p className="text-sm text-amber-800" role="alert">KRC는 0, 1, 2, 3 ... 정수 unit로 입력해주세요.</p>
           )}
