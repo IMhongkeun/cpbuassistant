@@ -87,8 +87,8 @@ export default function AdultHctPredictCalculator() {
   const [preHct, setPreHct] = useState("")
   const [prime, setPrime] = useState("1200")
   const [desiredPreHct, setDesiredPreHct] = useState("")
-  const [unitVolume, setUnitVolume] = useState("350")
-  const [productHct, setProductHct] = useState("60")
+  const [unitVolume, setUnitVolume] = useState("200")
+  const [productHct, setProductHct] = useState("66")
   const [currentHct, setCurrentHct] = useState("")
   const [netVolumeChange, setNetVolumeChange] = useState("0")
   const [plannedRbc, setPlannedRbc] = useState("0")
@@ -148,8 +148,8 @@ export default function AdultHctPredictCalculator() {
     setPreHct("")
     setPrime("1200")
     setDesiredPreHct("")
-    setUnitVolume("350")
-    setProductHct("60")
+    setUnitVolume("200")
+    setProductHct("66")
     setCurrentHct("")
     setNetVolumeChange("0")
     setPlannedRbc("0")
@@ -214,7 +214,7 @@ export default function AdultHctPredictCalculator() {
               <NumericField id="ahd-unit-volume" label="RBC-LF volume (mL/unit)" value={unitVolume} onChange={setUnitVolume} min="0.1" required />
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              초기 계산 가정: RBC 350 mL/unit, Hct 60%. 실제 혈액제제 사양을 확인해 수정하세요.
+              기본값: RBC-LF 200 mL/unit, product Hct 66% (기존 PCS 설정과 동일). 실제 제제 정보를 확인해 수정하세요.
             </p>
           </div>
         </CardContent>
@@ -246,11 +246,11 @@ export default function AdultHctPredictCalculator() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <ResultCard
               label="priming에 필요한 RBC 양 (mL)"
-              value={preResult?.requiredRbcMl === null || !preResult ? "—" : format(preResult.requiredRbcMl, 0) + " mL"}
+              value={preResult && preResult.requiredRbcMl !== null ? format(preResult.requiredRbcMl, 0) + " mL" : "—"}
             />
             <ResultCard
               label="RBC equivalent (unit)"
-              value={preResult?.requiredRbcUnits === null || !preResult ? "—" : format(preResult.requiredRbcUnits, 2)}
+              value={preResult && preResult.requiredRbcUnits !== null ? format(preResult.requiredRbcUnits, 2) : "—"}
             />
           </div>
           {!preResult && <p className="text-sm text-amber-700" role="status">Shared setup의 유효한 값을 입력해주세요.</p>}
@@ -310,12 +310,12 @@ export default function AdultHctPredictCalculator() {
             />
             <ResultCard
               label="Desired Hct를 위한 RBC (mL)"
-              value={onPumpResult?.requiredRbcMl === null || !onPumpResult ? "—" : format(onPumpResult.requiredRbcMl, 0) + " mL"}
-              caption={onPumpResult?.requiredRbcUnits === null || !onPumpResult ? undefined : format(onPumpResult.requiredRbcUnits, 2) + " unit"}
+              value={onPumpResult && onPumpResult.requiredRbcMl !== null ? format(onPumpResult.requiredRbcMl, 0) + " mL" : "—"}
+              caption={onPumpResult && onPumpResult.requiredRbcUnits !== null ? format(onPumpResult.requiredRbcUnits, 2) + " unit" : undefined}
             />
             <ResultCard
               label="Target용 matched HF/UF (mL)"
-              value={onPumpResult?.requiredMatchedUfMl === null || !onPumpResult ? "—" : format(onPumpResult.requiredMatchedUfMl, 0) + " mL"}
+              value={onPumpResult && onPumpResult.requiredMatchedUfMl !== null ? format(onPumpResult.requiredMatchedUfMl, 0) + " mL" : "—"}
             />
           </div>
           {!onPumpResult && <p className="text-sm text-amber-700" role="status">현재 Hct와 유효한 shared setup 값을 입력해주세요.</p>}
