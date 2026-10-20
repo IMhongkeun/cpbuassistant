@@ -411,43 +411,47 @@ const CPBUassistant = () => {
   }, [heartData.coldIschemicTime.end, activeTab, transplantSubTab]) // Dependencies: cold ischemic end time and activeTab
 
   return (
-    <div className="mx-auto max-w-6xl rounded-xl bg-white p-3 shadow-lg sm:p-6">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center">CPBU assistant</h1>
-      </div>
-
-      {/* Frequently used tools first; transplant specialties share a top-level tab. */}
-      <nav className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1 shadow-inner" aria-label="주요 계산기 및 이식 관리">
-        {[
-          { id: "transplant", label: "이식관리", color: "text-blue-700" },
-          { id: "hct", label: "Hct", color: "text-teal-700" },
-          { id: "pediatric", label: "PCS", color: "text-green-700" },
-          { id: "gdp", label: "GDP", color: "text-orange-700" },
-          { id: "mics", label: "MICS", color: "text-teal-700" },
-          { id: "cpb", label: "LBM", color: "text-purple-700" },
-        ].map((tab) => (
-          <button key={tab.id} type="button"
-            aria-current={activeTab === tab.id ? "page" : undefined}
-            onClick={() => setActiveTab(tab.id)}
-            className={"min-w-[84px] shrink-0 flex-1 rounded-md px-3 py-3 text-sm font-semibold transition-colors sm:min-w-0 sm:text-base " +
-              (activeTab === tab.id ? "bg-white shadow-md " + tab.color : "text-gray-500 hover:bg-white/70 hover:text-gray-800")}>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
+    <div className="cpbu-shell min-h-screen">
+      <header className="cpbu-header">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="flex shrink-0 items-center gap-3">
+            <img src="/asan-foundation-mark.png" alt="아산재단 로고" width={42} height={42} className="h-10 w-10 shrink-0 object-contain" />
+            <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-[#173940] sm:text-2xl">CPBU assistant</h1>
+          </div>
+          {/* A compact underline navigation matching the supplied reference layout. */}
+          <nav className="cpbu-nav flex min-w-0 gap-1 overflow-x-auto" aria-label="주요 계산기 및 이식 관리">
+            {[
+              { id: "transplant", label: "이식관리" },
+              { id: "hct", label: "Hct" },
+              { id: "pediatric", label: "PCS" },
+              { id: "gdp", label: "GDP" },
+              { id: "mics", label: "MICS" },
+              { id: "cpb", label: "LBM" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                aria-current={activeTab === tab.id ? "page" : undefined}
+                onClick={() => setActiveTab(tab.id)}
+                className={"cpbu-nav-tab " + (activeTab === tab.id ? "cpbu-nav-tab-active" : "")}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7">
       {activeTab === "transplant" && (
-        <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-blue-50 p-1" role="tablist" aria-label="이식 종류">
+        <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="이식 종류">
           <button type="button" role="tab" aria-selected={transplantSubTab === "lung"}
             onClick={() => setTransplantSubTab("lung")}
-            className={"min-h-11 rounded-md px-3 text-sm font-semibold sm:text-base " +
-              (transplantSubTab === "lung" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:bg-blue-100")}>
+            className={"cpbu-subtab " + (transplantSubTab === "lung" ? "cpbu-subtab-active" : "")}>
             폐이식
           </button>
           <button type="button" role="tab" aria-selected={transplantSubTab === "heart"}
             onClick={() => setTransplantSubTab("heart")}
-            className={"min-h-11 rounded-md px-3 text-sm font-semibold sm:text-base " +
-              (transplantSubTab === "heart" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:bg-blue-100")}>
+            className={"cpbu-subtab " + (transplantSubTab === "heart" ? "cpbu-subtab-active" : "")}>
             심장이식
           </button>
         </div>
@@ -945,6 +949,7 @@ const CPBUassistant = () => {
           <MicsDrainageCalculator />
         </div>
       )}
+      </main>
     </div>
   )
 }
