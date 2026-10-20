@@ -1,7 +1,7 @@
 "use client" // Add this directive at the top to mark this as a client component
 
 import { useState, useEffect } from "react"
-import { Clock, Timer } from "lucide-react"
+import { Clock } from "lucide-react"
 import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
 import ScmpFlowCalculator from "../components/scmp-flow-calculator"
@@ -118,7 +118,7 @@ const timeToMinutes = (timeStr) => {
 
     return (
       <div className="flex min-w-0 flex-col gap-2">
-        <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">{label}</label>
+        <label className="whitespace-nowrap text-sm font-medium leading-5 text-[#536a70]">{label}</label>
         <div className="relative">
           <input
             type="text"
@@ -135,16 +135,14 @@ const timeToMinutes = (timeStr) => {
             tabIndex={readOnly || skipTab ? -1 : 0}
             placeholder="시간:분" // Modified placeholder text
             maxLength={5}
-            className={`h-12 w-full min-w-0 rounded-md border py-2 pl-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:pl-3 ${
-              readOnly ? "bg-gray-100 pr-3 text-gray-600" : "bg-white pr-10"
-            }`}
+            className="cpbu-time-input"
           />
           {!readOnly && (
             <button
               type="button"
               onClick={handleCurrentTime}
               tabIndex={-1}
-              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
+              className="cpbu-clock-button"
               title="현재 시간 입력"
               aria-label={`${label}에 현재 시간 입력`}
             >
@@ -227,15 +225,15 @@ const timeToMinutes = (timeStr) => {
     }
 
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <label className="text-sm font-medium text-gray-700">{label}</label>
-          <div className="text-xs leading-5 text-gray-500 sm:text-sm">
+      <div className="flex flex-col gap-3 rounded-lg border border-[#DFE9E7] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-semibold text-[#18323B]">{label}</label>
+          <div className="text-xs leading-5 text-[#657a7e] sm:text-sm">
             <Clock className="inline-block w-4 h-4 mr-1 align-middle" />
             시계 아이콘을 누르면 현재 시간이 입력됩니다.
           </div>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:max-w-[310px]">
           <input
             type="text"
             value={inputValue}
@@ -248,13 +246,13 @@ const timeToMinutes = (timeStr) => {
             }}
             placeholder="시간:분"
             maxLength={5}
-            className="h-12 w-full rounded-md border bg-white py-2 pl-3 pr-12 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+            className="cpbu-time-input"
           />
           <button
             type="button"
             onClick={handleCurrentTime}
             tabIndex={-1}
-            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-green-500 text-white transition-colors hover:bg-green-600"
+            className="cpbu-clock-button"
             title="현재 시간 입력"
             aria-label="Donor ACC Time에 현재 시간 입력"
           >
@@ -279,15 +277,14 @@ const timeToMinutes = (timeStr) => {
     skipStartTab = false,
     skipEndTab = false,
   }) => (
-    <div className="rounded-lg bg-gray-50 p-3 sm:p-4">
+    <div className="cpbu-time-section">
       <h4 className="mb-3 flex flex-col items-start font-semibold text-gray-800">
         {" "}
         {/* Changed to flex-col for description below title */}
         <div className="flex items-start min-[360px]:items-center min-[360px]:whitespace-nowrap">
-          <Timer className="mr-2 h-4 w-4 shrink-0" /> {/* Timer icon */}
-          <span>{title} {side && `(${side})`}</span> {/* Display title and side if provided */}
+          <span>{title} {side && `(${side})`}</span>
         </div>
-        {description && <p className="text-xs text-gray-500 mt-1 ml-6">{description}</p>} {/* Added description */}
+        {description && <p className="mt-1 text-xs font-normal text-[#657a7e]">{description}</p>}
       </h4>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <TimeInput
@@ -299,8 +296,8 @@ const timeToMinutes = (timeStr) => {
         />
         <TimeInput label="종료 시간" value={endTime} onChange={onEndChange} skipTab={skipEndTab} />
         <div className="flex min-w-0 flex-col gap-2">
-          <label className="whitespace-nowrap text-sm font-medium leading-5 text-gray-700">소요 시간</label>
-          <div className="flex h-12 items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-2 font-semibold text-blue-800">
+          <label className="whitespace-nowrap text-sm font-medium leading-5 text-[#536a70]">소요 시간</label>
+          <div className="cpbu-duration">
             {duration || "-"} {/* Display duration or '-' if not available */}
           </div>
         </div>
@@ -411,43 +408,47 @@ const CPBUassistant = () => {
   }, [heartData.coldIschemicTime.end, activeTab, transplantSubTab]) // Dependencies: cold ischemic end time and activeTab
 
   return (
-    <div className="mx-auto max-w-6xl rounded-xl bg-white p-3 shadow-lg sm:p-6">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center justify-center">CPBU assistant</h1>
-      </div>
-
-      {/* Frequently used tools first; transplant specialties share a top-level tab. */}
-      <nav className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1 shadow-inner" aria-label="주요 계산기 및 이식 관리">
-        {[
-          { id: "transplant", label: "이식관리", color: "text-blue-700" },
-          { id: "hct", label: "Hct", color: "text-teal-700" },
-          { id: "pediatric", label: "PCS", color: "text-green-700" },
-          { id: "gdp", label: "GDP", color: "text-orange-700" },
-          { id: "mics", label: "MICS", color: "text-teal-700" },
-          { id: "cpb", label: "LBM", color: "text-purple-700" },
-        ].map((tab) => (
-          <button key={tab.id} type="button"
-            aria-current={activeTab === tab.id ? "page" : undefined}
-            onClick={() => setActiveTab(tab.id)}
-            className={"min-w-[84px] shrink-0 flex-1 rounded-md px-3 py-3 text-sm font-semibold transition-colors sm:min-w-0 sm:text-base " +
-              (activeTab === tab.id ? "bg-white shadow-md " + tab.color : "text-gray-500 hover:bg-white/70 hover:text-gray-800")}>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-
+    <div className="cpbu-shell min-h-screen">
+      <header className="cpbu-header">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="flex shrink-0 items-center gap-3">
+            <img src="/asan-foundation-mark.svg" alt="아산재단 로고" width={42} height={42} className="h-10 w-10 shrink-0 object-contain" />
+            <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-[#173940] sm:text-2xl">CPBU assistant</h1>
+          </div>
+          {/* A compact underline navigation matching the supplied reference layout. */}
+          <nav className="cpbu-nav flex min-w-0 gap-1 overflow-x-auto" aria-label="주요 계산기 및 이식 관리">
+            {[
+              { id: "transplant", label: "이식관리" },
+              { id: "hct", label: "Hct" },
+              { id: "pediatric", label: "PCS" },
+              { id: "gdp", label: "GDP" },
+              { id: "mics", label: "MICS" },
+              { id: "cpb", label: "LBM" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                aria-current={activeTab === tab.id ? "page" : undefined}
+                onClick={() => setActiveTab(tab.id)}
+                className={"cpbu-nav-tab " + (activeTab === tab.id ? "cpbu-nav-tab-active" : "")}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7">
       {activeTab === "transplant" && (
-        <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg bg-blue-50 p-1" role="tablist" aria-label="이식 종류">
+        <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="이식 종류">
           <button type="button" role="tab" aria-selected={transplantSubTab === "lung"}
             onClick={() => setTransplantSubTab("lung")}
-            className={"min-h-11 rounded-md px-3 text-sm font-semibold sm:text-base " +
-              (transplantSubTab === "lung" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:bg-blue-100")}>
+            className={"cpbu-subtab " + (transplantSubTab === "lung" ? "cpbu-subtab-active" : "")}>
             폐이식
           </button>
           <button type="button" role="tab" aria-selected={transplantSubTab === "heart"}
             onClick={() => setTransplantSubTab("heart")}
-            className={"min-h-11 rounded-md px-3 text-sm font-semibold sm:text-base " +
-              (transplantSubTab === "heart" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:bg-blue-100")}>
+            className={"cpbu-subtab " + (transplantSubTab === "heart" ? "cpbu-subtab-active" : "")}>
             심장이식
           </button>
         </div>
@@ -456,7 +457,7 @@ const CPBUassistant = () => {
       {/* Lung Transplant Section */}
       {(activeTab === "transplant" && transplantSubTab === "lung") && (
         <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md sm:p-6">
+          <div className="cpbu-panel">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
               폐이식 시간 관리
             </h3>
@@ -470,8 +471,8 @@ const CPBUassistant = () => {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Lung Section */}
-              <div className="space-y-4 rounded-lg border bg-gray-100 p-3 sm:p-4">
-                <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Left Lung (1st lung)</h4>
+              <div className="cpbu-lung-panel">
+                <h4 className="mb-0 border-b border-[#E1EBE9] pb-3 text-base font-bold text-[#18323B] sm:text-lg">Left Lung (1st lung)</h4>
                 <TimeSection
                   title="Cold Ischemic Time"
                   description="ACC~ Ice box에서 꺼낸 시간"
@@ -526,9 +527,9 @@ const CPBUassistant = () => {
                 />
                 {calculateDuration(lungData.coldIschemicTime.lt.start, lungData.coldIschemicTime.lt.end) &&
                   calculateDuration(lungData.warmIschemicTime.lt.start, lungData.warmIschemicTime.lt.end) && (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-xs text-blue-600 font-medium mb-1">Total Ischemic Time (Left)</p>
-                      <p className="text-sm font-semibold text-blue-700">
+                    <div className="cpbu-total">
+                      <p className="mb-1 text-xs font-medium text-[#006B6E]">Total Ischemic Time (Left)</p>
+                      <p className="text-lg font-bold text-[#005559]">
                         {(() => {
                           const coldDuration = calculateDuration(
                             lungData.coldIschemicTime.lt.start,
@@ -579,8 +580,8 @@ const CPBUassistant = () => {
               </div>
 
               {/* Right Lung Section */}
-              <div className="space-y-4 rounded-lg border bg-gray-100 p-3 sm:p-4">
-                <h4 className="text-lg font-semibold text-gray-800 border-b pb-2 mb-3">Right Lung (2nd lung)</h4>
+              <div className="cpbu-lung-panel">
+                <h4 className="mb-0 border-b border-[#E1EBE9] pb-3 text-base font-bold text-[#18323B] sm:text-lg">Right Lung (2nd lung)</h4>
                 <TimeSection
                   title="Cold Ischemic Time"
                   description="ACC~ 2nd lung ice packing에서 꺼낸 시간"
@@ -635,9 +636,9 @@ const CPBUassistant = () => {
                 />
                 {calculateDuration(lungData.coldIschemicTime.rt.start, lungData.coldIschemicTime.rt.end) &&
                   calculateDuration(lungData.warmIschemicTime.rt.start, lungData.warmIschemicTime.rt.end) && (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-xs text-blue-600 font-medium mb-1">Total Ischemic Time (Right)</p>
-                      <p className="text-sm font-semibold text-blue-700">
+                    <div className="cpbu-total">
+                      <p className="mb-1 text-xs font-medium text-[#006B6E]">Total Ischemic Time (Right)</p>
+                      <p className="text-lg font-bold text-[#005559]">
                         {(() => {
                           const coldDuration = calculateDuration(
                             lungData.coldIschemicTime.rt.start,
@@ -709,8 +710,8 @@ const CPBUassistant = () => {
                 duration={calculateDuration(lungData.pumpTime.start, lungData.pumpTime.end)}
               />
             </div>
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-              <p className="font-semibold mb-2">참고:</p>
+            <div className="cpbu-note mt-6">
+              <p className="mb-2 font-semibold">참고:</p>
               <p>
                 * Ice box에서 lung을 꺼내 trimming 후 2nd. implantation을 하는 lung을 다시 ice packing 상태로 보존하기
                 때문에 2nd lung의 cold ischemic time이 매우 길다.
@@ -723,7 +724,7 @@ const CPBUassistant = () => {
       {/* Heart Transplant Section */}
       {(activeTab === "transplant" && transplantSubTab === "heart") && (
         <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-md sm:p-6">
+          <div className="cpbu-panel">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
               심장이식 시간 관리
             </h3>
@@ -780,10 +781,10 @@ const CPBUassistant = () => {
                 if (coldDuration && warmDuration) {
                   const totalMinutes = Number.parseInt(coldDuration) + Number.parseInt(warmDuration)
                   return (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="cpbu-total">
                       <p className="text-sm text-gray-600">
                         <span className="font-semibold">Total Ischemic Time:</span>{" "}
-                        <span className="text-blue-700 font-bold">{totalMinutes} 분</span>
+                        <span className="font-bold text-[#005559]">{totalMinutes} 분</span>
                       </p>
                     </div>
                   )
@@ -813,7 +814,7 @@ const CPBUassistant = () => {
           </div>
 
           {/* Controlled Rewarming reference images section */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-md">
+          <div className="cpbu-panel">
             <h3 className="text-xl font-semibold text-gray-900 mb-4 flex items-center border-b pb-3">
               심장이식 참고 자료 - Controlled Rewarming
             </h3>
@@ -834,9 +835,9 @@ const CPBUassistant = () => {
               </div>
 
               {/* New Version - HT.2 */}
-              <div className="border rounded-lg p-4 bg-green-50 border-background">
+              <div className="rounded-lg border border-[#DFE9E7] bg-[#F4FAF9] p-4">
                 <div className="mb-3">
-                  <span className="inline-block bg-green-600 text-white px-3 py-1 rounded-md text-sm font-semibold">
+                  <span className="inline-block rounded-md bg-[#006B6E] px-3 py-1 text-sm font-semibold text-white">
                     신버전 (New Version)
                   </span>
                 </div>
@@ -855,34 +856,22 @@ const CPBUassistant = () => {
       {activeTab === "pediatric" && (
         <div className="space-y-6">
           {/* Sub-tab Navigation */}
-          <div className="grid grid-cols-3 gap-1 bg-gray-50 p-1 rounded-lg shadow-sm">
+          <div className="cpbu-subtabs grid grid-cols-3 gap-1">
             <button
               onClick={() => setPcsSubTab("echo")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "echo"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
+              className={"cpbu-subtab whitespace-nowrap " + (pcsSubTab === "echo" ? "cpbu-subtab-active" : "")}
             >
               Echo Z-Score
             </button>
             <button
               onClick={() => setPcsSubTab("scmp")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "scmp"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
+              className={"cpbu-subtab whitespace-nowrap " + (pcsSubTab === "scmp" ? "cpbu-subtab-active" : "")}
             >
               SCMP Flow
             </button>
             <button
               onClick={() => setPcsSubTab("qpqs")}
-              className={`py-2 px-2 sm:px-4 rounded-md transition-all duration-200 text-sm sm:text-base whitespace-nowrap ${
-                pcsSubTab === "qpqs"
-                  ? "bg-white text-green-700 shadow-sm font-semibold"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-              }`}
+              className={"cpbu-subtab whitespace-nowrap " + (pcsSubTab === "qpqs" ? "cpbu-subtab-active" : "")}
             >
               Qp/Qs
             </button>
@@ -898,14 +887,13 @@ const CPBUassistant = () => {
       {/* Hct calculators: AHD = adult, PCS = existing pediatric predictor. */}
       {activeTab === "hct" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-50 p-1 shadow-sm" role="tablist" aria-label="Hct calculator type">
+          <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="Hct calculator type">
             <button
               type="button"
               role="tab"
               aria-selected={hctSubTab === "ahd"}
               onClick={() => setHctSubTab("ahd")}
-              className={"min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors " +
-                (hctSubTab === "ahd" ? "bg-white text-teal-700 shadow-sm" : "text-gray-600 hover:bg-gray-100")}
+              className={"cpbu-subtab " + (hctSubTab === "ahd" ? "cpbu-subtab-active" : "")}
             >
               AHD · Adult
             </button>
@@ -914,8 +902,7 @@ const CPBUassistant = () => {
               role="tab"
               aria-selected={hctSubTab === "pcs"}
               onClick={() => setHctSubTab("pcs")}
-              className={"min-h-11 rounded-md px-3 py-2 text-sm font-semibold transition-colors " +
-                (hctSubTab === "pcs" ? "bg-white text-green-700 shadow-sm" : "text-gray-600 hover:bg-gray-100")}
+              className={"cpbu-subtab " + (hctSubTab === "pcs" ? "cpbu-subtab-active" : "")}
             >
               PCS · Pediatric
             </button>
@@ -945,6 +932,7 @@ const CPBUassistant = () => {
           <MicsDrainageCalculator />
         </div>
       )}
+      </main>
     </div>
   )
 }
