@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { estimateCannulaPressure, formatCannulaSize, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
@@ -137,9 +137,66 @@ test("variant-specific order codes appear in selected cards and chart series", (
   const hls = source.items.find((item) => item.orderCode === "PVL 2155")
   assert.ok(hls)
   assert.equal(formatCannulaSize(hls), "PVL 2155 · 21 Fr")
-  assert.ok(browser.includes('return item.model + " · " + formatCannulaSize(item) + ('))
-  assert.ok(browser.includes('{formatCannulaSize(item)}'))
-  assert.ok(browser.includes('<Line key={item.id} name={(index + 1) + ". " + formatCannulaSize(item) +'))
+  assert.ok(browser.includes('return item.model + " · " + curveDisplaySize(item) + ('))
+  assert.ok(browser.includes('{curveDisplaySize(item)}'))
+  assert.ok(browser.includes('<Line key={item.id} name={(index + 1) + ". " + curveDisplaySize(item) +'))
+})
+
+
+test("shared pediatric DLP cannula curves appear once per Fr without deleting connector variants", () => {
+  const pediatric = source.items.filter((item) =>
+    item.model === "DLP Pediatric One-piece Arterial Cannula")
+  assert.equal(pediatric.length, 20)
+  const grouped = groupSharedCannulaCurves(source.items)
+  assert.equal(grouped.length, 94)
+  assert.equal(grouped.flatMap((group) => group.variants).length, source.items.length)
+  const pediatricGroups = grouped.filter((group) =>
+    group.item.model === "DLP Pediatric One-piece Arterial Cannula")
+  assert.equal(pediatricGroups.length, 6)
+  const expected = new Map([
+    ["6 Fr", ["77006", "77106", "77206", "77306"]],
+    ["8 Fr", ["77008", "77108", "77208", "77308"]],
+    ["10 Fr", ["77010", "77110", "77210", "77310"]],
+    ["12 Fr", ["77012", "77112", "77212", "77312"]],
+    ["14 Fr", ["77014", "77114"]],
+    ["16 Fr", ["77016", "77116"]],
+  ])
+  for (const group of pediatricGroups) {
+    const expectedCodes = expected.get(group.item.size)
+    assert.ok(expectedCodes, group.item.size)
+    assert.deepEqual(group.variants.map((item) => item.orderCode), expectedCodes)
+    assert.ok(group.variants.every((item) =>
+      JSON.stringify(item.points) === JSON.stringify(group.item.points)))
+    for (const code of expectedCodes) {
+      const found = grouped.filter(({ variants }) =>
+        variants.some((variant) => matchesCannulaSearch(variant, code)))
+      assert.equal(found.length, 1, code)
+      assert.equal(found[0].item.id, group.item.id)
+    }
+  }
+  for (const query of ["8", "8Fr", "arterial 8", "77308", "DLP 77208"]) {
+    const found = grouped.filter(({ variants }) =>
+      variants.some((variant) => matchesCannulaSearch(variant, query)))
+    const onlyEight = found.filter((group) =>
+      group.item.model === "DLP Pediatric One-piece Arterial Cannula")
+    assert.equal(onlyEight.length, 1, query)
+    assert.equal(onlyEight[0].item.size, "8 Fr")
+  }
+  const distinctMetalTip = grouped.filter(({ item }) =>
+    item.model === "DLP Single Stage Venous Cannulae with Right Angle Metal Tip" &&
+    item.size.startsWith("18 Fr"))
+  assert.equal(distinctMetalTip.length, 2, "different nonshared connector curves must stay separate")
+
+  const first = pediatricGroups.find((group) => group.item.size === "8 Fr").item
+  const altered = { ...first, id: "different-pressure-curve",
+    points: first.points.map(([flow, pressure], index) =>
+      index === 0 ? [flow, pressure + 1] : [flow, pressure]) }
+  assert.equal(groupSharedCannulaCurves([first, altered]).length, 2,
+    "same Fr with distinct measured points must not be merged")
+  assert.ok(browser.includes("CURVE_GROUPS.filter"))
+  assert.ok(browser.includes("variants.some((variant) => matchesCannulaSearch(variant, search))"))
+  assert.ok(browser.includes("제품 코드: {variantCodes}"))
+  assert.ok(browser.includes("variant.orderCode} · {variant.connectorSize}"))
 })
 
 test("linear interpolation respects exact source values and NEVER extrapolates", () => {
@@ -168,7 +225,7 @@ test("navigation, search, chart, ranges and dual diagrams stay integrated", () =
   assert.match(page, /\{ id: "cannula", label: "Cannula" \}/)
   assert.match(page, /activeTab === "cannula" && <CannulaBrowser \/>/)
   assert.match(browser, /setSearch\(/)
-  assert.match(browser, /matchesCannulaSearch\(item, search\)/)
+  assert.match(browser, /matchesCannulaSearch\(variant, search\)/)
   assert.match(browser, /toggleCannulaSelection\(previous, id, MAX_COMPARE\)/)
   assert.match(browser, /estimateCannulaPressure\(item.points, targetFlow\)/)
   assert.match(browser, /ResponsiveContainer/)
