@@ -5,9 +5,9 @@ import { readFileSync } from "node:fs"
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
 const adult = readFileSync(new URL("../components/adult-hct-predict-calculator.tsx", import.meta.url), "utf8")
 
-test("main nav has transplant management then Hct, PCS, GDP, MICS, and rightmost LBM", () => {
+test("main nav has transplant management then Hct, PCS, GDP, MICS, Cannula, and rightmost LBM", () => {
   const labels = [...page.matchAll(/\{ id: "(.*?)", label: "(.*?)"/g)].map((m) => m[2])
-  assert.deepEqual(labels, ["이식관리", "Hct", "PCS", "GDP", "MICS", "LBM"])
+  assert.deepEqual(labels, ["이식관리", "Hct", "PCS", "GDP", "MICS", "Cannula", "LBM"])
   assert.match(page, /setTransplantSubTab\("lung"\)/)
   assert.match(page, /setTransplantSubTab\("heart"\)/)
   assert.match(page, /activeTab === "transplant" && transplantSubTab === "lung"/)
