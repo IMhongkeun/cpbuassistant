@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { estimateCannulaPressure, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { estimateCannulaPressure, formatCannulaSize, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -22,6 +22,7 @@ type CannulaCurve = {
   category: string
   size: string
   orderCode: string
+  nominalFr?: number
   connectorSize: string
   testMedium: string
   sourceLabel: string
@@ -48,7 +49,7 @@ function brandName(item: CannulaCurve) {
 }
 
 function curveLabel(item: CannulaCurve) {
-  return item.model + " · " + item.size + (
+  return item.model + " · " + formatCannulaSize(item) + (
     item.semanticType === "drainage" ? " · Drainage" :
     item.semanticType === "infusion" ? " · Infusion" : ""
   )
@@ -230,7 +231,7 @@ export default function CannulaBrowser() {
                     </span>
                     <span className="block break-words text-sm font-semibold leading-5 text-[#18323b]">{item.model}</span>
                     <span className="block break-words text-xs leading-5 text-[#52686d]">
-                      {item.size}{item.orderCode ? " · " + item.orderCode : ""}
+                      {formatCannulaSize(item)}
                       {item.semanticType === "infusion" ? " · Infusion" :
                         item.semanticType === "drainage" ? " · Drainage" : ""}
                     </span>
@@ -336,7 +337,7 @@ export default function CannulaBrowser() {
                       <ReferenceLine x={targetFlow} stroke="#94aaa6" strokeDasharray="4 4" />
                     )}
                     {selected.map((item, index) => (
-                      <Line key={item.id} name={(index + 1) + ". " + item.size +
+                      <Line key={item.id} name={(index + 1) + ". " + formatCannulaSize(item) +
                           (item.semanticType !== "pressure-drop" ? " " + item.seriesLabel : "")}
                         dataKey={item.id} type="linear" stroke={LINE_COLORS[index]}
                         strokeWidth={2.6} dot={false} activeDot={{ r: 4 }}
