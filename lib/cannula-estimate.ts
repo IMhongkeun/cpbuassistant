@@ -37,6 +37,7 @@ export type CannulaSearchable = {
   orderCode?: string
   connectorSize?: string
   seriesLabel?: string
+  nominalFr?: number
 }
 
 function normalizeCannulaSearchText(value: string): string {
@@ -65,10 +66,24 @@ export function matchesCannulaSearch(item: CannulaSearchable, query: string): bo
       // At least three digits are needed for a prefix order-code search.
       const codePrefix = !term.endsWith("fr") && term.length >= 3 &&
         new RegExp("(?:^|[^0-9])" + term).test(orderCode)
-      return exactFr || codePrefix
+      const verifiedNominalFr = Number(frTerm.slice(0, -2)) === item.nominalFr
+      return exactFr || verifiedNominalFr || codePrefix
     }
     return searchableText.includes(term)
   })
+}
+
+
+/** Show verified nominal Fr and unique order code in every comparison label. */
+export function formatCannulaSize(item: Pick<CannulaSearchable, "size" | "orderCode" | "nominalFr">): string {
+  const hasFr = typeof item.nominalFr === "number" &&
+    new RegExp("(?:^|[^0-9])" + item.nominalFr + "\\s*fr\\b", "i").test(item.size)
+  const sized = Number.isInteger(item.nominalFr) && (item.nominalFr ?? 0) > 0 && !hasFr
+    ? item.size + " · " + item.nominalFr + " Fr"
+    : item.size
+  return item.orderCode && !sized.includes(item.orderCode)
+    ? sized + " · " + item.orderCode
+    : sized
 }
 
 /** The fifth unique curve cannot be added; selected curves can always be removed. */
