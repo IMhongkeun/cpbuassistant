@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { readFileSync } from "node:fs"
 import {
   ADULT_BLOOD_VOLUME_ML_PER_KG,
   KRC_VOLUME_ML_PER_UNIT,
@@ -173,4 +174,28 @@ test("invalid desired Hct is rejected", () => {
   }
   assert.throws(() => predictAdultOnPumpHct({ ...params, desiredHctPercent: 0 }), RangeError)
   assert.throws(() => predictAdultOnPumpHct({ ...params, desiredHctPercent: 105 }), RangeError)
+})
+
+test("optional AHD changes start and reset blank but use zero for omitted calculations", () => {
+  const component = readFileSync(
+    new URL("../components/adult-hct-predict-calculator.tsx", import.meta.url), "utf8",
+  )
+  for (const [field, setter] of [
+    ["crystalloidAdded", "setCrystalloidAdded"],
+    ["fluidRemoved", "setFluidRemoved"],
+    ["plannedKrcUnits", "setPlannedKrcUnits"],
+  ]) {
+    assert.ok(component.includes(`const [${field}, ${setter}] = useState("")`), field + " initial")
+    assert.ok(component.includes(`${setter}("")`), field + " reset")
+    assert.ok(component.includes(`asOptionalAdjustment(${field})`), field + " parse")
+  }
+  assert.match(component, /value\\.trim\\(\\) === "" \\? 0 : asNumber\\(value\\)/)
+  // The model already supports explicit zero; the optional blank maps to that baseline.
+  const baseline = predictAdultOnPumpHct({
+    currentTotalVolumeMl: 5000, currentHctPercent: 25,
+    productHctPercent: 66, krcUnits: 0,
+    crystalloidAddedMl: 0, fluidRemovedMl: 0,
+  })
+  near(baseline.predictedHctPercent, 25)
+  near(baseline.finalVolumeMl, 5000)
 })
