@@ -16,10 +16,10 @@ test("brand mark appears beside the site name with transparent, grid-free source
   assert.ok(!logo.includes("grid"), "no visible background grid layer")
 })
 
-test("primary nav is compact, underlined, and keeps all six calculator labels", () => {
+test("primary nav is compact, underlined, and keeps all seven calculator labels", () => {
   const tabs = [...page.matchAll(/\{ id: "(.*?)", label: "(.*?)" \}/g)]
     .map((match) => match[2])
-  assert.deepEqual(tabs, ["이식관리", "Hct", "PCS", "GDP", "MICS", "LBM"])
+  assert.deepEqual(tabs, ["이식관리", "Hct", "PCS", "GDP", "MICS", "Cannula", "LBM"])
   assert.match(page, /cpbu-nav-tab-active/)
   assert.match(page, /cpbu-subtab-active/)
   assert.match(css, /border-bottom: 2px solid transparent/)

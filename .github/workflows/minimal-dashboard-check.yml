@@ -10,6 +10,10 @@ on:
       - "app/globals.css"
       - "public/asan-foundation-mark.svg"
       - "tests/dashboard-visual-theme.test.mjs"
+      - "components/cannula-browser.tsx"
+      - "data/cannula-medtronic-maquet.json"
+      - "lib/cannula-estimate.ts"
+      - "tests/cannula-browser.test.mjs"
 
 permissions:
   contents: read
@@ -32,6 +36,8 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Test existing clinical workflows
         run: pnpm run test:hct
+      - name: Test Cannula reference and four-way comparison
+        run: pnpm run test:cannula
       - name: Test visual style invariants
         run: node --test tests/dashboard-visual-theme.test.mjs
       - name: Build production Next.js site

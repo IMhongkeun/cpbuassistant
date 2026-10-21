@@ -10,6 +10,7 @@ import AdultHctPredictCalculator from "../components/adult-hct-predict-calculato
 import QpQsCalculator from "../components/qp-qs-calculator"
 import GDPCalculator from "../components/gdp-calculator" // Import the GDPCalculator component
 import MicsDrainageCalculator from "../components/mics-drainage-calculator"
+import CannulaBrowser from "../components/cannula-browser"
 
 // Helper function to convert HH:MM string (allowing HH > 23) to total minutes from midnight
 const timeToMinutes = (timeStr) => {
@@ -423,6 +424,7 @@ const CPBUassistant = () => {
               { id: "pediatric", label: "PCS" },
               { id: "gdp", label: "GDP" },
               { id: "mics", label: "MICS" },
+              { id: "cannula", label: "Cannula" },
               { id: "cpb", label: "LBM" },
             ].map((tab) => (
               <button
@@ -925,6 +927,9 @@ const CPBUassistant = () => {
           <GDPCalculator />
         </div>
       )}
+
+      {/* Cannula pressure-flow reference and comparison */}
+      {activeTab === "cannula" && <CannulaBrowser />}
 
       {/* MICS venous drainage simulator */}
       {activeTab === "mics" && (
