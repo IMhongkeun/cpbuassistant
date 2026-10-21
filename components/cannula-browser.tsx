@@ -387,35 +387,65 @@ export default function CannulaBrowser() {
         <article className="cpbu-panel space-y-3">
           <div className="flex items-center gap-2">
             <ArrowRight className="h-4 w-4 text-[#087b80]" aria-hidden="true" />
-            <h3 className="text-base font-bold text-[#18323b]">Arterial cannula pressure 추정법</h3>
+            <h3 className="text-base font-bold text-[#18323b]">Arterial line pressure 해석</h3>
           </div>
           <PressurePathDiagram type="arterial" />
           <p className="text-sm leading-6 text-[#52686d]">
-            <strong className="text-[#18323b]">①</strong> 목표 Flow 입력 →{" "}
-            <strong className="text-[#18323b]">②</strong> 해당 제품의 제조사 곡선에서 ΔP 확인
+            위에서 확인한 <strong className="text-[#18323b]">Arterial cannula ΔP</strong>는
+            제조사 시험 조건에서 측정한 <strong className="text-[#18323b]">캐뉼라 자체 압력손실</strong>입니다.
+            실제 arterial line pressure는 환자측 압력과 측정 지점 이후 회로의 압력손실을 함께 반영합니다.
           </p>
-          <p className="rounded-lg bg-[#f3faf9] px-3 py-2 text-sm font-semibold text-[#005559]">
-            캐뉼라 ΔP ≈ 입구압 − 출구압
-          </p>
+          <div className="rounded-lg border border-[#dcebe7] bg-[#f3faf9] px-3 py-3">
+            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#087b80]">동맥측 압력 확인 · 개념도</p>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold leading-6 text-[#18323b]">
+              <span className="rounded-md bg-white px-2 py-1">측정된 arterial line P</span>
+              <span>≈</span>
+              <span className="rounded-md bg-white px-2 py-1">환자 MAP</span>
+              <span>+</span>
+              <span className="rounded-md bg-white px-2 py-1">Cannula ΔP</span>
+              <span>+</span>
+              <span className="rounded-md bg-white px-2 py-1">센서 이후 회로 ΔP</span>
+            </div>
+          </div>
           <p className="text-xs leading-5 text-[#52686d]">
-            CPB의 실제 arterial line pressure에는 oxygenator·tubing·환자 혈압 등 다른 요인도 포함됩니다.
+            위 관계는 <strong>센서가 캐뉼라 상류에 있는 정상 유량 상태</strong>에서의 근사입니다.
+            Tubing·connector·filter·oxygenator 중 무엇이 포함되는지는 압력 센서 위치에 따라 다릅니다.
+            실제 평가 시 pump flow, 측정 위치, 환자 MAP와 line 압력 변화를 함께 확인하세요.
           </p>
         </article>
         <article className="cpbu-panel space-y-3">
           <div className="flex items-center gap-2">
             <ArrowRight className="h-4 w-4 text-[#087b80]" aria-hidden="true" />
-            <h3 className="text-base font-bold text-[#18323b]">Venous cannula 추정법</h3>
+            <h3 className="text-base font-bold text-[#18323b]">Venous drainage pressure 해석</h3>
           </div>
           <PressurePathDiagram type="venous" />
           <p className="text-sm leading-6 text-[#52686d]">
-            <strong className="text-[#18323b]">①</strong> 목표 Drainage Flow 입력 →{" "}
-            <strong className="text-[#18323b]">②</strong> 제조사 ΔP로 캐뉼라 저항 참고
+            위에서 확인한 <strong className="text-[#18323b]">Venous cannula ΔP (크기)</strong>는
+            제조사 시험 조건의 캐뉼라 압력손실 참고값입니다.
+            실제 배액은 환자 정맥압, 낙차, VAVD로 형성되는 구동 압력차와
+            캐뉼라·정맥 회로 저항의 영향을 함께 받습니다.
           </p>
-          <p className="rounded-lg bg-[#f3faf9] px-3 py-2 text-sm font-semibold text-[#005559]">
-            실제 Drainage ≠ 캐뉼라 ΔP만으로 결정
-          </p>
+          <div className="rounded-lg border border-[#dcebe7] bg-[#f3faf9] px-3 py-3">
+            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#087b80]">정맥측 배액 확인 · 개념도</p>
+            <div className="space-y-2 text-xs font-semibold leading-5 text-[#18323b]">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-md bg-white px-2 py-1">환자 정맥압</span>
+                <span>−</span>
+                <span className="rounded-md bg-white px-2 py-1">Reservoir 압력 (VAVD)</span>
+                <span>+</span>
+                <span className="rounded-md bg-white px-2 py-1">낙차 효과</span>
+              </div>
+              <div className="flex items-center gap-2 text-[#087b80]">
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>배액 구동 압력차 ≈ Cannula ΔP (크기) + Venous tubing ΔP</span>
+              </div>
+            </div>
+          </div>
           <p className="text-xs leading-5 text-[#52686d]">
-            정맥 환류압·높이차·VAVD·튜브 저항·캐뉼라 위치와 collapse를 함께 확인하세요.
+            VAVD는 캐뉼라 압력손실에 더하는 값이 아니라 reservoir 압력을 낮춰
+            배액 구동 압력차를 변화시키는 요소입니다(압력은 동일 높이 기준으로 해석).
+            Reservoir level, 환자 preload, cannula 위치와 chatter/collapse 여부를 함께 확인하세요.
+            <strong> ΔP만으로 필요한 VAVD 설정값이나 안전한 음압 한계를 산정하지 마세요.</strong>
           </p>
         </article>
       </section>
