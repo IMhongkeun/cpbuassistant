@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { estimateCannulaPressure, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { estimateCannulaPressure, formatCannulaSize, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
@@ -70,6 +70,76 @@ test("multi-term search matches Venous 18 Fr independent of word order and spaci
   for (const query of ["arterial 18", "venous 118", "venous 8Fr", "maquet 18"]) {
     assert.ok(!matchesCannulaSearch(item, query), query)
   }
+})
+
+
+test("HLS PVL codes expose verified nominal Fr without false partial matches", () => {
+  const expected = new Map([
+    ["PVL 2155", 21], ["PVL 2355", 23],
+    ["PVL 2555", 25], ["PVL 2955", 29],
+  ])
+  const venous = source.items.filter((item) => item.model === "HLS Venous Cannula")
+  assert.equal(venous.length, 4)
+  for (const item of venous) {
+    const nominalFr = expected.get(item.orderCode)
+    assert.ok(nominalFr, item.orderCode)
+    assert.equal(item.nominalFr, nominalFr)
+    for (const term of [String(nominalFr), nominalFr + "Fr", "Maquet venous " + nominalFr]) {
+      assert.equal(matchesCannulaSearch(item, term), true, term + ": " + item.orderCode)
+    }
+    assert.ok(formatCannulaSize(item).includes(nominalFr + " Fr"))
+    assert.ok(matchesCannulaSearch(item, item.orderCode))
+    assert.equal(matchesCannulaSearch(item, String(nominalFr) + "0Fr"), false)
+    assert.equal(matchesCannulaSearch(item, "18Fr"), false)
+    for (const different of expected.values()) {
+      if (different !== nominalFr) assert.equal(matchesCannulaSearch(item, different + "Fr"), false)
+    }
+  }
+})
+
+test("NextGen femoral arterial and jugular venous share verified catalog codes by Fr", () => {
+  const bySize = new Map([
+    ["15 Fr", "96570-115"], ["17 Fr", "96570-117"],
+    ["19 Fr", "96570-119"], ["21 Fr", "96570-121"],
+    ["23 Fr", "96570-123"], ["25 Fr", "96570-125"],
+  ])
+  const femoral = source.items.filter((item) => item.model === "Bio-Medicus NextGen Femoral Arterial Cannula")
+  const jugular = source.items.filter((item) => item.model === "Bio-Medicus NextGen Jugular Venous Cannula")
+  assert.equal(femoral.length, bySize.size)
+  assert.equal(jugular.length, bySize.size)
+  for (const arterial of femoral) {
+    const code = bySize.get(arterial.size)
+    assert.ok(code, arterial.size)
+    assert.equal(arterial.orderCode, code)
+    const venous = jugular.find((item) => item.size === arterial.size)
+    assert.ok(venous)
+    assert.equal(venous.orderCode, code)
+    assert.ok(matchesCannulaSearch(arterial, code))
+    assert.ok(matchesCannulaSearch(venous, code))
+    assert.ok(matchesCannulaSearch(arterial, "arterial " + code))
+    assert.ok(matchesCannulaSearch(venous, "venous " + code))
+    assert.ok(!matchesCannulaSearch(arterial, "venous " + code))
+    assert.ok(!matchesCannulaSearch(venous, "arterial " + code))
+  }
+  const sharedCode = source.items.filter((item) => matchesCannulaSearch(item, "96570-119"))
+  assert.deepEqual(new Set(sharedCode.map((item) => item.model)),
+    new Set(["Bio-Medicus NextGen Femoral Arterial Cannula", "Bio-Medicus NextGen Jugular Venous Cannula"]))
+})
+
+test("variant-specific order codes appear in selected cards and chart series", () => {
+  const metalTip = source.items.filter((item) =>
+    item.model === "DLP Single Stage Venous Cannulae with Right Angle Metal Tip" &&
+    item.size.startsWith("18 Fr"))
+  assert.deepEqual(new Set(metalTip.map((item) => item.orderCode)), new Set(["67318", "69318"]))
+  const labels = metalTip.map(formatCannulaSize)
+  assert.equal(new Set(labels).size, 2)
+  for (const item of metalTip) assert.ok(formatCannulaSize(item).includes(item.orderCode))
+  const hls = source.items.find((item) => item.orderCode === "PVL 2155")
+  assert.ok(hls)
+  assert.equal(formatCannulaSize(hls), "PVL 2155 · 21 Fr")
+  assert.ok(browser.includes('return item.model + " · " + formatCannulaSize(item) + ('))
+  assert.ok(browser.includes('{formatCannulaSize(item)}'))
+  assert.ok(browser.includes('<Line key={item.id} name={(index + 1) + ". " + formatCannulaSize(item) +'))
 })
 
 test("linear interpolation respects exact source values and NEVER extrapolates", () => {
