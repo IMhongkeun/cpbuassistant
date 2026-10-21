@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { estimateCannulaPressure, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { estimateCannulaPressure, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -113,16 +113,11 @@ export default function CannulaBrowser() {
   )
 
   const matches = useMemo(() => {
-    const searchTerm = search.trim().toLowerCase()
     return ALL_CURVES.filter((item) => {
       if (manufacturer !== "all" && brandName(item) !== manufacturer) return false
       if (typeFilter === "arterial" && !isArterial(item)) return false
       if (typeFilter === "venous" && isArterial(item)) return false
-      if (!searchTerm) return true
-      return [
-        item.manufacturer, brandName(item), item.model, item.size, item.category,
-        item.orderCode, item.connectorSize, item.seriesLabel,
-      ].some((value) => value.toLowerCase().includes(searchTerm))
+      return matchesCannulaSearch(item, search)
     })
   }, [manufacturer, typeFilter, search])
 
@@ -174,7 +169,7 @@ export default function CannulaBrowser() {
             <input
               type="search" value={search}
               onChange={(event) => { setSearch(event.target.value); setShowAll(false) }}
-              placeholder="제품명, Fr, 카탈로그 코드 검색"
+              placeholder="예: venous 18, arterial 20Fr, 제품 코드"
               aria-label="캐뉼라 검색"
               className="h-11 w-full rounded-lg border border-[#d7e3e1] bg-white pl-10 pr-3 text-sm text-[#18323b] outline-none transition focus:border-[#087b80] focus:ring-2 focus:ring-[#c8e9e6]"
             />
