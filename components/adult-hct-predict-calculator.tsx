@@ -79,6 +79,12 @@ function asNumber(value: string) {
   return value.trim() === "" ? Number.NaN : Number(value)
 }
 
+// AHD interventions are optional: keep inputs visually blank while
+// preserving a zero change in the clinical calculation when omitted.
+function asOptionalAdjustment(value: string) {
+  return value.trim() === "" ? 0 : asNumber(value)
+}
+
 const format = (value: number, digits = 1) =>
   value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
@@ -89,9 +95,9 @@ export default function AdultHctPredictCalculator() {
   const [desiredPreHct, setDesiredPreHct] = useState("")
   const [productHct, setProductHct] = useState("66")
   const [currentHct, setCurrentHct] = useState("")
-  const [crystalloidAdded, setCrystalloidAdded] = useState("0")
-  const [fluidRemoved, setFluidRemoved] = useState("0")
-  const [plannedKrcUnits, setPlannedKrcUnits] = useState("0")
+  const [crystalloidAdded, setCrystalloidAdded] = useState("")
+  const [fluidRemoved, setFluidRemoved] = useState("")
+  const [plannedKrcUnits, setPlannedKrcUnits] = useState("")
   const [desiredOnPumpHct, setDesiredOnPumpHct] = useState("")
 
   const preResult = useMemo(() => {
@@ -123,9 +129,9 @@ export default function AdultHctPredictCalculator() {
       return predictAdultOnPumpHct({
         currentTotalVolumeMl: currentEstimatedVolume,
         currentHctPercent: asNumber(currentHct),
-        krcUnits: asNumber(plannedKrcUnits),
-        crystalloidAddedMl: asNumber(crystalloidAdded),
-        fluidRemovedMl: asNumber(fluidRemoved),
+        krcUnits: asOptionalAdjustment(plannedKrcUnits),
+        crystalloidAddedMl: asOptionalAdjustment(crystalloidAdded),
+        fluidRemovedMl: asOptionalAdjustment(fluidRemoved),
         productHctPercent: asNumber(productHct),
       })
     } catch {
@@ -159,9 +165,9 @@ export default function AdultHctPredictCalculator() {
     setDesiredPreHct("")
     setProductHct("66")
     setCurrentHct("")
-    setCrystalloidAdded("0")
-    setFluidRemoved("0")
-    setPlannedKrcUnits("0")
+    setCrystalloidAdded("")
+    setFluidRemoved("")
+    setPlannedKrcUnits("")
     setDesiredOnPumpHct("")
   }
 
