@@ -8,8 +8,8 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
 const browser = readFileSync(new URL("../components/cannula-browser.tsx", import.meta.url), "utf8")
 
 test("imports only Medtronic and Getinge/Maquet and retains Avalon separate lumens", () => {
-  assert.equal(source.sourceProductCount, 127)
-  assert.equal(source.items.length, 134)
+  assert.equal(source.sourceProductCount, 101)
+  assert.equal(source.items.length, 108)
   assert.deepEqual(new Set(source.items.map((item) => item.manufacturer)),
     new Set(["Getinge / Maquet", "Medtronic"]))
   assert.equal(new Set(source.items.map((item) => item.id)).size, source.items.length)
@@ -18,6 +18,19 @@ test("imports only Medtronic and Getinge/Maquet and retains Avalon separate lume
   assert.ok(source.items.some((item) => item.model.includes("Pediatric") && item.sharedSizeCurve))
   assert.ok(source.items.some((item) => item.model === "EOPA Arterial Cannulae"))
   assert.ok(!source.items.some((item) => item.model === "EOPA 3D Arterial Cannulae"))
+  for (const model of [
+    "DLP Right Angle Single Stage Venous Cannulae",
+    "Select 3D II Arterial Cannulae",
+  ]) {
+    assert.ok(!source.items.some((item) => item.model === model), model)
+  }
+  assert.ok(!source.items.some((item) => /^PAL\b/.test(item.orderCode)))
+  assert.ok(!source.items.some((item) => /^PVS\b/.test(item.orderCode)))
+  for (const code of ["PAS 1315", "PVL 2155", "69318", "67318", "66118"]) {
+    assert.ok(source.items.some((item) => item.orderCode === code), code)
+  }
+  assert.equal(source.items.filter((item) =>
+    item.model === "DLP Single Stage Venous Cannulae with Right Angle Metal Tip").length, 14)
 })
 
 test("source curves are finite, ordered and keep signed Avalon drainage", () => {
@@ -38,7 +51,7 @@ test("source curves are finite, ordered and keep signed Avalon drainage", () => 
 test("multi-term search matches Venous 18 Fr independent of word order and spacing", () => {
   const venous18 = source.items.filter((item) =>
     /venous/i.test(item.category) && /^18\s*Fr\b/i.test(item.size))
-  assert.equal(venous18.length, 4)
+  assert.equal(venous18.length, 3)
   const expectedIds = venous18.map((item) => item.id).sort()
   for (const query of [
     "venous 18", "18 venous", "VENOUS   18FR", "venous 18 Fr",
