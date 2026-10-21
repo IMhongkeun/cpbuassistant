@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { estimateCannulaPressure, formatCannulaSize, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -36,6 +36,8 @@ type CannulaCurve = {
 type ChartRow = { flow: number } & Record<string, number>
 
 const ALL_CURVES = sourceData.items as unknown as CannulaCurve[]
+const CURVE_GROUPS = groupSharedCannulaCurves(ALL_CURVES)
+const GROUP_BY_ID = new Map(CURVE_GROUPS.map((group) => [group.item.id, group]))
 const MAX_COMPARE = 4
 // Variations on one teal hue, matching the existing CPBU dashboard.
 const LINE_COLORS = ["#005559", "#087b80", "#31a3a4", "#8ac4c2"]
@@ -48,8 +50,15 @@ function brandName(item: CannulaCurve) {
   return item.manufacturer === "Getinge / Maquet" ? "Maquet" : "Medtronic"
 }
 
+function curveDisplaySize(item: CannulaCurve) {
+  const group = GROUP_BY_ID.get(item.id)
+  return group && group.variants.length > 1
+    ? item.size + " · 공통 곡선"
+    : formatCannulaSize(item)
+}
+
 function curveLabel(item: CannulaCurve) {
-  return item.model + " · " + formatCannulaSize(item) + (
+  return item.model + " · " + curveDisplaySize(item) + (
     item.semanticType === "drainage" ? " · Drainage" :
     item.semanticType === "infusion" ? " · Infusion" : ""
   )
@@ -114,11 +123,11 @@ export default function CannulaBrowser() {
   )
 
   const matches = useMemo(() => {
-    return ALL_CURVES.filter((item) => {
+    return CURVE_GROUPS.filter(({ item, variants }) => {
       if (manufacturer !== "all" && brandName(item) !== manufacturer) return false
       if (typeFilter === "arterial" && !isArterial(item)) return false
       if (typeFilter === "venous" && isArterial(item)) return false
-      return matchesCannulaSearch(item, search)
+      return variants.some((variant) => matchesCannulaSearch(variant, search))
     })
   }, [manufacturer, typeFilter, search])
 
@@ -209,13 +218,16 @@ export default function CannulaBrowser() {
           </div>
 
           <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
-            {displayed.map((item) => {
+            {displayed.map((group) => {
+              const item = group.item
+              const variantCodes = group.variants.map((variant) => variant.orderCode).join(" / ")
               const checked = selectedIds.includes(item.id)
               const disabled = !checked && selectedIds.length >= MAX_COMPARE
               return (
                 <button key={item.id} type="button" disabled={disabled} onClick={() => toggle(item.id)}
                   aria-pressed={checked}
-                  aria-label={curveLabel(item) + (checked ? " 비교에서 제외" : " 비교에 추가")}
+                  aria-label={curveLabel(item) + (group.variants.length > 1 ? " · 제품 코드 " + variantCodes : "") +
+                    (checked ? " 비교에서 제외" : " 비교에 추가")}
                   className={"flex w-full items-center gap-3 rounded-xl border p-3 text-left transition " + (
                     checked ? "border-[#087b80] bg-[#f0faf8]" :
                     disabled ? "cursor-not-allowed border-[#e7eeec] bg-[#fafbfb] opacity-55" :
@@ -231,10 +243,20 @@ export default function CannulaBrowser() {
                     </span>
                     <span className="block break-words text-sm font-semibold leading-5 text-[#18323b]">{item.model}</span>
                     <span className="block break-words text-xs leading-5 text-[#52686d]">
-                      {formatCannulaSize(item)}
+                      {curveDisplaySize(item)}
                       {item.semanticType === "infusion" ? " · Infusion" :
                         item.semanticType === "drainage" ? " · Drainage" : ""}
                     </span>
+                    {group.variants.length > 1 && (
+                      <>
+                        <span className="mt-1 block text-[11px] leading-4 text-[#087b80]">
+                          커넥터 {group.variants.length}종 · 같은 Fr의 공통 압력–유량 곡선
+                        </span>
+                        <span className="block break-words text-[11px] leading-4 text-[#52686d]">
+                          제품 코드: {variantCodes}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </button>
               )
@@ -337,7 +359,7 @@ export default function CannulaBrowser() {
                       <ReferenceLine x={targetFlow} stroke="#94aaa6" strokeDasharray="4 4" />
                     )}
                     {selected.map((item, index) => (
-                      <Line key={item.id} name={(index + 1) + ". " + formatCannulaSize(item) +
+                      <Line key={item.id} name={(index + 1) + ". " + curveDisplaySize(item) +
                           (item.semanticType !== "pressure-drop" ? " " + item.seriesLabel : "")}
                         dataKey={item.id} type="linear" stroke={LINE_COLORS[index]}
                         strokeWidth={2.6} dot={false} activeDot={{ r: 4 }}
@@ -364,6 +386,18 @@ export default function CannulaBrowser() {
                       <p>자료: {item.sourceLabel}</p>
                       {item.sharedSizeCurve && (
                         <p>같은 Fr 제품의 공통 제조사 곡선이며, 커넥터별 독립 측정값이 아닙니다.</p>
+                      )}
+                      {(GROUP_BY_ID.get(item.id)?.variants.length ?? 0) > 1 && (
+                        <div className="space-y-1">
+                          <p className="font-semibold text-[#18323b]">연결 가능한 커넥터별 제품 코드</p>
+                          <ul className="list-disc space-y-0.5 pl-4">
+                            {GROUP_BY_ID.get(item.id)?.variants.map((variant) => (
+                              <li key={variant.id}>
+                                {variant.orderCode} · {variant.connectorSize}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                       {item.sourceUrl && (
                         <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer"
