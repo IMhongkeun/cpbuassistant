@@ -86,6 +86,52 @@ export function formatCannulaSize(item: Pick<CannulaSearchable, "size" | "orderC
     : sized
 }
 
+
+/**
+ * Collapse products with a manufacturer-shared pressure curve into one
+ * selectable curve. Every connector variant remains searchable and visible
+ * in the group; curves with distinct measurement points remain separate.
+ */
+export type SharedCannulaCurve = {
+  manufacturer: string
+  model: string
+  size: string
+  sharedSizeCurve: boolean
+  points: readonly PressurePoint[]
+}
+
+export type CannulaCurveGroup<T> = {
+  item: T
+  variants: T[]
+}
+
+export function groupSharedCannulaCurves<T extends SharedCannulaCurve>(
+  items: readonly T[],
+): CannulaCurveGroup<T>[] {
+  const groups: CannulaCurveGroup<T>[] = []
+  const sharedByCurve = new Map<string, CannulaCurveGroup<T>>()
+
+  for (const item of items) {
+    if (!item.sharedSizeCurve) {
+      groups.push({ item, variants: [item] })
+      continue
+    }
+
+    // Include full source points: do not collapse future models that have
+    // multiple real curves for the same Fr.
+    const key = JSON.stringify([item.manufacturer, item.model, item.size, item.points])
+    const group = sharedByCurve.get(key)
+    if (group) {
+      group.variants.push(item)
+    } else {
+      const next = { item, variants: [item] }
+      sharedByCurve.set(key, next)
+      groups.push(next)
+    }
+  }
+  return groups
+}
+
 /** The fifth unique curve cannot be added; selected curves can always be removed. */
 export function toggleCannulaSelection(ids: readonly string[], id: string, limit = 4): string[] {
   if (ids.includes(id)) return ids.filter((current) => current !== id)
