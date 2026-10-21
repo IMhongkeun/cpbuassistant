@@ -34,7 +34,7 @@ type CannulaCurve = {
 }
 type ChartRow = { flow: number } & Record<string, number>
 
-const ALL_CURVES = sourceData.items as CannulaCurve[]
+const ALL_CURVES = sourceData.items as unknown as CannulaCurve[]
 const MAX_COMPARE = 4
 // Variations on one teal hue, matching the existing CPBU dashboard.
 const LINE_COLORS = ["#005559", "#087b80", "#31a3a4", "#8ac4c2"]
@@ -136,7 +136,7 @@ export default function CannulaBrowser() {
     const rows = new Map<number, ChartRow>()
     selected.forEach((item) => {
       item.points.forEach(([flow, signedPressure]) => {
-        const row = rows.get(flow) || { flow }
+        const row: ChartRow = rows.get(flow) || { flow }
         row[item.id] = Math.abs(signedPressure)
         rows.set(flow, row)
       })
