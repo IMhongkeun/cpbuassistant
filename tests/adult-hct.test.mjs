@@ -189,7 +189,7 @@ test("optional AHD changes start and reset blank but use zero for omitted calcul
     assert.ok(component.includes(`${setter}("")`), field + " reset")
     assert.ok(component.includes(`asOptionalAdjustment(${field})`), field + " parse")
   }
-  assert.match(component, /value\\.trim\\(\\) === "" \\? 0 : asNumber\\(value\\)/)
+  assert.ok(component.includes('value.trim() === "" ? 0 : asNumber(value)'))
   // The model already supports explicit zero; the optional blank maps to that baseline.
   const baseline = predictAdultOnPumpHct({
     currentTotalVolumeMl: 5000, currentHctPercent: 25,
