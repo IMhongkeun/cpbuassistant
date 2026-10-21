@@ -1,21 +1,23 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { estimateCannulaPressure, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { estimateCannulaPressure, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
 const browser = readFileSync(new URL("../components/cannula-browser.tsx", import.meta.url), "utf8")
 
 test("imports only Medtronic and Getinge/Maquet and retains Avalon separate lumens", () => {
-  assert.equal(source.sourceProductCount, 129)
-  assert.equal(source.items.length, 136)
+  assert.equal(source.sourceProductCount, 127)
+  assert.equal(source.items.length, 134)
   assert.deepEqual(new Set(source.items.map((item) => item.manufacturer)),
     new Set(["Getinge / Maquet", "Medtronic"]))
   assert.equal(new Set(source.items.map((item) => item.id)).size, source.items.length)
   assert.equal(source.items.filter((item) => item.semanticType === "drainage").length, 7)
   assert.equal(source.items.filter((item) => item.semanticType === "infusion").length, 7)
   assert.ok(source.items.some((item) => item.model.includes("Pediatric") && item.sharedSizeCurve))
+  assert.ok(source.items.some((item) => item.model === "EOPA Arterial Cannulae"))
+  assert.ok(!source.items.some((item) => item.model === "EOPA 3D Arterial Cannulae"))
 })
 
 test("source curves are finite, ordered and keep signed Avalon drainage", () => {
@@ -31,6 +33,30 @@ test("source curves are finite, ordered and keep signed Avalon drainage", () => 
   }
   assert.ok(source.items.filter((item) => item.semanticType === "drainage")
     .every((item) => item.points.some((point) => point[1] < 0)))
+})
+
+test("multi-term search matches Venous 18 Fr independent of word order and spacing", () => {
+  const venous18 = source.items.filter((item) =>
+    /venous/i.test(item.category) && /^18\s*Fr\b/i.test(item.size))
+  assert.equal(venous18.length, 4)
+  const expectedIds = venous18.map((item) => item.id).sort()
+  for (const query of [
+    "venous 18", "18 venous", "VENOUS   18FR", "venous 18 Fr",
+    "Medtronic venous 18", "DLP 18Fr venous",
+  ]) {
+    assert.deepEqual(
+      source.items.filter((item) => matchesCannulaSearch(item, query)).map((item) => item.id).sort(),
+      expectedIds, "query: " + query,
+    )
+  }
+  const item = venous18.find((curve) => curve.orderCode === "66118")
+  assert.ok(item)
+  for (const query of ["DLP 66118", "DLP 661", "  "]) {
+    assert.ok(matchesCannulaSearch(item, query), query)
+  }
+  for (const query of ["arterial 18", "venous 118", "venous 8Fr", "maquet 18"]) {
+    assert.ok(!matchesCannulaSearch(item, query), query)
+  }
 })
 
 test("linear interpolation respects exact source values and NEVER extrapolates", () => {
@@ -59,6 +85,7 @@ test("navigation, search, chart, ranges and dual diagrams stay integrated", () =
   assert.match(page, /\{ id: "cannula", label: "Cannula" \}/)
   assert.match(page, /activeTab === "cannula" && <CannulaBrowser \/>/)
   assert.match(browser, /setSearch\(/)
+  assert.match(browser, /matchesCannulaSearch\(item, search\)/)
   assert.match(browser, /toggleCannulaSelection\(previous, id, MAX_COMPARE\)/)
   assert.match(browser, /estimateCannulaPressure\(item.points, targetFlow\)/)
   assert.match(browser, /ResponsiveContainer/)
