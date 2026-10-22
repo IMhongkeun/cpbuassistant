@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -13,7 +14,7 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { estimateCannulaPressure, compareCannulaManufacturers, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -37,6 +38,7 @@ type ChartRow = { flow: number } & Record<string, number>
 
 const ALL_CURVES = sourceData.items as unknown as CannulaCurve[]
 const CURVE_GROUPS = groupSharedCannulaCurves(ALL_CURVES)
+  .sort((a, b) => compareCannulaManufacturers(a.item, b.item))
 const GROUP_BY_ID = new Map(CURVE_GROUPS.map((group) => [group.item.id, group]))
 const MAX_COMPARE = 4
 // Variations on one teal hue, matching the existing CPBU dashboard.
@@ -66,6 +68,17 @@ function curveLabel(item: CannulaCurve) {
 
 function roundPressure(value: number) {
   return (Math.round(value * 10) / 10).toFixed(1)
+}
+
+// Keep Fr for identification, but omit order code, length and connector details
+// from the compact chart comparison (full metadata stays in the search list).
+function compactCurveLabel(item: CannulaCurve) {
+  const fr = typeof item.nominalFr === "number"
+    ? item.nominalFr + " Fr"
+    : item.size.match(/\b\d+(?:\.\d+)?\s*Fr\b/i)?.[0].replace(/\s+/g, " ") ?? ""
+  const lumen = item.semanticType === "drainage" ? "Drainage · " :
+    item.semanticType === "infusion" ? "Infusion · " : ""
+  return lumen + item.model.replace(/\s+Cannulae?$/i, "") + (fr ? " · " + fr : "")
 }
 
 function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
@@ -115,6 +128,7 @@ export default function CannulaBrowser() {
   const [showAll, setShowAll] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [flowText, setFlowText] = useState("4")
+  const [previewFlow, setPreviewFlow] = useState<number | null>(null)
 
   const selected = useMemo(
     () => selectedIds.map((id) => ALL_CURVES.find((item) => item.id === id))
@@ -134,6 +148,16 @@ export default function CannulaBrowser() {
   const displayed = showAll ? matches : matches.slice(0, 12)
   const targetFlow = flowText.trim() === "" ? Number.NaN : Number(flowText)
   const validFlow = Number.isFinite(targetFlow) && targetFlow >= 0
+  const chartFlow = previewFlow ?? (validFlow ? targetFlow : null)
+
+  // Recharts provides the source-curve flow at the pointer/touch position.
+  // A single common flow is then interpolated for every selected cannula,
+  // without ever extrapolating outside that cannula's measured range.
+  const handleChartMove = (state: { activeLabel?: string | number }) => {
+    if (state?.activeLabel === undefined || state.activeLabel === null) return
+    const flow = Number(state.activeLabel)
+    if (Number.isFinite(flow)) setPreviewFlow(flow)
+  }
 
   // Each series only contains manufacturer-supplied points. No artificial
   // origin, regression, smoothing or extrapolated data is added.
@@ -156,6 +180,7 @@ export default function CannulaBrowser() {
 
   const toggle = (id: string) => {
     setSelectedIds((previous) => toggleCannulaSelection(previous, id, MAX_COMPARE))
+    setPreviewFlow(null)
   }
 
   return (
@@ -282,7 +307,7 @@ export default function CannulaBrowser() {
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-base font-bold text-[#18323b]">압력–유량 그래프</h3>
             <button type="button" disabled={selected.length === 0}
-              onClick={() => setSelectedIds([])}
+              onClick={() => { setSelectedIds([]); setPreviewFlow(null) }}
               className="text-xs font-semibold text-[#087b80] hover:underline disabled:cursor-not-allowed disabled:opacity-40">
               선택 초기화
             </button>
@@ -292,7 +317,7 @@ export default function CannulaBrowser() {
               목표 혈류량 (L/min)
               <input id="cannula-target-flow" type="number" inputMode="decimal"
                 min="0" step="0.1" value={flowText}
-                onChange={(event) => setFlowText(event.target.value)}
+                onChange={(event) => { setFlowText(event.target.value); setPreviewFlow(null) }}
                 className="mt-2 h-11 w-full rounded-lg border border-[#d7e3e1] bg-white px-3 text-base font-semibold tabular-nums text-[#18323b] outline-none focus:border-[#087b80] focus:ring-2 focus:ring-[#c8e9e6]" />
             </label>
             <span className="pb-3 text-xs text-[#52686d]">선택 {selected.length} / {MAX_COMPARE}</span>
@@ -300,48 +325,30 @@ export default function CannulaBrowser() {
           {!validFlow && <p role="alert" className="text-xs text-[#a34343]">0 이상의 혈류량을 입력하세요.</p>}
           {selected.length ? (
             <>
-              <div className="space-y-2">
-                {selected.map((item, index) => {
-                  const estimate = validFlow ? estimateCannulaPressure(item.points, targetFlow) : null
-                  const negative = item.semanticType === "drainage"
-                  const range = item.points
-                  return (
-                    <div key={item.id} className="rounded-lg border border-[#e0eae8] bg-[#fbfdfc] p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex min-w-0 gap-2">
-                          <span aria-hidden="true" className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: LINE_COLORS[index] }} />
-                          <div className="min-w-0">
-                            <p className="break-words text-xs font-semibold text-[#18323b]">{curveLabel(item)}</p>
-                            <p className="mt-1 text-[11px] text-[#657a7e]">
-                              {brandName(item)} · {range[0][0].toFixed(2)}–{range[range.length - 1][0].toFixed(2)} L/min
-                            </p>
-                          </div>
-                        </div>
-                        <button type="button" onClick={() => toggle(item.id)}
-                          aria-label={curveLabel(item) + " 제외"}
-                          className="rounded p-1 text-[#52686d] hover:bg-[#e9f5f4] hover:text-[#005559]">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <div className="mt-2 text-right">
-                        {estimate === null ? (
-                          <span className="text-xs font-semibold text-[#9b5d3e]">측정 범위 밖 · 추정 불가</span>
-                        ) : (
-                          <span className="text-xl font-bold tabular-nums text-[#005559]">
-                            {negative && estimate !== 0 ? "−" : ""}{roundPressure(Math.abs(estimate))}
-                            <span className="ml-1 text-xs font-normal text-[#52686d]">mmHg</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="flex flex-wrap gap-2" aria-label="선택한 캐뉼라">
+                {selected.map((item, index) => (
+                  <span key={item.id}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[#dfe9e7] bg-[#f7fbfa] py-1 pl-2 pr-1 text-xs text-[#18323b]">
+                    <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: LINE_COLORS[index] }} />
+                    <span className="min-w-0 max-w-[180px] truncate sm:max-w-[230px]"
+                      title={compactCurveLabel(item)}>{compactCurveLabel(item)}</span>
+                    <button type="button" onClick={() => toggle(item.id)}
+                      aria-label={curveLabel(item) + " 제외"}
+                      className="rounded p-1 text-[#52686d] hover:bg-[#e9f5f4] hover:text-[#005559]">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
               </div>
               <div role="img" aria-label="선택한 캐뉼라의 압력손실 크기 대 혈류량 비교 그래프"
                 className="h-[300px] w-full min-w-0 rounded-lg border border-[#e0eae8] bg-white px-1 pb-2 pt-4 sm:h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartRows} margin={{ top: 8, right: 14, bottom: 18, left: 0 }}>
+                  {/* Recharts 2.15 maps touch-start to onMouseDown and touch-move to onMouseMove.
+                      This also updates the selected Flow for an initial stationary touch. */}
+                  <LineChart data={chartRows} margin={{ top: 8, right: 14, bottom: 18, left: 0 }}
+                    onMouseDown={handleChartMove} onMouseMove={handleChartMove}
+                    onClick={handleChartMove} onMouseLeave={() => setPreviewFlow(null)}>
                     <CartesianGrid stroke="#e6efed" strokeDasharray="3 5" />
                     <XAxis dataKey="flow" type="number" domain={[0, "dataMax"]}
                       tick={{ fontSize: 11, fill: "#52686d" }}
@@ -350,23 +357,76 @@ export default function CannulaBrowser() {
                     <YAxis domain={[0, "auto"]} tick={{ fontSize: 11, fill: "#52686d" }}
                       label={{ value: "|ΔP| (mmHg)", angle: -90, position: "insideLeft", fontSize: 11, fill: "#52686d" }}
                       width={55} />
-                    <Tooltip
-                      labelFormatter={(value) => "Flow " + Number(value).toFixed(2) + " L/min"}
-                      formatter={(value, name) => [roundPressure(Number(value)) + " mmHg", String(name)]}
-                      contentStyle={{ borderRadius: 10, borderColor: "#dfe9e7", fontSize: 12 }}
-                    />
+                    <Tooltip content={() => null}
+                      cursor={{ stroke: "#94aaa6", strokeDasharray: "4 4" }} />
                     {validFlow && targetFlow <= maxFlow && (
                       <ReferenceLine x={targetFlow} stroke="#94aaa6" strokeDasharray="4 4" />
                     )}
                     {selected.map((item, index) => (
-                      <Line key={item.id} name={(index + 1) + ". " + curveDisplaySize(item) +
-                          (item.semanticType !== "pressure-drop" ? " " + item.seriesLabel : "")}
+                      <Line key={item.id} name={compactCurveLabel(item)}
                         dataKey={item.id} type="linear" stroke={LINE_COLORS[index]}
-                        strokeWidth={2.6} dot={false} activeDot={{ r: 4 }}
+                        strokeWidth={2.6} dot={false} activeDot={false}
                         connectNulls isAnimationActive={false} />
                     ))}
+                    {chartFlow !== null && selected.map((item, index) => {
+                      // Raw curves have different sampled Flow coordinates. Recharts'
+                      // activeDot may therefore render only one of several curves.
+                      // Interpolate each selected curve at the *same* Flow as the
+                      // comparison table; the graph itself plots |ΔP|.
+                      const pressure = estimateCannulaPressure(item.points, chartFlow)
+                      if (pressure === null) return null
+                      return (
+                        <ReferenceDot key={"selected-pressure-" + item.id}
+                          x={chartFlow} y={Math.abs(pressure)} r={5}
+                          fill={LINE_COLORS[index]} stroke="#ffffff" strokeWidth={2}
+                          isFront ifOverflow="hidden" />
+                      )
+                    })}
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="rounded-lg border border-[#e0eae8] bg-white px-3 py-2.5"
+                aria-label="그래프 바로 아래 혈류량별 압력 비교">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-[#18323b]">
+                    Flow <span className="ml-1 tabular-nums text-[#005559]">
+                      {chartFlow === null ? "—" : chartFlow.toFixed(2)} L/min
+                    </span>
+                  </p>
+                  <span className="text-[10px] text-[#657a7e]">
+                    {previewFlow === null ? "목표 혈류량 기준" : "그래프 선택 지점"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_52px_72px] gap-1.5 border-b border-[#e6efed] pb-1.5 text-[10px] font-semibold text-[#657a7e]">
+                  <span>Cannula · Fr</span>
+                  <span className="text-right">Flow</span>
+                  <span className="text-right">ΔP</span>
+                </div>
+                {selected.map((item, index) => {
+                  const estimate = chartFlow === null ? null : estimateCannulaPressure(item.points, chartFlow)
+                  return (
+                    <div key={item.id}
+                      className="grid grid-cols-[minmax(0,1fr)_52px_72px] items-center gap-1.5 border-b border-[#edf2f1] py-2 text-xs last:border-b-0">
+                      <span className="flex min-w-0 items-center gap-1.5" title={compactCurveLabel(item)}>
+                        <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: LINE_COLORS[index] }} />
+                        <span className="min-w-0 truncate text-[#18323b]">{compactCurveLabel(item)}</span>
+                      </span>
+                      <span className="text-right tabular-nums text-[#52686d]">
+                        {chartFlow === null ? "—" : chartFlow.toFixed(2)}
+                      </span>
+                      <span className={"text-right font-semibold tabular-nums " +
+                        (estimate === null ? "text-[#9b5d3e]" : "text-[#005559]")}
+                        title={estimate === null ? "측정 범위 밖 · 추정 불가" : "제조사 압력–유량 곡선 기준"}>
+                        {estimate === null ? (chartFlow === null ? "—" : "범위 밖") :
+                          (estimate < 0 ? "−" : "") + roundPressure(Math.abs(estimate))}
+                      </span>
+                    </div>
+                  )
+                })}
+                <p className="mt-1.5 text-[10px] text-[#657a7e]">
+                  Flow: L/min · ΔP: mmHg (제조사 측정 범위 내 선형 보간)
+                </p>
               </div>
               {hasMixedTypes && (
                 <p className="text-xs text-[#9b5d3e]">
