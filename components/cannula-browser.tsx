@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -75,7 +76,9 @@ function compactCurveLabel(item: CannulaCurve) {
   const fr = typeof item.nominalFr === "number"
     ? item.nominalFr + " Fr"
     : item.size.match(/\b\d+(?:\.\d+)?\s*Fr\b/i)?.[0].replace(/\s+/g, " ") ?? ""
-  return item.model.replace(/\s+Cannulae?$/i, "") + (fr ? " · " + fr : "")
+  const lumen = item.semanticType === "drainage" ? "Drainage · " :
+    item.semanticType === "infusion" ? "Infusion · " : ""
+  return lumen + item.model.replace(/\s+Cannulae?$/i, "") + (fr ? " · " + fr : "")
 }
 
 function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
@@ -361,9 +364,23 @@ export default function CannulaBrowser() {
                     {selected.map((item, index) => (
                       <Line key={item.id} name={compactCurveLabel(item)}
                         dataKey={item.id} type="linear" stroke={LINE_COLORS[index]}
-                        strokeWidth={2.6} dot={false} activeDot={{ r: 4 }}
+                        strokeWidth={2.6} dot={false} activeDot={false}
                         connectNulls isAnimationActive={false} />
                     ))}
+                    {chartFlow !== null && selected.map((item, index) => {
+                      // Raw curves have different sampled Flow coordinates. Recharts'
+                      // activeDot may therefore render only one of several curves.
+                      // Interpolate each selected curve at the *same* Flow as the
+                      // comparison table; the graph itself plots |ΔP|.
+                      const pressure = estimateCannulaPressure(item.points, chartFlow)
+                      if (pressure === null) return null
+                      return (
+                        <ReferenceDot key={"selected-pressure-" + item.id}
+                          x={chartFlow} y={Math.abs(pressure)} r={5}
+                          fill={LINE_COLORS[index]} stroke="#ffffff" strokeWidth={2}
+                          isFront ifOverflow="hidden" />
+                      )
+                    })}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
