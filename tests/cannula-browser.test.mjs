@@ -290,3 +290,34 @@ test("chart preview displays four compact, synchronized flow/pressure rows below
     assert.equal(estimateCannulaPressure(item.points, item.points.at(-1)[0] + 0.01), null)
   }
 })
+
+test("selected-curve markers share flow and plot signed Drainage magnitude", () => {
+  assert.ok(browser.includes("ReferenceDot"))
+  assert.ok(browser.includes('activeDot={false}'), "disable native dots based on sparse raw points")
+  assert.ok(browser.includes('chartFlow !== null && selected.map((item, index) => {'))
+  assert.ok(browser.includes('estimateCannulaPressure(item.points, chartFlow)'))
+  assert.ok(browser.includes('if (pressure === null) return null'), "out-of-range curves must not have dots")
+  assert.ok(browser.includes('x={chartFlow} y={Math.abs(pressure)}'), "one x shared by all curves and magnitude on graph")
+  assert.ok(browser.includes('fill={LINE_COLORS[index]}'), "dot color follows its selected curve")
+  assert.ok(browser.includes('isFront ifOverflow="hidden"'))
+  assert.ok(browser.includes('item.semanticType === "drainage" ? "Drainage · "'))
+  assert.ok(browser.includes('item.semanticType === "infusion" ? "Infusion · "'))
+
+  const drain = source.items.find((item) =>
+    item.model.startsWith("Avalon Elite") && item.semanticType === "drainage")
+  const infusion = source.items.find((item) =>
+    item.model.startsWith("Avalon Elite") && item.semanticType === "infusion" &&
+    item.size === drain?.size)
+  assert.ok(drain && infusion, "two lumens for the same Avalon Fr should be identifiable")
+  const sharedMin = Math.max(drain.points[0][0], infusion.points[0][0])
+  const sharedMax = Math.min(drain.points.at(-1)[0], infusion.points.at(-1)[0])
+  assert.ok(sharedMin < sharedMax)
+  const flow = (sharedMin + sharedMax) / 2
+  const dP = estimateCannulaPressure(drain.points, flow)
+  const iP = estimateCannulaPressure(infusion.points, flow)
+  assert.ok(dP !== null && iP !== null)
+  assert.ok(dP < 0, "Drainage must preserve signed manufacturer result")
+  assert.ok(iP > 0, "Infusion must preserve signed manufacturer result")
+  assert.ok(Math.abs(dP) > 0 && Math.abs(iP) > 0)
+  assert.notEqual(Math.abs(dP), Math.abs(iP), "the two magnitudes should plot at different heights")
+})
