@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { compareCannulaManufacturers, estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
@@ -139,7 +139,7 @@ test("variant-specific order codes appear in selected cards and chart series", (
   assert.equal(formatCannulaSize(hls), "PVL 2155 · 21 Fr")
   assert.ok(browser.includes('return item.model + " · " + curveDisplaySize(item) + ('))
   assert.ok(browser.includes('{curveDisplaySize(item)}'))
-  assert.ok(browser.includes('<Line key={item.id} name={(index + 1) + ". " + curveDisplaySize(item) +'))
+  assert.ok(browser.includes('<Line key={item.id} name={compactCurveLabel(item)}'))
 })
 
 
@@ -227,7 +227,7 @@ test("navigation, search, chart, ranges and dual diagrams stay integrated", () =
   assert.match(browser, /setSearch\(/)
   assert.match(browser, /matchesCannulaSearch\(variant, search\)/)
   assert.match(browser, /toggleCannulaSelection\(previous, id, MAX_COMPARE\)/)
-  assert.match(browser, /estimateCannulaPressure\(item.points, targetFlow\)/)
+  assert.match(browser, /estimateCannulaPressure\(item.points, chartFlow\)/)
   assert.match(browser, /ResponsiveContainer/)
   assert.match(browser, /connectNulls/)
   assert.match(browser, /PressurePathDiagram type="arterial"/)
@@ -241,4 +241,52 @@ test("navigation, search, chart, ranges and dual diagrams stay integrated", () =
   assert.ok(browser.includes("chatter/collapse"))
   assert.match(browser, /안전한 음압 한계/)
   assert.match(browser, /측정 범위 밖 · 추정 불가/)
+})
+
+
+test("all-manufacturer cannula catalog prioritizes Medtronic over Maquet/HLS", () => {
+  const grouped = groupSharedCannulaCurves(source.items)
+    .sort((a, b) => compareCannulaManufacturers(a.item, b.item))
+  const firstMaquetIndex = grouped.findIndex(({ item }) => item.manufacturer !== "Medtronic")
+  assert.ok(firstMaquetIndex > 0, "some Medtronic entries should be first")
+  assert.ok(grouped.slice(0, firstMaquetIndex).every(({ item }) => item.manufacturer === "Medtronic"))
+  assert.ok(grouped.slice(firstMaquetIndex).every(({ item }) => item.manufacturer !== "Medtronic"))
+  const hls = grouped.filter(({ item }) => item.model.includes("HLS"))
+  assert.ok(hls.length > 0)
+  assert.ok(hls.every(({ item }) => item.manufacturer === "Getinge / Maquet"))
+  // Filtering by type and a matching query preserves the manufacturer priority.
+  const matchingArterial = grouped.filter(({ item }) =>
+    /arterial/i.test(item.category) && matchesCannulaSearch(item, "arterial"))
+  const firstOther = matchingArterial.findIndex(({ item }) => item.manufacturer !== "Medtronic")
+  assert.ok(firstOther > 0)
+  assert.ok(matchingArterial.slice(0, firstOther).every(({ item }) => item.manufacturer === "Medtronic"))
+  assert.ok(browser.includes(".sort((a, b) => compareCannulaManufacturers(a.item, b.item))"))
+})
+
+test("chart preview displays four compact, synchronized flow/pressure rows below the graph", () => {
+  assert.ok(browser.includes("const [previewFlow, setPreviewFlow] = useState<number | null>(null)"))
+  assert.ok(browser.includes("const chartFlow = previewFlow ?? (validFlow ? targetFlow : null)"))
+  for (const handler of ["onMouseMove={handleChartMove}", "onTouchStart={handleChartMove}",
+    "onTouchMove={handleChartMove}", "onClick={handleChartMove}"]) {
+    assert.ok(browser.includes(handler), handler)
+  }
+  assert.ok(browser.includes('<Tooltip content={() => null}'), "floating popup no longer obscures graph")
+  assert.ok(browser.includes('aria-label="그래프 바로 아래 혈류량별 압력 비교"'))
+  assert.ok(browser.includes("estimateCannulaPressure(item.points, chartFlow)"))
+  assert.ok(browser.includes("compactCurveLabel(item)"))
+  assert.ok(browser.includes('item.model.replace(/\\s+Cannulae?$/i, "")'), "full model remains identifiable")
+  assert.ok(browser.includes('item.nominalFr + " Fr"'), "Fr is retained")
+  assert.ok(browser.includes('title={estimate === null ? "측정 범위 밖 · 추정 불가"'))
+  assert.ok(browser.indexOf('aria-label="그래프 바로 아래 혈류량별 압력 비교"') >
+    browser.indexOf('aria-label="선택한 캐뉼라의 압력손실 크기 대 혈류량 비교 그래프"'))
+  // Each chosen device is interpolated independently at exactly the same pointer flow.
+  const arterial = source.items.find((item) => item.orderCode === "PAS 2315")
+  const medtronic = source.items.find((item) => item.manufacturer === "Medtronic" &&
+    /arterial/i.test(item.category) && item.points[0][0] <= 2 &&
+    item.points.at(-1)[0] >= 2)
+  assert.ok(arterial && medtronic)
+  for (const item of [arterial, medtronic]) {
+    assert.ok(estimateCannulaPressure(item.points, 2) !== null)
+    assert.equal(estimateCannulaPressure(item.points, item.points.at(-1)[0] + 0.01), null)
+  }
 })
