@@ -132,6 +132,14 @@ export function groupSharedCannulaCurves<T extends SharedCannulaCurve>(
   return groups
 }
 
+/** Stable manufacturer priority: Medtronic curves first, Maquet/HLS afterward. */
+export function compareCannulaManufacturers(
+  a: Pick<CannulaSearchable, "manufacturer">,
+  b: Pick<CannulaSearchable, "manufacturer">,
+): number {
+  return Number(b.manufacturer === "Medtronic") - Number(a.manufacturer === "Medtronic")
+}
+
 /** The fifth unique curve cannot be added; selected curves can always be removed. */
 export function toggleCannulaSelection(ids: readonly string[], id: string, limit = 4): string[] {
   if (ids.includes(id)) return ids.filter((current) => current !== id)
