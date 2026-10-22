@@ -344,9 +344,9 @@ export default function CannulaBrowser() {
               <div role="img" aria-label="선택한 캐뉼라의 압력손실 크기 대 혈류량 비교 그래프"
                 className="h-[300px] w-full min-w-0 rounded-lg border border-[#e0eae8] bg-white px-1 pb-2 pt-4 sm:h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
+                  {/* Recharts 2.15 maps touch-start to onMouseDown and touch-move to onMouseMove.
+                      This also updates the selected Flow for an initial stationary touch. */}
                   <LineChart data={chartRows} margin={{ top: 8, right: 14, bottom: 18, left: 0 }}
-                    // Recharts 2.15 forwards touch-start to onMouseDown and touch-move to onMouseMove.
-                    // Use both mouse callbacks so a stationary first touch updates the selected Flow.
                     onMouseDown={handleChartMove} onMouseMove={handleChartMove}
                     onClick={handleChartMove} onMouseLeave={() => setPreviewFlow(null)}>
                     <CartesianGrid stroke="#e6efed" strokeDasharray="3 5" />
