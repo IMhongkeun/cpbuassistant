@@ -266,10 +266,15 @@ test("all-manufacturer cannula catalog prioritizes Medtronic over Maquet/HLS", (
 test("chart preview displays four compact, synchronized flow/pressure rows below the graph", () => {
   assert.ok(browser.includes("const [previewFlow, setPreviewFlow] = useState<number | null>(null)"))
   assert.ok(browser.includes("const chartFlow = previewFlow ?? (validFlow ? targetFlow : null)"))
-  for (const handler of ["onMouseMove={handleChartMove}", "onTouchStart={handleChartMove}",
-    "onTouchMove={handleChartMove}", "onClick={handleChartMove}"]) {
+  // Recharts 2.15 invokes onMouseDown when touch-start begins, even without movement.
+  // It invokes onMouseMove for touch-move; direct touch handlers are replaced internally.
+  for (const handler of ["onMouseDown={handleChartMove}", "onMouseMove={handleChartMove}",
+    "onClick={handleChartMove}"]) {
     assert.ok(browser.includes(handler), handler)
   }
+  assert.ok(!browser.includes("onTouchStart={handleChartMove}"), "Recharts overrides direct touch-start handlers")
+  assert.ok(!browser.includes("onTouchMove={handleChartMove}"), "Recharts overrides direct touch-move handlers")
+  assert.ok(browser.includes("Recharts 2.15 maps touch-start to onMouseDown"))
   assert.ok(browser.includes('<Tooltip content={() => null}'), "floating popup no longer obscures graph")
   assert.ok(browser.includes('aria-label="그래프 바로 아래 혈류량별 압력 비교"'))
   assert.ok(browser.includes("estimateCannulaPressure(item.points, chartFlow)"))
