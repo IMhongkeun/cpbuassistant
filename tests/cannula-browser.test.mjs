@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { compareCannulaManufacturers, estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { buildCannulaChartRows, snapCannulaChartFlow, compareCannulaManufacturers, estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
@@ -325,4 +325,68 @@ test("selected-curve markers share flow and plot signed Drainage magnitude", () 
   assert.ok(iP > 0, "Infusion must preserve signed manufacturer result")
   assert.ok(Math.abs(dP) > 0 && Math.abs(iP) > 0)
   assert.notEqual(Math.abs(dP), Math.abs(iP), "the two magnitudes should plot at different heights")
+})
+
+test("chart has every 0.1 L/min inspection point and keeps exact off-grid manufacturer vertices", () => {
+  const curves = [
+    { id: "arterial", points: [[0.15, 15], [0.35, 35]] },
+    { id: "drainage", points: [[0, -3], [0.4, -43]] },
+  ]
+  const rows = buildCannulaChartRows(curves)
+  assert.deepEqual(rows.map((row) => row.flow), [0, 0.1, 0.15, 0.2, 0.3, 0.35, 0.4])
+  const byFlow = new Map(rows.map((row) => [row.flow, row]))
+  // Exact source readings have priority over interpolation and are never overwritten.
+  assert.equal(byFlow.get(0.15).arterial, 15)
+  assert.equal(byFlow.get(0.35).arterial, 35)
+  // All selected cannulas share the same flow even with different sampling points.
+  assert.equal(byFlow.get(0.2).arterial, 20)
+  assert.equal(byFlow.get(0.2).drainage, 23)
+  assert.equal(byFlow.get(0.3).arterial, 30)
+  assert.equal(byFlow.get(0.3).drainage, 33)
+  // A curve has no invented pressure before its first or after its last measurement.
+  assert.equal(byFlow.get(0.1).arterial, undefined)
+  assert.equal(byFlow.get(0.4).arterial, undefined)
+  assert.equal(byFlow.get(0).drainage, 3)
+  assert.equal(byFlow.get(0.4).drainage, 43)
+  assert.deepEqual(buildCannulaChartRows([]), [])
+})
+
+test("0.1 L/min mouse/touch snapping is stable at endpoints and source off-grid flow values", () => {
+  assert.equal(snapCannulaChartFlow(2.04, 5.06), 2)
+  assert.equal(snapCannulaChartFlow(2.05, 5.06), 2.1)
+  assert.equal(snapCannulaChartFlow(2.26, 5.06), 2.3)
+  assert.equal(snapCannulaChartFlow(5.06, 5.06), 5.0,
+    "a source endpoint at 5.06 must not snap to an extrapolated 5.1")
+  for (const flow of [-0.1, Number.NaN, Infinity]) {
+    assert.equal(snapCannulaChartFlow(flow, 4), null)
+  }
+  assert.equal(snapCannulaChartFlow(0.1, -1), null)
+  assert.ok(browser.includes("buildCannulaChartRows(selected)"), "chart must contain interpolated inspection points")
+  assert.ok(browser.includes("snapCannulaChartFlow(Number(state.activeLabel), maxFlow)"),
+    "drag and stationary touches should select a 0.1 L/min common flow")
+  assert.ok(browser.includes("touch-pan-y"), "retain vertical page scrolling while dragging horizontally on mobile")
+  assert.ok(browser.includes("previewFlow === null ? 2 : 1"), "preview flow is displayed to tenths")
+  assert.ok(browser.includes("0.1 L/min 간격"), "explain interpolation step in UI")
+  assert.ok(browser.includes("estimateCannulaPressure(item.points, chartFlow)"),
+    "comparison table and points must use the same interpolated flow")
+})
+
+test("real chart data interpolates for four selected source curves without modifying signed sources", () => {
+  const candidates = source.items.filter((item) => item.points[0][0] <= 1 &&
+    item.points.at(-1)[0] >= 2)
+  const chosen = candidates.slice(0, 4)
+  assert.equal(chosen.length, 4)
+  const originalPoints = chosen.map((item) => JSON.stringify(item.points))
+  const rows = buildCannulaChartRows(chosen)
+  for (const tenth of [10, 11, 12, 15, 18, 20]) {
+    const flow = tenth / 10
+    const row = rows.find((point) => point.flow === flow)
+    assert.ok(row, "missing 0.1 L/min sample " + flow)
+    for (const curve of chosen) {
+      const signed = estimateCannulaPressure(curve.points, flow)
+      assert.equal(row[curve.id], Math.abs(signed), "mismatched pressure at " + flow)
+    }
+  }
+  assert.deepEqual(chosen.map((item) => JSON.stringify(item.points)), originalPoints,
+    "sampling must never edit manufacturer measurements")
 })

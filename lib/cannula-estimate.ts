@@ -26,6 +26,48 @@ export function estimateCannulaPressure(points: readonly PressurePoint[], flowLp
 
 
 /**
+ * Preserve the manufacturer's exact chart vertices while adding a 0.1 L/min
+ * inspection grid. Only fill values inside EACH selected cannula's measured
+ * range; an absent value must never become an extrapolated pressure.
+ * Drainage remains signed in the source and in estimateCannulaPressure;
+ * chart coordinates display |ΔP| only.
+ */
+export type CannulaChartRow = { flow: number } & Record<string, number>
+
+export function buildCannulaChartRows(
+  curves: readonly { id: string; points: readonly PressurePoint[] }[],
+): CannulaChartRow[] {
+  const measuredFlows = curves.flatMap((curve) =>
+    curve.points.map(([flow]) => flow).filter(Number.isFinite))
+  if (measuredFlows.length === 0) return []
+
+  const maxFlow = Math.max(...measuredFlows)
+  if (maxFlow < 0) return []
+  const flows = new Set(measuredFlows)
+  for (let tenth = 0; tenth <= Math.floor(maxFlow * 10 + 1e-8); tenth++) {
+    flows.add(tenth / 10)
+  }
+
+  return [...flows].sort((a, b) => a - b).map((flow) => {
+    const row: CannulaChartRow = { flow }
+    for (const curve of curves) {
+      const pressure = estimateCannulaPressure(curve.points, flow)
+      if (pressure !== null) row[curve.id] = Math.abs(pressure)
+    }
+    return row
+  })
+}
+
+/** Snap chart pointer/touch to tenths, without selecting beyond the plotted domain. */
+export function snapCannulaChartFlow(flow: number, maxFlow: number): number | null {
+  if (!Number.isFinite(flow) || flow < 0 || !Number.isFinite(maxFlow) || maxFlow < 0) return null
+  const maxTenth = Math.floor(maxFlow * 10 + 1e-8)
+  return Math.min(Math.round(flow * 10), maxTenth) / 10
+}
+
+
+
+/**
  * Match every word across cannula fields, including category + French size.
  * Numbers target complete Fr sizes, or prefixes of catalog code components.
  */
