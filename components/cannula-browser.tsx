@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { estimateCannulaPressure, compareCannulaManufacturers, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { buildCannulaChartRows, snapCannulaChartFlow, estimateCannulaPressure, compareCannulaManufacturers, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -34,7 +34,6 @@ type CannulaCurve = {
   sharedSizeCurve: boolean
   points: [number, number][]
 }
-type ChartRow = { flow: number } & Record<string, number>
 
 const ALL_CURVES = sourceData.items as unknown as CannulaCurve[]
 const CURVE_GROUPS = groupSharedCannulaCurves(ALL_CURVES)
@@ -149,33 +148,22 @@ export default function CannulaBrowser() {
   const targetFlow = flowText.trim() === "" ? Number.NaN : Number(flowText)
   const validFlow = Number.isFinite(targetFlow) && targetFlow >= 0
   const chartFlow = previewFlow ?? (validFlow ? targetFlow : null)
-
-  // Recharts provides the source-curve flow at the pointer/touch position.
-  // A single common flow is then interpolated for every selected cannula,
-  // without ever extrapolating outside that cannula's measured range.
-  const handleChartMove = (state: { activeLabel?: string | number }) => {
-    if (state?.activeLabel === undefined || state.activeLabel === null) return
-    const flow = Number(state.activeLabel)
-    if (Number.isFinite(flow)) setPreviewFlow(flow)
-  }
-
-  // Each series only contains manufacturer-supplied points. No artificial
-  // origin, regression, smoothing or extrapolated data is added.
-  const chartRows = useMemo(() => {
-    const rows = new Map<number, ChartRow>()
-    selected.forEach((item) => {
-      item.points.forEach(([flow, signedPressure]) => {
-        const row: ChartRow = rows.get(flow) || { flow }
-        row[item.id] = Math.abs(signedPressure)
-        rows.set(flow, row)
-      })
-    })
-    return [...rows.values()].sort((a, b) => a.flow - b.flow)
-  }, [selected])
-
+  const displayedFlow = chartFlow === null ? "—" : chartFlow.toFixed(previewFlow === null ? 2 : 1)
   const maxFlow = selected.length
     ? Math.max(...selected.map((item) => item.points[item.points.length - 1][0]))
     : 0
+
+  // Recharts active labels now include an inspection grid at 0.1 L/min intervals.
+  // Snap both mouse drag and touch movement to tenths for all selected curves.
+  const handleChartMove = (state: { activeLabel?: string | number }) => {
+    if (state?.activeLabel === undefined || state.activeLabel === null) return
+    const flow = snapCannulaChartFlow(Number(state.activeLabel), maxFlow)
+    if (flow !== null) setPreviewFlow(flow)
+  }
+
+  // Preserve original measured vertices and calculate additional plotting values
+  // only by piecewise linear interpolation inside each manufacturer's data range.
+  const chartRows = useMemo(() => buildCannulaChartRows(selected), [selected])
   const hasMixedTypes = selected.some(isArterial) && selected.some((item) => !isArterial(item))
 
   const toggle = (id: string) => {
@@ -342,7 +330,7 @@ export default function CannulaBrowser() {
                 ))}
               </div>
               <div role="img" aria-label="선택한 캐뉼라의 압력손실 크기 대 혈류량 비교 그래프"
-                className="h-[300px] w-full min-w-0 rounded-lg border border-[#e0eae8] bg-white px-1 pb-2 pt-4 sm:h-[340px]">
+                className="h-[300px] w-full min-w-0 touch-pan-y rounded-lg border border-[#e0eae8] bg-white px-1 pb-2 pt-4 sm:h-[340px]">
                 <ResponsiveContainer width="100%" height="100%">
                   {/* Recharts 2.15 maps touch-start to onMouseDown and touch-move to onMouseMove.
                       This also updates the selected Flow for an initial stationary touch. */}
@@ -369,10 +357,9 @@ export default function CannulaBrowser() {
                         connectNulls isAnimationActive={false} />
                     ))}
                     {chartFlow !== null && selected.map((item, index) => {
-                      // Raw curves have different sampled Flow coordinates. Recharts'
-                      // activeDot may therefore render only one of several curves.
-                      // Interpolate each selected curve at the *same* Flow as the
-                      // comparison table; the graph itself plots |ΔP|.
+                      // Use the same 0.1 L/min Flow for every selected curve,
+                      // even when original manufacturer samples do not align.
+                      // The graph plots |ΔP|; the comparison retains the sign.
                       const pressure = estimateCannulaPressure(item.points, chartFlow)
                       if (pressure === null) return null
                       return (
@@ -390,7 +377,7 @@ export default function CannulaBrowser() {
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-[#18323b]">
                     Flow <span className="ml-1 tabular-nums text-[#005559]">
-                      {chartFlow === null ? "—" : chartFlow.toFixed(2)} L/min
+                      {displayedFlow} L/min
                     </span>
                   </p>
                   <span className="text-[10px] text-[#657a7e]">
@@ -413,7 +400,7 @@ export default function CannulaBrowser() {
                         <span className="min-w-0 truncate text-[#18323b]">{compactCurveLabel(item)}</span>
                       </span>
                       <span className="text-right tabular-nums text-[#52686d]">
-                        {chartFlow === null ? "—" : chartFlow.toFixed(2)}
+                        {displayedFlow}
                       </span>
                       <span className={"text-right font-semibold tabular-nums " +
                         (estimate === null ? "text-[#9b5d3e]" : "text-[#005559]")}
@@ -425,7 +412,7 @@ export default function CannulaBrowser() {
                   )
                 })}
                 <p className="mt-1.5 text-[10px] text-[#657a7e]">
-                  Flow: L/min · ΔP: mmHg (제조사 측정 범위 내 선형 보간)
+                  그래프 터치·드래그: 0.1 L/min 간격 · ΔP: mmHg (제조사 측정 범위 내 선형 보간)
                 </p>
               </div>
               {hasMixedTypes && (
