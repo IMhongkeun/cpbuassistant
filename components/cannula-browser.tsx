@@ -124,7 +124,6 @@ export default function CannulaBrowser() {
   const [search, setSearch] = useState("")
   const [manufacturer, setManufacturer] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [showAll, setShowAll] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [flowText, setFlowText] = useState("4")
   const [previewFlow, setPreviewFlow] = useState<number | null>(null)
@@ -144,7 +143,6 @@ export default function CannulaBrowser() {
     })
   }, [manufacturer, typeFilter, search])
 
-  const displayed = showAll ? matches : matches.slice(0, 12)
   const targetFlow = flowText.trim() === "" ? Number.NaN : Number(flowText)
   const validFlow = Number.isFinite(targetFlow) && targetFlow >= 0
   const chartFlow = previewFlow ?? (validFlow ? targetFlow : null)
@@ -191,7 +189,7 @@ export default function CannulaBrowser() {
             <Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-[#657a7e]" />
             <input
               type="search" value={search}
-              onChange={(event) => { setSearch(event.target.value); setShowAll(false) }}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="예: venous 18, arterial 20Fr, 제품 코드"
               aria-label="캐뉼라 검색"
               className="h-11 w-full rounded-lg border border-[#d7e3e1] bg-white pl-10 pr-3 text-sm text-[#18323b] outline-none transition focus:border-[#087b80] focus:ring-2 focus:ring-[#c8e9e6]"
@@ -206,7 +204,7 @@ export default function CannulaBrowser() {
             ].map((option) => (
               <button key={option.id} type="button"
                 aria-pressed={manufacturer === option.id}
-                onClick={() => { setManufacturer(option.id); setShowAll(false) }}
+                onClick={() => setManufacturer(option.id)}
                 className={"rounded-full border px-3 py-1.5 text-xs font-semibold transition " + (
                   manufacturer === option.id
                     ? "border-[#087b80] bg-[#e9f5f4] text-[#005559]"
@@ -223,15 +221,16 @@ export default function CannulaBrowser() {
             ].map((option) => (
               <button key={option.id} type="button"
                 aria-pressed={typeFilter === option.id}
-                onClick={() => { setTypeFilter(option.id); setShowAll(false) }}
+                onClick={() => setTypeFilter(option.id)}
                 className={"rounded-md px-2 py-2 text-sm font-semibold transition " + (
                   typeFilter === option.id ? "bg-white text-[#005559] shadow-sm" : "text-[#52686d] hover:bg-white/60"
                 )}>{option.label}</button>
             ))}
           </div>
 
-          <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
-            {displayed.map((group) => {
+          <div role="region" aria-label="캐뉼라 목록" tabIndex={0}
+             className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+            {matches.map((group) => {
               const item = group.item
               const variantCodes = group.variants.map((variant) => variant.orderCode).join(" / ")
               const checked = selectedIds.includes(item.id)
@@ -280,12 +279,6 @@ export default function CannulaBrowser() {
               </div>
             )}
           </div>
-          {!showAll && matches.length > 12 && (
-            <button type="button" onClick={() => setShowAll(true)}
-              className="w-full rounded-lg border border-[#dfe9e7] py-2 text-sm font-semibold text-[#006b6e] hover:bg-[#f3faf9]">
-              나머지 {matches.length - 12}개 보기
-            </button>
-          )}
           {selectedIds.length === MAX_COMPARE && (
             <p role="status" className="text-xs text-[#52686d]">4개 선택됨 · 다른 제품을 추가하려면 기존 선택을 해제하세요.</p>
           )}
