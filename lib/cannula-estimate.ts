@@ -104,12 +104,17 @@ export function matchesCannulaSearch(item: CannulaSearchable, query: string): bo
     if (/^\d+(?:fr)?$/.test(term)) {
       const frTerm = term.endsWith("fr") ? term : term + "fr"
       const exactFr = new RegExp("(?:^|[^0-9])" + frTerm + "(?![a-z0-9])").test(size)
+      // Two-stage cannulas label both French diameters as one size (e.g. 28/36 Fr).
+      // Match either component exactly without matching arbitrary order-code digits.
+      const pairedSize = size.match(/(?:^|[^0-9])(\d+)\/(\d+)fr(?:$|[^a-z0-9])/)
+      const pairedFr = pairedSize !== null &&
+        [pairedSize[1], pairedSize[2]].includes(frTerm.slice(0, -2))
       // A short Fr query (18) must not accidentally match code 66118.
       // At least three digits are needed for a prefix order-code search.
       const codePrefix = !term.endsWith("fr") && term.length >= 3 &&
         new RegExp("(?:^|[^0-9])" + term).test(orderCode)
       const verifiedNominalFr = Number(frTerm.slice(0, -2)) === item.nominalFr
-      return exactFr || verifiedNominalFr || codePrefix
+      return exactFr || pairedFr || verifiedNominalFr || codePrefix
     }
     return searchableText.includes(term)
   })
