@@ -192,7 +192,7 @@ test("shared pediatric DLP cannula curves appear once per Fr without deleting co
     item.model === "DLP Pediatric One-piece Arterial Cannula")
   assert.equal(pediatric.length, 20)
   const grouped = groupSharedCannulaCurves(source.items)
-  assert.equal(grouped.length, 94)
+  assert.equal(grouped.length, 97, "three MC2 standard-body sizes each have an independent curve")
   assert.equal(grouped.flatMap((group) => group.variants).length, source.items.length)
   const pediatricGroups = grouped.filter((group) =>
     group.item.model === "DLP Pediatric One-piece Arterial Cannula")
