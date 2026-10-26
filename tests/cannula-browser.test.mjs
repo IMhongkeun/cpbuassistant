@@ -434,3 +434,24 @@ test("real chart data interpolates for four selected source curves without modif
   assert.deepEqual(chosen.map((item) => JSON.stringify(item.points)), originalPoints,
     "sampling must never edit manufacturer measurements")
 })
+
+test("Cannula list renders all matching curves without a show-more gate", () => {
+  assert.ok(browser.includes("{matches.map((group) => {"),
+    "all filtered curves must render immediately rather than only the first 12")
+  assert.ok(!browser.includes("showAll") && !browser.includes("setShowAll"),
+    "remove obsolete show-more state and reset handlers")
+  assert.ok(!browser.includes("matches.slice(0, 12)"))
+  assert.ok(!browser.includes("나머지 {matches.length - 12}개 보기"))
+  assert.match(browser, /role="region" aria-label="캐뉼라 목록" tabIndex=\{0\}/,
+    "scrolling list should be keyboard reachable and labeled")
+  assert.ok(browser.includes("max-h-[480px] space-y-2 overflow-y-auto pr-1"),
+    "keep a bounded, independently scrollable list beside the comparison graph")
+  assert.ok(browser.includes('variants.some((variant) => matchesCannulaSearch(variant, search))'),
+    "search still filters list")
+  assert.ok(browser.includes('manufacturer !== "all"') &&
+    browser.includes('typeFilter === "venous"') &&
+    browser.includes('typeFilter === "arterial"'),
+    "manufacturer and cannula type filters remain")
+  assert.ok(browser.includes("selectedIds.length >= MAX_COMPARE"),
+    "four-curve selection limit remains")
+})
