@@ -109,7 +109,12 @@ export function matchesCannulaSearch(item: CannulaSearchable, query: string): bo
       const codePrefix = !term.endsWith("fr") && term.length >= 3 &&
         new RegExp("(?:^|[^0-9])" + term).test(orderCode)
       const verifiedNominalFr = Number(frTerm.slice(0, -2)) === item.nominalFr
-      return exactFr || verifiedNominalFr || codePrefix
+      // Two-stage MC2 sizes use paired French diameters (e.g. 28/36 Fr).
+      // Match either diameter without mistaking a catalog-code suffix for Fr.
+      const pairedSize = size.match(/(?:^|[^0-9])(\d+)\s*\/\s*(\d+)fr\b/)
+      const pairedFr = pairedSize !== null &&
+        (frTerm === pairedSize[1] + "fr" || frTerm === pairedSize[2] + "fr")
+      return exactFr || pairedFr || verifiedNominalFr || codePrefix
     }
     return searchableText.includes(term)
   })
