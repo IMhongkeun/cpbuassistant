@@ -74,7 +74,8 @@ function roundPressure(value: number) {
 function compactCurveLabel(item: CannulaCurve) {
   const fr = typeof item.nominalFr === "number"
     ? item.nominalFr + " Fr"
-    : item.size.match(/\b\d+(?:\.\d+)?\s*Fr\b/i)?.[0].replace(/\s+/g, " ") ?? ""
+    : (item.size.match(/\b\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?\s*Fr\b/i)?.[0]
+      ?? item.size.match(/\b\d+(?:\.\d+)?\s*Fr\b/i)?.[0] ?? "").replace(/\s+/g, " ")
   const lumen = item.semanticType === "drainage" ? "Drainage · " :
     item.semanticType === "infusion" ? "Infusion · " : ""
   return lumen + item.model.replace(/\s+Cannulae?$/i, "") + (fr ? " · " + fr : "")
