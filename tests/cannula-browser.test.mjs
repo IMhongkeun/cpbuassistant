@@ -8,8 +8,8 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
 const browser = readFileSync(new URL("../components/cannula-browser.tsx", import.meta.url), "utf8")
 
 test("imports only Medtronic and Getinge/Maquet and retains Avalon separate lumens", () => {
-  assert.equal(source.sourceProductCount, 101)
-  assert.equal(source.items.length, 108)
+  assert.equal(source.sourceProductCount, 104)
+  assert.equal(source.items.length, 111)
   assert.deepEqual(new Set(source.items.map((item) => item.manufacturer)),
     new Set(["Getinge / Maquet", "Medtronic"]))
   assert.equal(new Set(source.items.map((item) => item.id)).size, source.items.length)
@@ -31,6 +31,50 @@ test("imports only Medtronic and Getinge/Maquet and retains Avalon separate lume
   }
   assert.equal(source.items.filter((item) =>
     item.model === "DLP Single Stage Venous Cannulae with Right Angle Metal Tip").length, 14)
+})
+
+test("MC2 standard-body imports retain exactly three size curves and original measurement bounds", () => {
+  const expected = new Map([
+    ["28/36 Fr", { code: "91228C", first: [0.088, 0.2], last: [5.365, 19.9] }],
+    ["32/40 Fr", { code: "91240C", first: [0.088, 0.2], last: [5.971, 11.7] }],
+    ["34/46 Fr", { code: "91246C", first: [0.088, 0.1], last: [5.968, 6.4] }],
+  ])
+  const mc2 = source.items.filter((item) => item.model.startsWith("MC2 Two Stage Venous Cannulae"))
+  assert.equal(mc2.length, 3, "Exclude oval, reduced-stage, thin-wall, and other sizes")
+  assert.deepEqual(new Set(mc2.map((item) => item.size)), new Set(expected.keys()))
+  for (const item of mc2) {
+    const reference = expected.get(item.size)
+    assert.ok(reference, item.size)
+    assert.equal(item.model, "MC2 Two Stage Venous Cannulae")
+    assert.equal(item.category, "venous")
+    assert.equal(item.orderCode, reference.code)
+    assert.equal(item.semanticType, "pressure-drop")
+    assert.equal(item.sharedSizeCurve, false)
+    assert.equal(item.dataStatus, "digitized-curve")
+    assert.match(item.sourceLabel, /standard-body chart/)
+    assert.equal(item.points.length, 32, item.size)
+    assert.deepEqual(item.points[0], reference.first)
+    assert.deepEqual(item.points.at(-1), reference.last)
+    assert.ok(!item.points.some(([flow, pressure]) => flow === 0 && pressure === 0))
+    const [, proximalFr, distalFr] = item.size.match(/^(\d+)\/(\d+) Fr$/)
+    for (const fr of [proximalFr, distalFr]) {
+      assert.ok(matchesCannulaSearch(item, "Medtronic MC2 venous " + fr + "Fr"),
+        "MC2 query must find either French diameter " + item.size)
+    }
+    assert.ok(matchesCannulaSearch(item, "MC2 " + item.size))
+    assert.ok(formatCannulaSize(item).includes(item.size))
+    assert.equal(estimateCannulaPressure(item.points, reference.first[0] - 0.001), null)
+    assert.equal(estimateCannulaPressure(item.points, reference.last[0] + 0.001), null)
+    const [left, right] = item.points.slice(14, 16)
+    const midway = (left[0] + right[0]) / 2
+    assert.ok(Math.abs(estimateCannulaPressure(item.points, midway) -
+      (left[1] + right[1]) / 2) < 1e-9, "linear interpolation must preserve originals")
+    const chart = buildCannulaChartRows([item])
+    assert.equal(chart.find((row) => row.flow === 2)?.[item.id],
+      estimateCannulaPressure(item.points, 2), "0.1 L/min comparison grid")
+  }
+  assert.ok(browser.includes("item.size.match(/\\b\\d+(?:\\/\\d+)?"),
+    "compact comparison labels must retain paired sizes (28/36 Fr)")
 })
 
 test("source curves are finite, ordered and keep signed Avalon drainage", () => {
