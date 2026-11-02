@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs"
 import {
   ADULT_BLOOD_VOLUME_ML_PER_KG,
   KRC_VOLUME_ML_PER_UNIT,
+  estimateAdultBloodVolumeMl,
   predictAdultPreCpbHct,
   predictAdultOnPumpHct,
 } from "../lib/adult-hct.ts"
@@ -13,21 +14,63 @@ const near = (actual, expected) => assert.ok(
   String(actual) + " != " + expected,
 )
 
-test("AHD uses fixed 55 mL/kg EBV and 250 mL KRC product units", () => {
-  assert.equal(ADULT_BLOOD_VOLUME_ML_PER_KG, 55)
+test("AHD defaults to 65 mL/kg EBV and fixed 250 mL KRC product units", () => {
+  assert.equal(ADULT_BLOOD_VOLUME_ML_PER_KG, 65)
   assert.equal(KRC_VOLUME_ML_PER_UNIT, 250)
   const result = predictAdultPreCpbHct({
     weightKg: 70, preCpbHctPercent: 35, primeVolumeMl: 1200,
     productHctPercent: 66, desiredHctPercent: 30,
   })
-  near(result.patientVolumeMl, 3850)
-  near(result.totalVolumeMl, 5050)
-  near(result.predictedNoRbcHctPercent, 3850 * 0.35 / 5050 * 100)
-  near(result.requiredRbcMl, (5050 * 0.30 - 3850 * 0.35) / 0.66)
+  near(result.patientVolumeMl, 4550)
+  near(result.totalVolumeMl, 5750)
+  near(result.predictedNoRbcHctPercent, 4550 * 0.35 / 5750 * 100)
+  near(result.requiredRbcMl, (5750 * 0.30 - 4550 * 0.35) / 0.66)
   near(result.requiredRbcUnits, result.requiredRbcMl / 250)
-  assert.equal(result.minimumWholeKrcUnits, 2)
+  assert.equal(result.minimumWholeKrcUnits, 1)
   assert.equal(result.feasible, true)
-  near(result.wholeKrcProjectedHctPercent, (3850 * 0.35 + 500 * 0.66) / 5050 * 100)
+  near(result.wholeKrcProjectedHctPercent, (4550 * 0.35 + 250 * 0.66) / 5750 * 100)
+})
+
+test("edited coefficients propagate through pre-CPB and on-pump mass balance", () => {
+  for (const coefficient of [55, 65, 65.5, 70, 80]) {
+    const patientVolume = 70 * coefficient
+    const baselineVolume = patientVolume + 1200
+    const pre = predictAdultPreCpbHct({
+      weightKg: 70, bloodVolumeCoefficientMlPerKg: coefficient,
+      preCpbHctPercent: 35, primeVolumeMl: 1200, productHctPercent: 66,
+      desiredHctPercent: 30,
+    })
+    near(estimateAdultBloodVolumeMl(70, coefficient), patientVolume)
+    near(pre.patientVolumeMl, patientVolume)
+    near(pre.totalVolumeMl, baselineVolume)
+    near(pre.predictedNoRbcHctPercent, patientVolume * 35 / baselineVolume)
+    // Substituting the exact RBC replacement dose must recover the requested Hct.
+    near((patientVolume * 0.35 + pre.requiredRbcMl * 0.66) / baselineVolume * 100, 30)
+    assert.ok(pre.wholeKrcProjectedHctPercent >= 30)
+
+    const pump = predictAdultOnPumpHct({
+      currentTotalVolumeMl: estimateAdultBloodVolumeMl(70, coefficient) + 1200,
+      currentHctPercent: 24, krcUnits: 2, productHctPercent: 66,
+      crystalloidAddedMl: 300, fluidRemovedMl: 200, desiredHctPercent: 30,
+    })
+    near(pump.finalVolumeMl, baselineVolume + 100)
+    near(pump.predictedHctPercent, (baselineVolume * 0.24 + 500 * 0.66) / (baselineVolume + 100) * 100)
+    near(pump.totalUfMl, 700)
+    near((baselineVolume * 0.24 + pump.requiredKrcExactMl * 0.66) / baselineVolume * 100, 30)
+    near(baselineVolume * 0.24 / (baselineVolume + pump.fluidOnlyAdjustmentMl) * 100, 30)
+  }
+})
+
+test("coefficient defaults only when omitted; invalid explicit coefficients are rejected", () => {
+  near(estimateAdultBloodVolumeMl(70), 4550)
+  const base = { weightKg: 70, preCpbHctPercent: 35, primeVolumeMl: 1200, productHctPercent: 66 }
+  for (const coefficient of [0, -55, Number.NaN, Infinity, -Infinity]) {
+    assert.throws(() => estimateAdultBloodVolumeMl(70, coefficient), RangeError)
+    assert.throws(() => predictAdultPreCpbHct({ ...base, bloodVolumeCoefficientMlPerKg: coefficient }), RangeError)
+  }
+  // Weight and coefficient must each be positive, even if their product is positive.
+  assert.throws(() => estimateAdultBloodVolumeMl(-70, -65), RangeError)
+  assert.throws(() => estimateAdultBloodVolumeMl(Number.MAX_VALUE, 65), RangeError)
 })
 
 test("KRC prime replacement is limited by fixed prime volume", () => {
@@ -199,3 +242,4 @@ test("optional AHD changes start and reset blank but use zero for omitted calcul
   near(baseline.predictedHctPercent, 25)
   near(baseline.finalVolumeMl, 5000)
 })
+
