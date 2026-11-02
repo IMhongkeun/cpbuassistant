@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import {
   predictAdultOnPumpHct,
   predictAdultPreCpbHct,
+  estimateAdultCpbVolume,
   ADULT_BLOOD_VOLUME_ML_PER_KG,
   KRC_VOLUME_ML_PER_UNIT,
 } from "@/lib/adult-hct"
@@ -90,6 +91,7 @@ const format = (value: number, digits = 1) =>
 
 export default function AdultHctPredictCalculator() {
   const [weight, setWeight] = useState("")
+  const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState(String(ADULT_BLOOD_VOLUME_ML_PER_KG))
   const [preHct, setPreHct] = useState("")
   const [prime, setPrime] = useState("1200")
   const [desiredPreHct, setDesiredPreHct] = useState("")
@@ -104,6 +106,7 @@ export default function AdultHctPredictCalculator() {
     try {
       return predictAdultPreCpbHct({
         weightKg: asNumber(weight),
+        bloodVolumeMlPerKg: asNumber(bloodVolumeCoefficient),
         preCpbHctPercent: asNumber(preHct),
         primeVolumeMl: asNumber(prime),
         productHctPercent: asNumber(productHct),
@@ -112,16 +115,19 @@ export default function AdultHctPredictCalculator() {
     } catch {
       return null
     }
-  }, [weight, preHct, prime, productHct, desiredPreHct])
+  }, [weight, bloodVolumeCoefficient, preHct, prime, productHct, desiredPreHct])
 
   const currentEstimatedVolume = useMemo(() => {
-    const patientVolume = asNumber(weight) * ADULT_BLOOD_VOLUME_ML_PER_KG
-    const startingPrime = asNumber(prime)
-    const total = patientVolume + startingPrime
-    return Number.isFinite(total) && patientVolume > 0 && startingPrime >= 0 && total > 0
-      ? total
-      : null
-  }, [weight, prime])
+    try {
+      return estimateAdultCpbVolume({
+        weightKg: asNumber(weight),
+        bloodVolumeMlPerKg: asNumber(bloodVolumeCoefficient),
+        primeVolumeMl: asNumber(prime),
+      }).totalVolumeMl
+    } catch {
+      return null
+    }
+  }, [weight, bloodVolumeCoefficient, prime])
 
   const onPumpResult = useMemo(() => {
     if (currentEstimatedVolume === null) return null
@@ -140,7 +146,7 @@ export default function AdultHctPredictCalculator() {
   }, [currentEstimatedVolume, currentHct, plannedKrcUnits, crystalloidAdded, fluidRemoved, productHct])
 
   // Independent desired-Hct scenarios always start at the *measured* Current Hct
-  // and (weight × 55) + edited priming volume, not after planned interventions.
+  // and (weight × edited coefficient) + edited prime, not after planned interventions.
   const targetResult = useMemo(() => {
     if (currentEstimatedVolume === null || !desiredOnPumpHct.trim()) return null
     try {
@@ -160,6 +166,7 @@ export default function AdultHctPredictCalculator() {
 
   const reset = () => {
     setWeight("")
+    setBloodVolumeCoefficient(String(ADULT_BLOOD_VOLUME_ML_PER_KG))
     setPreHct("")
     setPrime("1200")
     setDesiredPreHct("")
@@ -188,16 +195,21 @@ export default function AdultHctPredictCalculator() {
             </button>
           </div>
           <p className="text-sm text-slate-600">
-            성인 전용 · EBV 55 mL/kg 고정 · KRC 250 mL/unit. Priming은 동량 대체, 수술 중 KRC 주입은 동일량 HF/UF를 적용합니다.
+            성인 전용 · EBV 계수 기본값 {ADULT_BLOOD_VOLUME_ML_PER_KG} mL/kg (수정 가능) · KRC 250 mL/unit. Priming은 동량 대체, 수술 중 KRC 주입은 동일량 HF/UF를 적용합니다.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <h3 className="border-b pb-2 text-base font-semibold">Shared setup</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm sm:col-span-2">
-              <span className="font-semibold text-slate-700">Blood volume coefficient (mL/kg)</span>
-              <span className="ml-2 font-bold text-slate-900">{ADULT_BLOOD_VOLUME_ML_PER_KG} (고정)</span>
-            </div>
+            <NumericField
+              id="ahd-coefficient"
+              label="Blood volume coefficient (mL/kg)"
+              value={bloodVolumeCoefficient}
+              onChange={setBloodVolumeCoefficient}
+              min="0.1"
+              required
+              note={`기본값 ${ADULT_BLOOD_VOLUME_ML_PER_KG} mL/kg · 환자에 맞게 수정 가능`}
+            />
             <NumericField id="ahd-weight" label="Weight (kg)" value={weight} onChange={setWeight} min="0.1" required />
             <NumericField id="ahd-pre-hct" label="Pre-CPB Hct (%)" value={preHct} onChange={setPreHct} min="0.1" required />
             <NumericField
@@ -298,7 +310,7 @@ export default function AdultHctPredictCalculator() {
           </div>
           <p className="text-xs text-slate-600">
             Current volume estimate: {currentEstimatedVolume === null ? "—" : format(currentEstimatedVolume, 0) + " mL"}
-            {" · "}Weight × 55 mL/kg + initial priming (실제 circulating volume과 다를 수 있음)
+            {" · "}Weight × 입력한 혈액량 계수 + initial priming (실제 circulating volume과 다를 수 있음)
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-live="polite">
             <ResultCard prominent label="수술 중 예상 Hct (%)"
@@ -323,7 +335,7 @@ export default function AdultHctPredictCalculator() {
             <NumericField id="ahd-pump-desired" label="Desired Hct (%)" value={desiredOnPumpHct} onChange={setDesiredOnPumpHct} min="0.1" />
             <p className="text-xs text-slate-600">
               목표 계산은 위의 KRC 주입·Crystalloid 변경 시뮬레이션과 별개입니다.
-              Current Hct와 기본 순환혈액량 (Weight × 55 mL/kg + priming)을 그대로 사용합니다.
+              Current Hct와 기본 순환혈액량 (Weight × 입력한 혈액량 계수 + priming)을 그대로 사용합니다.
             </p>
             {targetResult && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-live="polite">
@@ -371,13 +383,13 @@ export default function AdultHctPredictCalculator() {
               </div>
             )}
             {desiredOnPumpHct.trim() && !targetResult && (
-              <p className="text-sm text-amber-700" role="status">Desired Hct, Current Hct, Weight와 prime 입력값을 확인해주세요.</p>
+              <p className="text-sm text-amber-700" role="status">Desired Hct, Current Hct와 Shared setup의 혈액량 계수·Weight·prime 입력값을 확인해주세요.</p>
             )}
           </section>
           {plannedKrcUnits.trim() && !Number.isSafeInteger(asNumber(plannedKrcUnits)) && (
             <p className="text-sm text-amber-800" role="alert">KRC는 0, 1, 2, 3 ... 정수 unit로 입력해주세요.</p>
           )}
-          {!onPumpResult && <p className="text-sm text-amber-700" role="status">현재 Hct, Crystalloid 추가·제거량, KRC 주입 unit를 확인해주세요.</p>}
+          {!onPumpResult && <p className="text-sm text-amber-700" role="status">Shared setup의 혈액량 계수·Weight·prime, 현재 Hct, Crystalloid 추가·제거량, KRC 주입 unit를 확인해주세요.</p>}
           {onPumpResult?.plannedFeasible === false && (
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="alert">
               수분 제거 후 적혈구량이 전체 volume보다 많아 계산 조건이 성립하지 않습니다.

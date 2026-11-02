@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs"
 import {
   ADULT_BLOOD_VOLUME_ML_PER_KG,
   KRC_VOLUME_ML_PER_UNIT,
+  estimateAdultCpbVolume,
   predictAdultPreCpbHct,
   predictAdultOnPumpHct,
 } from "../lib/adult-hct.ts"
@@ -13,21 +14,65 @@ const near = (actual, expected) => assert.ok(
   String(actual) + " != " + expected,
 )
 
-test("AHD uses fixed 55 mL/kg EBV and 250 mL KRC product units", () => {
-  assert.equal(ADULT_BLOOD_VOLUME_ML_PER_KG, 55)
+test("AHD defaults to 65 mL/kg EBV and fixed 250 mL KRC product units", () => {
+  assert.equal(ADULT_BLOOD_VOLUME_ML_PER_KG, 65)
   assert.equal(KRC_VOLUME_ML_PER_UNIT, 250)
   const result = predictAdultPreCpbHct({
     weightKg: 70, preCpbHctPercent: 35, primeVolumeMl: 1200,
     productHctPercent: 66, desiredHctPercent: 30,
   })
-  near(result.patientVolumeMl, 3850)
-  near(result.totalVolumeMl, 5050)
-  near(result.predictedNoRbcHctPercent, 3850 * 0.35 / 5050 * 100)
-  near(result.requiredRbcMl, (5050 * 0.30 - 3850 * 0.35) / 0.66)
+  near(result.patientVolumeMl, 4550)
+  near(result.totalVolumeMl, 5750)
+  near(result.predictedNoRbcHctPercent, 4550 * 0.35 / 5750 * 100)
+  near(result.requiredRbcMl, (5750 * 0.30 - 4550 * 0.35) / 0.66)
   near(result.requiredRbcUnits, result.requiredRbcMl / 250)
-  assert.equal(result.minimumWholeKrcUnits, 2)
+  assert.equal(result.minimumWholeKrcUnits, 1)
   assert.equal(result.feasible, true)
-  near(result.wholeKrcProjectedHctPercent, (3850 * 0.35 + 500 * 0.66) / 5050 * 100)
+  near(result.wholeKrcProjectedHctPercent, (4550 * 0.35 + 250 * 0.66) / 5750 * 100)
+})
+
+test("edited coefficient propagates through pre-CPB, on-pump and independent target scenarios", () => {
+  for (const [coefficient, patientMl, totalMl] of [[55, 3850, 5050], [65, 4550, 5750], [70, 4900, 6100], [65.5, 4585, 5785]]) {
+    const setup = { weightKg: 70, bloodVolumeMlPerKg: coefficient, primeVolumeMl: 1200 }
+    const volume = estimateAdultCpbVolume(setup)
+    near(volume.patientVolumeMl, patientMl)
+    near(volume.totalVolumeMl, totalMl)
+    const pre = predictAdultPreCpbHct({
+      ...setup, preCpbHctPercent: 35, productHctPercent: 66, desiredHctPercent: 30,
+    })
+    near(pre.predictedNoRbcHctPercent, patientMl * 35 / totalMl)
+    near(pre.requiredRbcMl, (totalMl * 0.30 - patientMl * 0.35) / 0.66)
+    // Substituting the recommended product volume must recover the target.
+    near((patientMl * 0.35 + pre.requiredRbcMl * 0.66) / totalMl * 100, 30)
+    near(pre.totalVolumeMl, volume.totalVolumeMl)
+    const pump = predictAdultOnPumpHct({
+      currentTotalVolumeMl: volume.totalVolumeMl, currentHctPercent: 24,
+      krcUnits: 2, crystalloidAddedMl: 300, fluidRemovedMl: 200,
+      productHctPercent: 66, desiredHctPercent: 30,
+    })
+    near(pump.finalVolumeMl, totalMl + 100)
+    near(pump.predictedHctPercent, (totalMl * 0.24 + 500 * 0.66) / (totalMl + 100) * 100)
+    near(pump.requiredKrcExactMl, totalMl * 0.06 / 0.66)
+    near(pump.fluidOnlyAdjustmentMl, -totalMl * 0.2)
+    near((totalMl * 0.24 + pump.requiredKrcExactMl * 0.66) / totalMl * 100, 30)
+    near(totalMl * 0.24 / (totalMl + pump.fluidOnlyAdjustmentMl) * 100, 30)
+  }
+})
+
+test("invalid coefficient or volume is rejected rather than falling back to the default", () => {
+  const setup = { weightKg: 70, primeVolumeMl: 1200 }
+  for (const coefficient of [0, -65, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const invalid = { ...setup, bloodVolumeMlPerKg: coefficient }
+    assert.throws(() => estimateAdultCpbVolume(invalid), RangeError)
+    assert.throws(() => predictAdultPreCpbHct({
+      ...invalid, preCpbHctPercent: 35, productHctPercent: 66,
+    }), RangeError)
+  }
+  assert.throws(() => estimateAdultCpbVolume({ ...setup, weightKg: -70, bloodVolumeMlPerKg: -65 }), RangeError)
+  assert.throws(() => estimateAdultCpbVolume({ ...setup, weightKg: Number.NaN }), RangeError)
+  assert.throws(() => estimateAdultCpbVolume({ ...setup, primeVolumeMl: -1 }), RangeError)
+  assert.throws(() => estimateAdultCpbVolume({ ...setup, bloodVolumeMlPerKg: Number.MAX_VALUE }), RangeError)
+  near(estimateAdultCpbVolume({ ...setup, primeVolumeMl: 0 }).totalVolumeMl, 4550)
 })
 
 test("KRC prime replacement is limited by fixed prime volume", () => {

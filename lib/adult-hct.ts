@@ -1,15 +1,16 @@
 "use strict"
 
-// AHD adult CPB fixed local conventions: EBV 55 mL/kg; KRC 250 mL per unit.
+// AHD adult CPB defaults: editable EBV 65 mL/kg; fixed KRC 250 mL per unit.
 // Pre-CPB: KRC replaces crystalloid within a fixed priming volume.
 // On-pump: KRC addition is always matched 1:1 by RBC-free HF/UF volume.
 // Separately entered crystalloid and fluid removal change total volume.
 // Simplified red-cell mass balance; verify against actual measured Hct and volumes.
-export const ADULT_BLOOD_VOLUME_ML_PER_KG = 55
+export const ADULT_BLOOD_VOLUME_ML_PER_KG = 65
 export const KRC_VOLUME_ML_PER_UNIT = 250
 
 export type AdultPreCpbInputs = {
   weightKg: number
+  bloodVolumeMlPerKg?: number
   preCpbHctPercent: number
   primeVolumeMl: number
   productHctPercent: number
@@ -41,12 +42,26 @@ function percent(value: number, field: string) {
   return value / 100
 }
 
+// Share volume estimation and validation across pre-CPB, on-pump and target helpers.
+export function estimateAdultCpbVolume(
+  input: Pick<AdultPreCpbInputs, "weightKg" | "bloodVolumeMlPerKg" | "primeVolumeMl">,
+) {
+  const weightKg = positive(input.weightKg, "Weight")
+  const coefficient = positive(
+    input.bloodVolumeMlPerKg === undefined ? ADULT_BLOOD_VOLUME_ML_PER_KG : input.bloodVolumeMlPerKg,
+    "Blood volume coefficient",
+  )
+  const patientVolumeMl = positive(weightKg * coefficient, "Estimated blood volume")
+  const primeVolumeMl = nonnegative(input.primeVolumeMl, "Priming volume")
+  const totalVolumeMl = positive(patientVolumeMl + primeVolumeMl, "Estimated CPB volume")
+  return { patientVolumeMl, totalVolumeMl }
+}
+
 export function predictAdultPreCpbHct(input: AdultPreCpbInputs) {
-  const patientVolumeMl = positive(input.weightKg, "Weight") * ADULT_BLOOD_VOLUME_ML_PER_KG
+  const { patientVolumeMl, totalVolumeMl } = estimateAdultCpbVolume(input)
   const preFraction = percent(input.preCpbHctPercent, "Pre-CPB Hct")
   const primeVolumeMl = nonnegative(input.primeVolumeMl, "Priming volume")
   const productFraction = percent(input.productHctPercent, "KRC product Hct")
-  const totalVolumeMl = patientVolumeMl + primeVolumeMl
   const redCellMl = patientVolumeMl * preFraction
   const predictedNoRbcHctPercent = redCellMl / totalVolumeMl * 100
   const maximumHctWithPrimeReplacementPercent =

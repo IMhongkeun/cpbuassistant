@@ -24,7 +24,7 @@ test("AHD defaults to editable 1200 mL prime and shares no form state with PCS",
   assert.match(adult, /setFluidRemoved/)
   assert.match(adult, /수술 중 Hct 계산/)
   assert.doesNotMatch(adult, /ahd-patient-type/)
-  assert.doesNotMatch(adult, /ahd-coefficient/)
+  assert.match(adult, /id="ahd-coefficient"/)
   assert.doesNotMatch(adult, /ahd-net/)
   assert.doesNotMatch(adult, /RBC-LF/)
   assert.doesNotMatch(adult, /ahd-unit-volume/)
@@ -33,6 +33,17 @@ test("AHD defaults to editable 1200 mL prime and shares no form state with PCS",
   assert.match(adult, /predictAdultOnPumpHct\(/)
   assert.doesNotMatch(adult, /localStorage/)
   assert.doesNotMatch(adult, /cpbuassistant:bloodHemodilution/)
+})
+
+test("adult coefficient starts and resets at the default and feeds both volume paths", () => {
+  assert.match(adult, /\[bloodVolumeCoefficient, setBloodVolumeCoefficient\] = useState\(String\(ADULT_BLOOD_VOLUME_ML_PER_KG\)\)/)
+  assert.match(adult, /setBloodVolumeCoefficient\(String\(ADULT_BLOOD_VOLUME_ML_PER_KG\)\)/)
+  assert.match(adult, /onChange=\{setBloodVolumeCoefficient\}/)
+  assert.equal((adult.match(/bloodVolumeMlPerKg: asNumber\(bloodVolumeCoefficient\)/g) ?? []).length, 2)
+  assert.match(adult, /\[weight, bloodVolumeCoefficient, preHct, prime, productHct, desiredPreHct\]/)
+  assert.match(adult, /\[weight, bloodVolumeCoefficient, prime\]/)
+  assert.match(adult, /estimateAdultCpbVolume\(/)
+  assert.doesNotMatch(adult, /55 mL\/kg|EBV 55|weight × 55/)
 })
 
 test("On-pump result cards precede Desired Hct and KRC entry is number-only", () => {
