@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { buildCannulaChartRows, snapCannulaChartFlow, estimateCannulaPressure, compareCannulaManufacturers, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { buildCannulaChartRows, snapCannulaChartFlow, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, compareCannulaManufacturers, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -148,7 +148,7 @@ export default function CannulaBrowser() {
   const chartFlow = previewFlow ?? (validFlow ? targetFlow : null)
   const displayedFlow = chartFlow === null ? "—" : chartFlow.toFixed(previewFlow === null ? 2 : 1)
   const maxFlow = selected.length
-    ? Math.max(...selected.map((item) => item.points[item.points.length - 1][0]))
+    ? Math.max(...selected.map(getCannulaChartMaxFlow))
     : 0
 
   // Recharts active labels now include an inspection grid at 0.1 L/min intervals.
@@ -160,7 +160,7 @@ export default function CannulaBrowser() {
   }
 
   // Preserve original measured vertices and calculate additional plotting values
-  // only by piecewise linear interpolation inside each manufacturer's data range.
+  // by piecewise linear interpolation, with explicitly approved tiny chart-end gaps.
   const chartRows = useMemo(() => buildCannulaChartRows(selected), [selected])
   const hasMixedTypes = selected.some(isArterial) && selected.some((item) => !isArterial(item))
 
@@ -353,7 +353,7 @@ export default function CannulaBrowser() {
                       // Use the same 0.1 L/min Flow for every selected curve,
                       // even when original manufacturer samples do not align.
                       // The graph plots |ΔP|; the comparison retains the sign.
-                      const pressure = estimateCannulaPressure(item.points, chartFlow)
+                      const pressure = estimateCannulaCurvePressure(item, chartFlow)
                       if (pressure === null) return null
                       return (
                         <ReferenceDot key={"selected-pressure-" + item.id}
@@ -383,7 +383,8 @@ export default function CannulaBrowser() {
                   <span className="text-right">ΔP</span>
                 </div>
                 {selected.map((item, index) => {
-                  const estimate = chartFlow === null ? null : estimateCannulaPressure(item.points, chartFlow)
+                  const estimate = chartFlow === null ? null : estimateCannulaCurvePressure(item, chartFlow)
+                  const isApproximate = chartFlow !== null && isCannulaEndpointApproximation(item, chartFlow)
                   return (
                     <div key={item.id}
                       className="grid grid-cols-[minmax(0,1fr)_52px_72px] items-center gap-1.5 border-b border-[#edf2f1] py-2 text-xs last:border-b-0">
@@ -397,15 +398,16 @@ export default function CannulaBrowser() {
                       </span>
                       <span className={"text-right font-semibold tabular-nums " +
                         (estimate === null ? "text-[#9b5d3e]" : "text-[#005559]")}
-                        title={estimate === null ? "측정 범위 밖 · 추정 불가" : "제조사 압력–유량 곡선 기준"}>
+                        title={estimate === null ? "측정 범위 밖 · 추정 불가" :
+                          isApproximate ? "≈ 디지털화 끝점 보정 (마지막 두 점을 이용한 제한적 외삽)" : "제조사 압력–유량 곡선 기준"}>
                         {estimate === null ? (chartFlow === null ? "—" : "범위 밖") :
-                          (estimate < 0 ? "−" : "") + roundPressure(Math.abs(estimate))}
+                          (isApproximate ? "≈ " : "") + (estimate < 0 ? "−" : "") + roundPressure(Math.abs(estimate))}
                       </span>
                     </div>
                   )
                 })}
                 <p className="mt-1.5 text-[10px] text-[#657a7e]">
-                  그래프 터치·드래그: 0.1 L/min 간격 · ΔP: mmHg (제조사 측정 범위 내 선형 보간)
+                  그래프 터치·드래그: 0.1 L/min 간격 · ΔP: mmHg (선형 보간, 일부 확인된 끝점은 ≈ 근사값)
                 </p>
               </div>
               {hasMixedTypes && (
@@ -529,7 +531,7 @@ export default function CannulaBrowser() {
         기준:{" "}
         <a href={sourceData.sourceUrl} target="_blank" rel="noopener noreferrer"
           className="font-semibold text-[#087b80] underline">PerfusionTools 캐뉼라 데이터</a>
-        {" "}({sourceData.updatedAt}). 제조사 곡선의 인접 두 점을 선형 보간하며, 원본 범위 밖에서는 추정하지 않습니다.
+        {" "}({sourceData.updatedAt}). 측정점 사이는 선형 보간합니다. MC2 32/40·34/46 Fr의 6.0 L/min은 원본 끝점과의 미세한 차이(0.05 L/min 이하)를 마지막 기울기로 근사한 ≈ 값입니다. 그 밖의 원본 범위 외 계산은 차단합니다.
         시험 유체·Hct·온도·캐뉼라 위치 등에 따라 실제 압력손실은 달라질 수 있습니다.
         임상 캐뉼라 선정이나 음압 허용치를 이 그래프만으로 결정하지 마세요.
       </p>
