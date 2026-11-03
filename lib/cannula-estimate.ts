@@ -1,7 +1,8 @@
 /**
  * Manufacturer bench-curve interpolation for the Cannula panel.
  * Points are preserved in their original signed units (mmHg).
- * Never extrapolate beyond the visible source flow range.
+ * This strict interpolator never extrapolates beyond digitized source points.
+ * A separate, explicitly approved chart-end helper handles tiny endpoint gaps.
  */
 export type PressurePoint = readonly [flowLpm: number, pressureMmHg: number]
 
@@ -26,9 +27,67 @@ export function estimateCannulaPressure(points: readonly PressurePoint[], flowLp
 
 
 /**
+ * Verified graph-axis endpoints, not arbitrary rounded endpoints.
+ * The two MC2 standard-body curves end at 5.971 and 5.968 L/min after
+ * digitization, while their source chart reaches 6 L/min.
+ * Do not extend the 28/36 Fr curve (last plotted point: 5.365 L/min).
+ */
+const VERIFIED_CHART_END_LPM: Readonly<Record<string, number>> = {
+  "pt-mc2-32-40-pressure-drop": 6,
+  "pt-mc2-34-46-pressure-drop": 6,
+}
+
+export type IdentifiedCannulaCurve = {
+  id: string
+  points: readonly PressurePoint[]
+}
+
+/**
+ * Recover only an explicitly verified graph endpoint when digitization ends
+ * within BOTH 0.05 L/min and 1% of that endpoint. Never round other curves.
+ */
+export function getCannulaChartMaxFlow(curve: IdentifiedCannulaCurve): number {
+  const measuredEnd = curve.points.at(-1)?.[0] ?? Number.NaN
+  const verifiedEnd = VERIFIED_CHART_END_LPM[curve.id]
+  if (!Number.isFinite(measuredEnd) || !Number.isFinite(verifiedEnd)) return measuredEnd
+  const gap = verifiedEnd - measuredEnd
+  const tolerance = Math.min(0.05, verifiedEnd * 0.01)
+  return gap >= 0 && gap <= tolerance + 1e-9 ? verifiedEnd : measuredEnd
+}
+
+/** True only for the narrow, visibly marked chart-end estimate. */
+export function isCannulaEndpointApproximation(curve: IdentifiedCannulaCurve, flowLpm: number): boolean {
+  const measuredEnd = curve.points.at(-1)?.[0] ?? Number.NaN
+  return Number.isFinite(flowLpm) && flowLpm > measuredEnd &&
+    flowLpm <= getCannulaChartMaxFlow(curve)
+}
+
+/**
+ * Keep strict interpolation unchanged. For a verified digitization gap only,
+ * extend the slope of the final two source points to the published graph edge.
+ * The extension is an approximation, NOT an additional manufacturer reading.
+ */
+export function estimateCannulaCurvePressure(curve: IdentifiedCannulaCurve, flowLpm: number): number | null {
+  const interpolated = estimateCannulaPressure(curve.points, flowLpm)
+  if (interpolated !== null) return interpolated
+  if (!isCannulaEndpointApproximation(curve, flowLpm)) return null
+
+  const lastIndex = curve.points.length - 1
+  if (lastIndex < 1) return null
+  const [lastFlow, lastPressure] = curve.points[lastIndex]
+  const [previousFlow, previousPressure] = curve.points[lastIndex - 1]
+  // A malformed input must remain rejected, including earlier invalid points.
+  if (estimateCannulaPressure(curve.points, lastFlow) === null) return null
+  return lastPressure + ((flowLpm - lastFlow) / (lastFlow - previousFlow)) *
+    (lastPressure - previousPressure)
+}
+
+
+/**
  * Preserve the manufacturer's exact chart vertices while adding a 0.1 L/min
  * inspection grid. Only fill values inside EACH selected cannula's measured
- * range; an absent value must never become an extrapolated pressure.
+ * range. Only explicitly verified, tiny digitization gaps may have marked
+ * approximations at the published chart edge.
  * Drainage remains signed in the source and in estimateCannulaPressure;
  * chart coordinates display |ΔP| only.
  */
@@ -41,7 +100,7 @@ export function buildCannulaChartRows(
     curve.points.map(([flow]) => flow).filter(Number.isFinite))
   if (measuredFlows.length === 0) return []
 
-  const maxFlow = Math.max(...measuredFlows)
+  const maxFlow = Math.max(...curves.map(getCannulaChartMaxFlow))
   if (maxFlow < 0) return []
   const flows = new Set(measuredFlows)
   for (let tenth = 0; tenth <= Math.floor(maxFlow * 10 + 1e-8); tenth++) {
@@ -51,7 +110,7 @@ export function buildCannulaChartRows(
   return [...flows].sort((a, b) => a - b).map((flow) => {
     const row: CannulaChartRow = { flow }
     for (const curve of curves) {
-      const pressure = estimateCannulaPressure(curve.points, flow)
+      const pressure = estimateCannulaCurvePressure(curve, flow)
       if (pressure !== null) row[curve.id] = Math.abs(pressure)
     }
     return row
