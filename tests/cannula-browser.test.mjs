@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { buildCannulaChartRows, snapCannulaChartFlow, compareCannulaManufacturers, estimateCannulaPressure, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { buildCannulaChartRows, snapCannulaChartFlow, compareCannulaManufacturers, estimateCannulaPressure, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
@@ -243,6 +243,58 @@ test("shared pediatric DLP cannula curves appear once per Fr without deleting co
   assert.ok(browser.includes("variant.orderCode} · {variant.connectorSize}"))
 })
 
+test("verified MC2 6 L/min graph endpoint uses only a short labeled approximation", () => {
+  const twoApproved = source.items.filter((item) =>
+    ["pt-mc2-32-40-pressure-drop", "pt-mc2-34-46-pressure-drop"].includes(item.id))
+  assert.equal(twoApproved.length, 2)
+
+  for (const item of twoApproved) {
+    const last = item.points.at(-1)
+    const previous = item.points.at(-2)
+    assert.equal(getCannulaChartMaxFlow(item), 6)
+    assert.ok(6 - last[0] > 0 && 6 - last[0] <= 0.05)
+    assert.equal(estimateCannulaPressure(item.points, 6), null,
+      "the original strict interpolation must remain untouched")
+    assert.equal(estimateCannulaCurvePressure(item, last[0]), last[1],
+      "exact digitized source pressure must be preserved")
+    const expected = last[1] + (6 - last[0]) *
+      (last[1] - previous[1]) / (last[0] - previous[0])
+    assert.ok(Math.abs(estimateCannulaCurvePressure(item, 6) - expected) < 1e-9)
+    assert.equal(isCannulaEndpointApproximation(item, 6), true)
+    for (const flow of [6.001, 6.1, 7, -1, Number.NaN]) {
+      assert.equal(estimateCannulaCurvePressure(item, flow), null)
+    }
+  }
+
+  const rows = buildCannulaChartRows(twoApproved)
+  const atSix = rows.find((row) => row.flow === 6)
+  assert.ok(atSix, "comparison chart must reach the verified 6 L/min boundary")
+  for (const item of twoApproved) {
+    assert.equal(atSix[item.id], Math.abs(estimateCannulaCurvePressure(item, 6)))
+    assert.ok(rows.some((row) => row.flow === item.points.at(-1)[0]),
+      "source digitization vertex must remain visible")
+  }
+  assert.equal(snapCannulaChartFlow(6, getCannulaChartMaxFlow(twoApproved[0])), 6)
+
+  const short = source.items.find((item) => item.id === "pt-mc2-28-36-pressure-drop")
+  assert.ok(short)
+  assert.equal(getCannulaChartMaxFlow(short), 5.365)
+  assert.equal(estimateCannulaCurvePressure(short, 6), null,
+    "do not extrapolate the substantially shorter 28/36 curve")
+
+  const unverified = { id: "unverified", points: [[0, 0], [5.968, 12]] }
+  assert.equal(getCannulaChartMaxFlow(unverified), 5.968)
+  assert.equal(estimateCannulaCurvePressure(unverified, 6), null,
+    "nearby round-number boundaries are not automatically presumed verified")
+  const invalidGap = { id: "pt-mc2-32-40-pressure-drop", points: [[0, 0], [5.8, 12]] }
+  assert.equal(getCannulaChartMaxFlow(invalidGap), 5.8)
+  assert.equal(estimateCannulaCurvePressure(invalidGap, 6), null,
+    "approved identifiers still must pass the measured-distance guard")
+  assert.ok(browser.includes("isCannulaEndpointApproximation(item, chartFlow)"))
+  assert.ok(browser.includes('isApproximate ? "≈ " : ""'),
+    "approximation must be visually different from interpolation")
+})
+
 test("linear interpolation respects exact source values and NEVER extrapolates", () => {
   const points = [[1, 12], [3, 52], [5, 100]]
   assert.equal(estimateCannulaPressure(points, 1), 12)
@@ -321,7 +373,7 @@ test("chart preview displays four compact, synchronized flow/pressure rows below
   assert.ok(browser.includes("Recharts 2.15 maps touch-start to onMouseDown"))
   assert.ok(browser.includes('<Tooltip content={() => null}'), "floating popup no longer obscures graph")
   assert.ok(browser.includes('aria-label="그래프 바로 아래 혈류량별 압력 비교"'))
-  assert.ok(browser.includes("estimateCannulaPressure(item.points, chartFlow)"))
+  assert.ok(browser.includes("estimateCannulaCurvePressure(item, chartFlow)"))
   assert.ok(browser.includes("compactCurveLabel(item)"))
   assert.ok(browser.includes('item.model.replace(/\\s+Cannulae?$/i, "")'), "full model remains identifiable")
   assert.ok(browser.includes('item.nominalFr + " Fr"'), "Fr is retained")
@@ -344,7 +396,7 @@ test("selected-curve markers share flow and plot signed Drainage magnitude", () 
   assert.ok(browser.includes("ReferenceDot"))
   assert.ok(browser.includes('activeDot={false}'), "disable native dots based on sparse raw points")
   assert.ok(browser.includes('chartFlow !== null && selected.map((item, index) => {'))
-  assert.ok(browser.includes('estimateCannulaPressure(item.points, chartFlow)'))
+  assert.ok(browser.includes('estimateCannulaCurvePressure(item, chartFlow)'))
   assert.ok(browser.includes('if (pressure === null) return null'), "out-of-range curves must not have dots")
   assert.ok(browser.includes('x={chartFlow} y={Math.abs(pressure)}'), "one x shared by all curves and magnitude on graph")
   assert.ok(browser.includes('fill={LINE_COLORS[index]}'), "dot color follows its selected curve")
@@ -411,7 +463,7 @@ test("0.1 L/min mouse/touch snapping is stable at endpoints and source off-grid 
   assert.ok(browser.includes("touch-pan-y"), "retain vertical page scrolling while dragging horizontally on mobile")
   assert.ok(browser.includes("previewFlow === null ? 2 : 1"), "preview flow is displayed to tenths")
   assert.ok(browser.includes("0.1 L/min 간격"), "explain interpolation step in UI")
-  assert.ok(browser.includes("estimateCannulaPressure(item.points, chartFlow)"),
+  assert.ok(browser.includes("estimateCannulaCurvePressure(item, chartFlow)"),
     "comparison table and points must use the same interpolated flow")
 })
 
