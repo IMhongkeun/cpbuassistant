@@ -720,6 +720,24 @@ const CPBUassistant = () => {
               </p>
             </div>
           </div>
+          <section className="cpbu-panel" aria-labelledby="lung-protocol-heading">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 id="lung-protocol-heading" className="text-lg font-semibold text-[#18323B]">폐이식 Protocol</h3>
+                <p className="mt-1 text-sm text-gray-600">Lung transplantation protocol · PDF · 9페이지</p>
+              </div>
+              <a
+                href="https://d2ol7oe51mr4n9.cloudfront.net/user_3H7xKprZ2ov3QICK2923lnmH0vc/575b9276-7080-4ea1-ab39-038e3b2ebb70.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                type="application/pdf"
+                aria-label="폐이식 Protocol PDF 새 탭에서 보기"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg bg-[#006B6E] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#005559] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#006B6E]"
+              >
+                Protocol 보기 (PDF ↗)
+              </a>
+            </div>
+          </section>
         </div>
       )}
 
