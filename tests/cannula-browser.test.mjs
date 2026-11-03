@@ -323,7 +323,7 @@ test("navigation, search, chart, ranges and dual diagrams stay integrated", () =
   assert.match(browser, /setSearch\(/)
   assert.match(browser, /matchesCannulaSearch\(variant, search\)/)
   assert.match(browser, /toggleCannulaSelection\(previous, id, MAX_COMPARE\)/)
-  assert.match(browser, /estimateCannulaPressure\(item.points, chartFlow\)/)
+  assert.match(browser, /estimateCannulaCurvePressure\(item, chartFlow\)/)
   assert.match(browser, /ResponsiveContainer/)
   assert.match(browser, /connectNulls/)
   assert.match(browser, /PressurePathDiagram type="arterial"/)
