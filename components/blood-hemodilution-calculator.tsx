@@ -1198,7 +1198,7 @@ export default function BloodHemodilutionCalculator() {
                         value={intraNetVolumeChangeFromBase}
                         onChange={setIntraNetVolumeChangeFromBase}
                         placeholder="0"
-                        helperText="현재 시점의 I/O net 값을 입력하여 total volume을 보정하세요."
+                        helperText="유지하던 reservoir level 기준에서 얼마나 변하였는지의 I/O"
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
