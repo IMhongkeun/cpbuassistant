@@ -82,6 +82,8 @@ function compactCurveLabel(item: CannulaCurve) {
 
 function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
   const arterial = type === "arterial"
+  const accent = arterial ? "#a32d38" : "#215d9c"
+  const tint = arterial ? "#fff1f2" : "#eff6ff"
   const steps = arterial ? ["Pump", "Cannula", "Patient"] : ["Patient", "Cannula", "Reservoir"]
   return (
     <svg
@@ -93,16 +95,16 @@ function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
       <defs>
         <marker id={"cannula-arrow-" + type} viewBox="0 0 10 10" refX="8" refY="5"
           markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2b8f90" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill={accent} />
         </marker>
       </defs>
       {steps.map((name, index) => (
         <g key={name}>
           <rect x={index * 182 + 2} y="12" width="152" height="61" rx="14"
-            fill={index === 1 ? "#e9f5f4" : "#f7fbfa"}
-            stroke={index === 1 ? "#5aa5a3" : "#d3e4e2"} strokeWidth="1.5" />
+            fill={index === 1 ? tint : "#f7fbfa"}
+            stroke={index === 1 ? accent : "#d3e4e2"} strokeWidth="1.5" />
           {index === 1 ? (
-            <path d={"M " + (index * 182 + 39) + " 44 h 74"} stroke="#087b80"
+            <path d={"M " + (index * 182 + 39) + " 44 h 74"} stroke={accent}
               strokeWidth="9" strokeLinecap="round" />
           ) : (
             <circle cx={index * 182 + 78} cy="33" r="11" fill="#cce5e2" />
@@ -111,7 +113,7 @@ function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
             fontSize="15" fontWeight="600" fill="#183a40">{name}</text>
           {index < 2 && (
             <line x1={index * 182 + 158} x2={index * 182 + 178} y1="43" y2="43"
-              stroke="#2b8f90" strokeWidth="2.5"
+              stroke={accent} strokeWidth="2.5"
               markerEnd={"url(#cannula-arrow-" + type + ")"} />
           )}
         </g>
@@ -536,7 +538,7 @@ export default function CannulaBrowser() {
         </div>
 
         <p className="border-t border-[#e0eae8] pt-3 text-xs leading-5 text-[#52686d]">
-          <strong className="text-[#18323b]">주의:</strong> 제조사 시험 조건(시험 유체·Hct·온도)의 참고값입니다.
+          <strong className="text-[#18323b]">주의:</strong> 제조사 시험 유체·온도 기준의 참고값으로 실제 혈액(Hct 등)에서는 달라질 수 있습니다.
           이 값만으로 캐뉼라 선택이나 VAVD 설정을 결정하지 마세요.
         </p>
         <details className="text-xs text-[#657a7e]">
