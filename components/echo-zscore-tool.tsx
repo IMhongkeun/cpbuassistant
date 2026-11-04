@@ -361,9 +361,14 @@ export default function EchoZScoreTool() {
       </div>
 
       <Tabs defaultValue="pettersen" className="w-full">
-        <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-6">
-          <TabsTrigger value="pettersen">Pettersen (2008)</TabsTrigger>
-          <TabsTrigger value="phn">PHN (Lopez 2017)</TabsTrigger>
+        <TabsList className="grid h-auto min-h-16 w-full max-w-md mx-auto grid-cols-2 items-stretch mb-6">
+          <TabsTrigger value="pettersen" className="h-auto min-w-0 whitespace-normal">Pettersen (2008)</TabsTrigger>
+          <TabsTrigger value="phn" className="h-auto min-w-0 flex-col gap-0.5 py-2 whitespace-normal">
+            <span>PHN (Lopez 2017)</span>
+            <span className="text-center text-[10px] leading-tight text-muted-foreground sm:text-xs">
+              부서 참고표 포함: MPA·RPA·LPA (BSA ≤ 0.7 m²)
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="phn" className="space-y-6">
