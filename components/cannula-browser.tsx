@@ -129,7 +129,6 @@ export default function CannulaBrowser() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [flowText, setFlowText] = useState("4")
   const [previewFlow, setPreviewFlow] = useState<number | null>(null)
-  const [pressureGuideType, setPressureGuideType] = useState<"arterial" | "venous">("arterial")
 
   const selected = useMemo(
     () => selectedIds.map((id) => ALL_CURVES.find((item) => item.id === id))
@@ -471,70 +470,51 @@ export default function CannulaBrowser() {
       </div>
 
       <section className="cpbu-panel space-y-4" aria-label="캐뉼라 ΔP 활용 안내">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-bold text-[#18323b]">ΔP, 이렇게 쓰세요</h3>
-          <div role="group" aria-label="압력 해석 종류" className="inline-flex rounded-lg border border-[#dce6e5] bg-[#f1f5f4] p-1">
-            <button type="button" aria-pressed={pressureGuideType === "arterial"}
-              onClick={() => setPressureGuideType("arterial")}
-              className={"rounded-md px-4 py-1.5 text-xs font-semibold transition " + (
-                pressureGuideType === "arterial"
-                  ? "bg-white text-[#a32d38] shadow-sm"
-                  : "text-[#657a7e] hover:text-[#a32d38]"
-              )}>Arterial</button>
-            <button type="button" aria-pressed={pressureGuideType === "venous"}
-              onClick={() => setPressureGuideType("venous")}
-              className={"rounded-md px-4 py-1.5 text-xs font-semibold transition " + (
-                pressureGuideType === "venous"
-                  ? "bg-white text-[#215d9c] shadow-sm"
-                  : "text-[#657a7e] hover:text-[#215d9c]"
-              )}>Venous</button>
-          </div>
-        </div>
+        <h3 className="text-base font-bold text-[#18323b]">ΔP, 이렇게 쓰세요</h3>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <article className="space-y-3 rounded-xl border border-[#f0d8db] bg-[#fffbfb] p-3 sm:p-4" aria-label="Arterial 압력 해석">
+            <h4 className="text-sm font-bold text-[#a32d38]">Arterial</h4>
+            <PressurePathDiagram type="arterial" />
+            <p className="text-sm font-semibold leading-6 text-[#18323b]">
+              라인 압력 ≈ 환자 MAP + Cannula ΔP + 회로 ΔP
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-[#fff0f1] px-3 py-2.5 text-xs text-[#873843]">
+              <span className="rounded bg-white px-2 py-1 font-semibold">MAP 60</span>
+              <span>+</span>
+              <span className="rounded bg-white px-2 py-1 font-semibold">Cannula ΔP 40</span>
+              <span>→</span>
+              <strong className="text-sm">100 mmHg + 회로 ΔP</strong>
+            </div>
+            <p className="text-xs leading-5 text-[#52686d]">
+              라인 압력이 예상보다 높다면 캐뉼라 크기·위치와 회로 꼬임(kinking)을 확인하세요.
+            </p>
+          </article>
 
-        <div className="grid items-center gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-          <div className="rounded-lg border border-[#e0eae8] bg-[#f9fcfb] px-2 py-3">
-            <PressurePathDiagram type={pressureGuideType} />
-          </div>
-          {pressureGuideType === "arterial" ? (
-            <div className="space-y-3">
-              <p className="text-sm font-bold leading-6 text-[#18323b]">
-                라인 압력 ≈ 환자 MAP + Cannula ΔP + 회로 ΔP
-              </p>
-              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-[#fff5f5] p-3 text-xs text-[#873843]">
-                <span className="rounded-md bg-white px-2 py-1.5 font-semibold">MAP 60</span>
-                <span>+</span>
-                <span className="rounded-md bg-white px-2 py-1.5 font-semibold">Cannula ΔP 40</span>
-                <span>→</span>
-                <strong className="text-sm">100 mmHg + 회로 ΔP</strong>
-              </div>
-              <p className="text-xs leading-5 text-[#52686d]">
-                라인 압력이 예상보다 높다면 캐뉼라 크기·위치와 회로 꼬임(kinking)을 확인하세요.
-              </p>
+          <article className="space-y-3 rounded-xl border border-[#d3e3f4] bg-[#f9fcff] p-3 sm:p-4" aria-label="Venous 배액 해석">
+            <h4 className="text-sm font-bold text-[#215d9c]">Venous</h4>
+            <PressurePathDiagram type="venous" />
+            <p className="text-sm font-semibold leading-6 text-[#18323b]">
+              배액 구동 압력차 ≈ 낙차에 의한 압력 + VAVD 음압 크기
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-[#eaf4ff] px-3 py-2.5 text-xs text-[#215d9c]">
+              <span className="rounded bg-white px-2 py-1 font-semibold">낙차 20</span>
+              <span>+</span>
+              <span className="rounded bg-white px-2 py-1 font-semibold">VAVD 40</span>
+              <span>→</span>
+              <strong className="text-sm">60 mmHg</strong>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm font-bold leading-6 text-[#18323b]">
-                배액 구동 압력차 ≈ 정맥압 + 낙차에 의한 압력 + VAVD 음압 크기
-              </p>
-              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-[#f0f7ff] p-3 text-xs text-[#215d9c]">
-                <span className="rounded-md bg-white px-2 py-1.5 font-semibold">정맥압 5</span>
-                <span>+</span>
-                <span className="rounded-md bg-white px-2 py-1.5 font-semibold">낙차 20</span>
-                <span>+</span>
-                <span className="rounded-md bg-white px-2 py-1.5 font-semibold">VAVD 40</span>
-                <span>→</span>
-                <strong className="text-sm">65 mmHg</strong>
-              </div>
-              <p className="text-xs leading-5 text-[#52686d]">
-                이 압력차가 캐뉼라·정맥 라인의 저항(ΔP)을 극복합니다. VAVD 미사용 시 0이며,
-                설정값 −40 mmHg는 위 예시에서 +40 mmHg로 계산합니다.
-              </p>
-              <p className="text-xs leading-5 text-[#52686d]">
-                정맥 환류가 부족하거나 흡인이 과하면 chatter·collapse가 생길 수 있습니다.
-                VAVD를 무조건 높이지 마세요.
-              </p>
-            </div>
-          )}
+            <p className="text-xs leading-5 text-[#52686d]">
+              이 압력차로 캐뉼라·정맥 라인의 저항(ΔP)을 극복합니다.
+              VAVD 미사용 시 0, 설정값 −40 mmHg는 크기 40으로 계산합니다.
+            </p>
+            <p className="text-xs leading-5 text-[#52686d]">
+              정맥 환류가 부족하거나 흡인이 과하면 chatter·collapse가 생길 수 있습니다.
+              VAVD를 무조건 높이지 마세요.
+            </p>
+            <p className="text-[11px] leading-4 text-[#657a7e]">
+              ※ Full drainage 상황을 가정해 정맥압 항을 생략한 설명용 근사식입니다(실제 RA압이 항상 0이라는 뜻은 아닙니다).
+            </p>
+          </article>
         </div>
 
         <p className="border-t border-[#e0eae8] pt-3 text-xs leading-5 text-[#52686d]">
