@@ -89,3 +89,12 @@ test("three PCS subtabs fit mobile grid tracks without forced no-wrap", () => {
   assert.match(rules, /overflow-wrap:\s*anywhere\s*;/)
   assert.match(rules, /padding:\s*\.6rem\s*\.25rem\s*;/)
 })
+
+test("PHN tab subtitle identifies department PA lookup scope and keeps its source limit", () => {
+  const echo = read("components/echo-zscore-tool.tsx")
+  assert.match(echo, /<TabsTrigger value="phn"[^>]*flex-col/)
+  assert.match(echo, /PHN \(Lopez 2017\)/)
+  assert.match(echo, /부서 참고표 포함: MPA·RPA·LPA \(BSA ≤ 0\.7 m²\)/)
+  assert.match(echo, /if \(bsa <= 0\.7 && \(s === "MPA" \|\| s === "RPA" \|\| s === "LPA"\)\)/)
+  assert.match(echo, /const sd = c\.sd \* pow \* 10/)
+})

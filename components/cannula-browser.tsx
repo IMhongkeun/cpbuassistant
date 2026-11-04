@@ -14,7 +14,8 @@ import {
   YAxis,
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
-import { buildCannulaChartRows, snapCannulaChartFlow, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, compareCannulaManufacturers, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { buildCannulaChartRows, snapCannulaChartFlow, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, compareCannulaManufacturers, formatCannulaSize, getCannulaFrLabel, getCannulaShortName, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
   id: string
@@ -62,6 +63,29 @@ function curveLabel(item: CannulaCurve) {
   return item.model + " · " + curveDisplaySize(item) + (
     item.semanticType === "drainage" ? " · Drainage" :
     item.semanticType === "infusion" ? " · Infusion" : ""
+  )
+}
+
+// Selecting the shortened name exposes the full catalog name on touch and keyboard.
+function CannulaModelName({ item, className = "" }: { item: CannulaCurve; className?: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" title={curveLabel(item)}
+          aria-label={"전체 제품명 보기: " + curveLabel(item)}
+          className={"inline-block min-w-0 max-w-full truncate text-left underline-offset-2 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#087b80] " + className}>
+          {getCannulaShortName(item)}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" side="bottom"
+        className="w-[min(320px,85vw)] space-y-1 break-words border-[#d7e3e1] p-3 text-xs">
+        <p className="font-semibold text-[#18323b]">{item.model}</p>
+        <p className="text-[#52686d]">{curveDisplaySize(item)}
+          {item.semanticType === "drainage" ? " · Drainage" :
+            item.semanticType === "infusion" ? " · Infusion" : ""}
+        </p>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -318,11 +342,13 @@ export default function CannulaBrowser() {
               <div className="flex flex-wrap gap-2" aria-label="선택한 캐뉼라">
                 {selected.map((item, index) => (
                   <span key={item.id}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[#dfe9e7] bg-[#f7fbfa] py-1 pl-2 pr-1 text-xs text-[#18323b]">
+                    className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-[#dfe9e7] bg-[#f7fbfa] py-1 pl-2 pr-1 text-xs text-[#18323b]">
                     <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: LINE_COLORS[index] }} />
-                    <span className="min-w-0 max-w-[180px] truncate sm:max-w-[230px]"
-                      title={compactCurveLabel(item)}>{compactCurveLabel(item)}</span>
+                    <span className="shrink-0 whitespace-nowrap rounded bg-[#e5f2f1] px-1.5 py-0.5 font-bold text-[#005559]">
+                      {getCannulaFrLabel(item)}
+                    </span>
+                    <CannulaModelName item={item} className="max-w-[145px] text-xs sm:max-w-[215px]" />
                     <button type="button" onClick={() => toggle(item.id)}
                       aria-label={curveLabel(item) + " 제외"}
                       className="rounded p-1 text-[#52686d] hover:bg-[#e9f5f4] hover:text-[#005559]">
@@ -387,7 +413,7 @@ export default function CannulaBrowser() {
                   </span>
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_52px_72px] gap-1.5 border-b border-[#e6efed] pb-1.5 text-[10px] font-semibold text-[#657a7e]">
-                  <span>Cannula · Fr</span>
+                  <span>Fr · Cannula</span>
                   <span className="text-right">Flow</span>
                   <span className="text-right">ΔP</span>
                 </div>
@@ -397,11 +423,16 @@ export default function CannulaBrowser() {
                   return (
                     <div key={item.id}
                       className="grid grid-cols-[minmax(0,1fr)_52px_72px] items-center gap-1.5 border-b border-[#edf2f1] py-2 text-xs last:border-b-0">
-                      <span className="flex min-w-0 items-center gap-1.5" title={compactCurveLabel(item)}>
-                        <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: LINE_COLORS[index] }} />
-                        <span className="min-w-0 truncate text-[#18323b]">{compactCurveLabel(item)}</span>
-                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: LINE_COLORS[index] }} />
+                          <span className="shrink-0 whitespace-nowrap font-bold text-[#18323b]">
+                            {getCannulaFrLabel(item)}
+                          </span>
+                        </div>
+                        <CannulaModelName item={item} className="mt-0.5 w-full pl-3.5 text-[11px] text-[#52686d]" />
+                      </div>
                       <span className="text-right tabular-nums text-[#52686d]">
                         {displayedFlow}
                       </span>
