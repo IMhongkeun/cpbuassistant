@@ -497,11 +497,11 @@ export default function CannulaBrowser() {
               배액 구동 압력차 ≈ 낙차에 의한 압력 + VAVD 음압 크기
             </p>
             <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-[#eaf4ff] px-3 py-2.5 text-xs text-[#215d9c]">
-              <span className="rounded bg-white px-2 py-1 font-semibold">낙차 20</span>
+              <span className="rounded bg-white px-2 py-1 font-semibold">낙차 30 cm ≈ 23 mmHg</span>
               <span>+</span>
-              <span className="rounded bg-white px-2 py-1 font-semibold">VAVD 40</span>
+              <span className="rounded bg-white px-2 py-1 font-semibold">VAVD 40 mmHg</span>
               <span>→</span>
-              <strong className="text-sm">60 mmHg</strong>
+              <strong className="text-sm">≈ 63 mmHg</strong>
             </div>
             <p className="text-xs leading-5 text-[#52686d]">
               이 압력차로 캐뉼라·정맥 라인의 저항(ΔP)을 극복합니다.
@@ -512,7 +512,7 @@ export default function CannulaBrowser() {
               VAVD를 무조건 높이지 마세요.
             </p>
             <p className="text-[11px] leading-4 text-[#657a7e]">
-              ※ Full drainage 상황을 가정해 정맥압 항을 생략한 설명용 근사식입니다(실제 RA압이 항상 0이라는 뜻은 아닙니다).
+              ※ RA–Reservoir 수면 높이 차 약 30 cm(혈액 1.05 g/mL 가정 → 23 mmHg). Full drainage를 가정해 정맥압 항을 생략한 예시이며, 실제 RA압이 항상 0이라는 뜻은 아닙니다.
             </p>
           </article>
         </div>
