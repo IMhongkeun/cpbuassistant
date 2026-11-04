@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ArrowRight, Check, Info, Search, X } from "lucide-react"
+import { Check, Info, Search, X } from "lucide-react"
 import {
   CartesianGrid,
   Line,
@@ -106,6 +106,8 @@ function compactCurveLabel(item: CannulaCurve) {
 
 function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
   const arterial = type === "arterial"
+  const accent = arterial ? "#a32d38" : "#215d9c"
+  const tint = arterial ? "#fff1f2" : "#eff6ff"
   const steps = arterial ? ["Pump", "Cannula", "Patient"] : ["Patient", "Cannula", "Reservoir"]
   return (
     <svg
@@ -117,16 +119,16 @@ function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
       <defs>
         <marker id={"cannula-arrow-" + type} viewBox="0 0 10 10" refX="8" refY="5"
           markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2b8f90" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill={accent} />
         </marker>
       </defs>
       {steps.map((name, index) => (
         <g key={name}>
           <rect x={index * 182 + 2} y="12" width="152" height="61" rx="14"
-            fill={index === 1 ? "#e9f5f4" : "#f7fbfa"}
-            stroke={index === 1 ? "#5aa5a3" : "#d3e4e2"} strokeWidth="1.5" />
+            fill={index === 1 ? tint : "#f7fbfa"}
+            stroke={index === 1 ? accent : "#d3e4e2"} strokeWidth="1.5" />
           {index === 1 ? (
-            <path d={"M " + (index * 182 + 39) + " 44 h 74"} stroke="#087b80"
+            <path d={"M " + (index * 182 + 39) + " 44 h 74"} stroke={accent}
               strokeWidth="9" strokeLinecap="round" />
           ) : (
             <circle cx={index * 182 + 78} cy="33" r="11" fill="#cce5e2" />
@@ -135,7 +137,7 @@ function PressurePathDiagram({ type }: { type: "arterial" | "venous" }) {
             fontSize="15" fontWeight="600" fill="#183a40">{name}</text>
           {index < 2 && (
             <line x1={index * 182 + 158} x2={index * 182 + 178} y1="43" y2="43"
-              stroke="#2b8f90" strokeWidth="2.5"
+              stroke={accent} strokeWidth="2.5"
               markerEnd={"url(#cannula-arrow-" + type + ")"} />
           )}
         </g>
@@ -498,81 +500,70 @@ export default function CannulaBrowser() {
         </section>
       </div>
 
-      <section className="grid gap-5 md:grid-cols-2" aria-label="캐뉼라 압력 추정법">
-        <article className="cpbu-panel space-y-3">
-          <div className="flex items-center gap-2">
-            <ArrowRight className="h-4 w-4 text-[#087b80]" aria-hidden="true" />
-            <h3 className="text-base font-bold text-[#18323b]">Arterial line pressure 해석</h3>
-          </div>
-          <PressurePathDiagram type="arterial" />
-          <p className="text-sm leading-6 text-[#52686d]">
-            위에서 확인한 <strong className="text-[#18323b]">Arterial cannula ΔP</strong>는
-            제조사 시험 조건에서 측정한 <strong className="text-[#18323b]">캐뉼라 자체 압력손실</strong>입니다.
-            실제 arterial line pressure는 환자측 압력과 측정 지점 이후 회로의 압력손실을 함께 반영합니다.
-          </p>
-          <div className="rounded-lg border border-[#dcebe7] bg-[#f3faf9] px-3 py-3">
-            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#087b80]">동맥측 압력 확인 · 개념도</p>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold leading-6 text-[#18323b]">
-              <span className="rounded-md bg-white px-2 py-1">측정된 arterial line P</span>
-              <span>≈</span>
-              <span className="rounded-md bg-white px-2 py-1">환자 MAP</span>
+      <section className="cpbu-panel space-y-4" aria-label="캐뉼라 ΔP 활용 안내">
+        <h3 className="text-base font-bold text-[#18323b]">ΔP, 이렇게 쓰세요</h3>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <article className="space-y-3 rounded-xl border border-[#f0d8db] bg-[#fffbfb] p-3 sm:p-4" aria-label="Arterial 압력 해석">
+            <h4 className="text-sm font-bold text-[#a32d38]">Arterial</h4>
+            <PressurePathDiagram type="arterial" />
+            <p className="text-sm font-semibold leading-6 text-[#18323b]">
+              라인 압력 ≈ 환자 MAP + Cannula ΔP + 회로 ΔP
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-[#fff0f1] px-3 py-2.5 text-xs text-[#873843]">
+              <span className="rounded bg-white px-2 py-1 font-semibold">MAP 60</span>
               <span>+</span>
-              <span className="rounded-md bg-white px-2 py-1">Cannula ΔP</span>
+              <span className="rounded bg-white px-2 py-1 font-semibold">Cannula ΔP 40</span>
+              <span>→</span>
+              <strong className="text-sm">100 mmHg + 회로 ΔP</strong>
+            </div>
+            <p className="text-xs leading-5 text-[#52686d]">
+              라인 압력이 예상보다 높다면 캐뉼라 크기·위치와 회로 꼬임(kinking)을 확인하세요.
+            </p>
+          </article>
+
+          <article className="space-y-3 rounded-xl border border-[#d3e3f4] bg-[#f9fcff] p-3 sm:p-4" aria-label="Venous 배액 해석">
+            <h4 className="text-sm font-bold text-[#215d9c]">Venous</h4>
+            <PressurePathDiagram type="venous" />
+            <p className="text-sm font-semibold leading-6 text-[#18323b]">
+              배액 구동 압력차 ≈ 낙차에 의한 압력 + VAVD 음압 크기
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-[#eaf4ff] px-3 py-2.5 text-xs text-[#215d9c]">
+              <span className="rounded bg-white px-2 py-1 font-semibold">낙차 30 cm ≈ 23 mmHg</span>
               <span>+</span>
-              <span className="rounded-md bg-white px-2 py-1">센서 이후 회로 ΔP</span>
+              <span className="rounded bg-white px-2 py-1 font-semibold">VAVD 40 mmHg</span>
+              <span>→</span>
+              <strong className="text-sm">≈ 63 mmHg</strong>
             </div>
-          </div>
-          <p className="text-xs leading-5 text-[#52686d]">
-            위 관계는 <strong>센서가 캐뉼라 상류에 있는 정상 유량 상태</strong>에서의 근사입니다.
-            Tubing·connector·filter·oxygenator 중 무엇이 포함되는지는 압력 센서 위치에 따라 다릅니다.
-            실제 평가 시 pump flow, 측정 위치, 환자 MAP와 line 압력 변화를 함께 확인하세요.
+            <p className="text-xs leading-5 text-[#52686d]">
+              이 압력차로 캐뉼라·정맥 라인의 저항(ΔP)을 극복합니다.
+              VAVD 미사용 시 0, 설정값 −40 mmHg는 크기 40으로 계산합니다.
+            </p>
+            <p className="text-xs leading-5 text-[#52686d]">
+              정맥 환류가 부족하거나 흡인이 과하면 chatter·collapse가 생길 수 있습니다.
+              VAVD를 무조건 높이지 마세요.
+            </p>
+            <p className="text-[11px] leading-4 text-[#657a7e]">
+              ※ RA–Reservoir 수면 높이 차 약 30 cm(혈액 1.05 g/mL 가정 → 23 mmHg). Full drainage를 가정해 정맥압 항을 생략한 예시이며, 실제 RA압이 항상 0이라는 뜻은 아닙니다.
+            </p>
+          </article>
+        </div>
+
+        <p className="border-t border-[#e0eae8] pt-3 text-xs leading-5 text-[#52686d]">
+          <strong className="text-[#18323b]">주의:</strong> 제조사 시험 유체·온도 기준의 참고값으로 실제 혈액(Hct 등)에서는 달라질 수 있습니다.
+          이 값만으로 캐뉼라 선택이나 VAVD 설정을 결정하지 마세요.
+        </p>
+        <details className="text-xs text-[#657a7e]">
+          <summary className="cursor-pointer font-semibold text-[#087b80]">데이터 출처 및 계산 기준</summary>
+          <p className="mt-2 leading-5">
+            기준:{" "}
+            <a href={sourceData.sourceUrl} target="_blank" rel="noopener noreferrer"
+              className="font-semibold underline">PerfusionTools 캐뉼라 데이터</a>
+            {" "}({sourceData.updatedAt}). 측정점 사이 선형 보간, 검증된 일부 MC2 끝점(32/40·34/46 Fr의 6.0 L/min)은 ≈ 근사값으로 표시합니다.
+            그 외 제조사 측정 범위 밖 계산은 차단합니다. 위 압력 예시는 원리 설명용으로 실제 환자 측정값이 아닙니다.
           </p>
-        </article>
-        <article className="cpbu-panel space-y-3">
-          <div className="flex items-center gap-2">
-            <ArrowRight className="h-4 w-4 text-[#087b80]" aria-hidden="true" />
-            <h3 className="text-base font-bold text-[#18323b]">Venous drainage pressure 해석</h3>
-          </div>
-          <PressurePathDiagram type="venous" />
-          <p className="text-sm leading-6 text-[#52686d]">
-            위에서 확인한 <strong className="text-[#18323b]">Venous cannula ΔP (크기)</strong>는
-            제조사 시험 조건의 캐뉼라 압력손실 참고값입니다.
-            실제 배액은 환자 정맥압, 낙차, VAVD로 형성되는 구동 압력차와
-            캐뉼라·정맥 회로 저항의 영향을 함께 받습니다.
-          </p>
-          <div className="rounded-lg border border-[#dcebe7] bg-[#f3faf9] px-3 py-3">
-            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#087b80]">정맥측 배액 확인 · 개념도</p>
-            <div className="space-y-2 text-xs font-semibold leading-5 text-[#18323b]">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="rounded-md bg-white px-2 py-1">환자 정맥압</span>
-                <span>−</span>
-                <span className="rounded-md bg-white px-2 py-1">Reservoir 압력 (VAVD)</span>
-                <span>+</span>
-                <span className="rounded-md bg-white px-2 py-1">낙차 효과</span>
-              </div>
-              <div className="flex items-center gap-2 text-[#087b80]">
-                <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>배액 구동 압력차 ≈ Cannula ΔP (크기) + Venous tubing ΔP</span>
-              </div>
-            </div>
-          </div>
-          <p className="text-xs leading-5 text-[#52686d]">
-            VAVD는 캐뉼라 압력손실에 더하는 값이 아니라 reservoir 압력을 낮춰
-            배액 구동 압력차를 변화시키는 요소입니다(압력은 동일 높이 기준으로 해석).
-            Reservoir level, 환자 preload, cannula 위치와 chatter/collapse 여부를 함께 확인하세요.
-            <strong> ΔP만으로 필요한 VAVD 설정값이나 안전한 음압 한계를 산정하지 마세요.</strong>
-          </p>
-        </article>
+        </details>
       </section>
 
-      <p className="px-1 text-xs leading-5 text-[#657a7e]">
-        기준:{" "}
-        <a href={sourceData.sourceUrl} target="_blank" rel="noopener noreferrer"
-          className="font-semibold text-[#087b80] underline">PerfusionTools 캐뉼라 데이터</a>
-        {" "}({sourceData.updatedAt}). 측정점 사이는 선형 보간합니다. MC2 32/40·34/46 Fr의 6.0 L/min은 원본 끝점과의 미세한 차이(0.05 L/min 이하)를 마지막 기울기로 근사한 ≈ 값입니다. 그 밖의 원본 범위 외 계산은 차단합니다.
-        시험 유체·Hct·온도·캐뉼라 위치 등에 따라 실제 압력손실은 달라질 수 있습니다.
-        임상 캐뉼라 선정이나 음압 허용치를 이 그래프만으로 결정하지 마세요.
-      </p>
     </div>
   )
 }
