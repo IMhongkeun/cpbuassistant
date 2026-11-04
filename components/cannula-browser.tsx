@@ -235,25 +235,32 @@ export default function CannulaBrowser() {
               const variantCodes = group.variants.map((variant) => variant.orderCode).join(" / ")
               const checked = selectedIds.includes(item.id)
               const disabled = !checked && selectedIds.length >= MAX_COMPARE
+              const arterial = isArterial(item)
               return (
                 <button key={item.id} type="button" disabled={disabled} onClick={() => toggle(item.id)}
                   aria-pressed={checked}
                   aria-label={curveLabel(item) + (group.variants.length > 1 ? " · 제품 코드 " + variantCodes : "") +
                     (checked ? " 비교에서 제외" : " 비교에 추가")}
-                  className={"flex w-full items-center gap-3 rounded-xl border p-3 text-left transition " + (
+                  className={"flex w-full items-center gap-3 rounded-xl border border-l-4 p-3 text-left transition " + (
                     checked ? "border-[#087b80] bg-[#f0faf8]" :
                     disabled ? "cursor-not-allowed border-[#e7eeec] bg-[#fafbfb] opacity-55" :
-                    "border-[#e0eae8] bg-white hover:border-[#7db7b4] hover:bg-[#f9fcfb]"
-                  )}>
+                    arterial ? "border-[#efd4d8] bg-[#fffbfb] hover:border-[#dba3a9] hover:bg-[#fff4f5]" :
+                    "border-[#d0e1f0] bg-[#f9fcff] hover:border-[#a6c5e2] hover:bg-[#f0f7ff]"
+                  )}
+                  style={{ borderLeftColor: arterial ? "#c34e5a" : "#3a79b8" }}>
                   <span aria-hidden="true"
                     className={"flex h-5 w-5 shrink-0 items-center justify-center rounded border " + (
                       checked ? "border-[#087b80] bg-[#087b80] text-white" : "border-[#9cadaa] bg-white"
                     )}>{checked && <Check className="h-3.5 w-3.5" />}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] font-semibold text-[#087b80]">
-                      {brandName(item)} · {isArterial(item) ? "Arterial" : "Venous"}
+                    <span className={"block text-[11px] font-semibold " + (
+                      arterial ? "text-[#a32d38]" : "text-[#215d9c]"
+                    )}>
+                      {brandName(item)} · {arterial ? "Arterial" : "Venous"}
                     </span>
-                    <span className="block break-words text-sm font-semibold leading-5 text-[#18323b]">{item.model}</span>
+                    <span className={"block break-words text-sm font-semibold leading-5 " + (
+                      arterial ? "text-[#a32d38]" : "text-[#215d9c]"
+                    )}>{item.model}</span>
                     <span className="block break-words text-xs leading-5 text-[#52686d]">
                       {curveDisplaySize(item)}
                       {item.semanticType === "infusion" ? " · Infusion" :
