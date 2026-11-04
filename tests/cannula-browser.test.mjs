@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
-import { buildCannulaChartRows, snapCannulaChartFlow, compareCannulaManufacturers, estimateCannulaPressure, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, formatCannulaSize, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
+import { buildCannulaChartRows, snapCannulaChartFlow, compareCannulaManufacturers, estimateCannulaPressure, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, formatCannulaSize, getCannulaFrLabel, getCannulaShortName, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "../lib/cannula-estimate.ts"
 
 const source = JSON.parse(readFileSync(new URL("../data/cannula-medtronic-maquet.json", import.meta.url), "utf8"))
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
@@ -506,4 +506,33 @@ test("Cannula list renders all matching curves without a show-more gate", () => 
     "manufacturer and cannula type filters remain")
   assert.ok(browser.includes("selectedIds.length >= MAX_COMPARE"),
     "four-curve selection limit remains")
+})
+
+test("Fr-first labels preserve every catalog size and make names expandable", () => {
+  assert.equal(getCannulaFrLabel({ size: "28/36 Fr" }), "28/36 Fr")
+  assert.equal(getCannulaFrLabel({ size: "PAS 1515 · 15 Fr / 5.0 mm · 15 cm" }), "15 Fr")
+  assert.equal(getCannulaFrLabel({ size: "PVL 2155", nominalFr: 21 }), "21 Fr")
+  assert.equal(getCannulaFrLabel({ size: "unknown" }), "Fr 미표기")
+  for (const item of source.items) {
+    assert.match(getCannulaFrLabel(item), /^\d+(?:\/\d+)?(?:\.\d+)? Fr$/, item.id)
+  }
+  const withKit = source.items.find((item) => item.model.includes("with Insertion Kit"))
+  assert.ok(withKit, "venous cannula insertion-kit variant must remain identifiable")
+  assert.ok(getCannulaShortName(withKit).includes("Insertion Kit"))
+  const introduced = getCannulaShortName({ model: "Demo Venous Cannula with Introducer" })
+  assert.ok(introduced.includes("Introducer"))
+  assert.ok(!introduced.includes("Cannula with"))
+  const drain = source.items.find((item) => item.semanticType === "drainage")
+  const infusion = source.items.find((item) => item.semanticType === "infusion")
+  assert.match(getCannulaShortName(drain), /^Drainage · /)
+  assert.match(getCannulaShortName(infusion), /^Infusion · /)
+
+  assert.equal(browser.split("{getCannulaFrLabel(item)}").length - 1, 2,
+    "Fr badge must appear in both selected chips and chart comparison rows")
+  assert.match(browser, /shrink-0 whitespace-nowrap rounded/)
+  assert.ok(browser.includes("<span>Fr · Cannula</span>"))
+  assert.ok(browser.includes("<CannulaModelName item={item}"))
+  assert.match(browser, /<PopoverTrigger asChild>/)
+  assert.ok(browser.includes('aria-label={"전체 제품명 보기: " + curveLabel(item)}'))
+  assert.ok(browser.includes("PopoverContent"), "tap/keyboard must open full manufacturer label")
 })

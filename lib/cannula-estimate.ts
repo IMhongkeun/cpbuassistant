@@ -180,6 +180,27 @@ export function matchesCannulaSearch(item: CannulaSearchable, query: string): bo
 }
 
 
+/** Fr-first display labels must preserve paired sizes and verified nominal Fr metadata. */
+export function getCannulaFrLabel(item: Pick<CannulaSearchable, "size" | "nominalFr">): string {
+  const sizeFr = item.size.match(/\b(\d+(?:\/\d+)?(?:\.\d+)?)\s*Fr\b/i)
+  if (sizeFr) return sizeFr[1] + " Fr"
+  return typeof item.nominalFr === "number" && Number.isFinite(item.nominalFr) && item.nominalFr > 0
+    ? item.nominalFr + " Fr"
+    : "Fr 미표기"
+}
+
+/** Keep meaningful device qualifiers while removing redundant generic 'Cannula'. */
+export function getCannulaShortName(item: Pick<CannulaSearchable, "model"> & { semanticType?: string }): string {
+  const prefix = item.semanticType === "drainage" ? "Drainage · " :
+    item.semanticType === "infusion" ? "Infusion · " : ""
+  const model = item.model.replace(/\bCannulae?\b/gi, "")
+    .replace(/\s+with\s+/gi, " · ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+·/g, " ·")
+    .trim()
+  return prefix + model
+}
+
 /** Show verified nominal Fr and unique order code in every comparison label. */
 export function formatCannulaSize(item: Pick<CannulaSearchable, "size" | "orderCode" | "nominalFr">): string {
   const hasFr = typeof item.nominalFr === "number" &&
