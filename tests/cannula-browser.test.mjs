@@ -518,7 +518,7 @@ test("concise ΔP guide toggles between department arterial and venous explanati
   assert.match(browser, /낙차 20/)
   assert.match(browser, /VAVD 40/)
   assert.match(browser, /65 mmHg/)
-  assert.match(browser, /제조사 시험 조건/)
+  assert.match(browser, /제조사 시험 유체·온도 기준/)
   assert.match(browser, /데이터 출처 및 계산 기준/)
   assert.ok(!browser.includes("센서 이후 회로 ΔP"), "fixed local sensor position should not appear as a variable")
   assert.ok(!browser.includes("filter·oxygenator"), "department does not use an arterial filter")
