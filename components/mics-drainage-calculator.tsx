@@ -44,7 +44,7 @@ function NumericControl({ label, value, onChange, min, max, step = 1, unit, slid
         aria-label={label + " 슬라이더"}
         type="range" min={min} max={max} step={step} value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="min-w-0 flex-1 accent-teal-600"
+        className="min-w-0 flex-1 cursor-pointer accent-teal-600 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-200"
       /> : null}
       <span className={"flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-100 " + (slider ? "w-36" : "w-full")}>
         <input
@@ -83,8 +83,8 @@ function FlowSplit({ title, flow, snaring }: { title: string; flow: MicsFlowResu
       role="img"
       aria-label={"상부 IJV " + fmt(flow.svcFlow) + " L/min " + fmt(ijvPercent, 0) + "%, 하부 FV " + fmt(flow.fvFlow) + " L/min " + fmt(fvPercent, 0) + "%"}
     >
-      <div className="bg-sky-400" style={{ width: ijvPercent + "%" }} />
-      <div className="bg-teal-600" style={{ width: fvPercent + "%" }} />
+      <div className="bg-sky-400 motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-out" style={{ width: ijvPercent + "%" }} />
+      <div className="bg-teal-600 motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-out" style={{ width: fvPercent + "%" }} />
     </div>
     <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
       <div><span className="inline-block h-2 w-2 rounded-full bg-sky-400" /> <span className="font-medium text-slate-600">상부 · IJV</span><p className="mt-1 font-bold tabular-nums text-slate-900">{fmt(flow.svcFlow)} L/min <span className="font-medium text-slate-500">({fmt(ijvPercent, 0)}%)</span></p></div>
@@ -220,21 +220,32 @@ export default function MicsDrainageCalculator() {
       </div>
     </section>
 
-    <section aria-label="필요 VAVD" className={"rounded-2xl border bg-white p-4 shadow-sm sm:p-6 " + (level === "high" ? "border-rose-200" : level === "near" ? "border-amber-200" : "border-slate-200")}>
+    <section aria-label="필요 VAVD" className={"rounded-2xl border bg-white p-4 shadow-sm motion-safe:transition-colors motion-safe:duration-200 sm:p-6 " + (level === "high" ? "border-rose-200" : level === "near" ? "border-amber-200" : "border-slate-200")}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-bold text-slate-900">A · 필요 VAVD</h3>
         <span className="text-xs text-slate-500">목표 {fmt(targetFlow)} L/min</span>
       </div>
       {required !== null ? <>
-        <p className={"mt-3 text-4xl font-bold tracking-tight tabular-nums " + (level === "high" ? "text-rose-700" : level === "near" ? "text-amber-700" : "text-emerald-700")}>
+        <p className={"mt-3 text-4xl font-bold tracking-tight tabular-nums motion-safe:transition-colors motion-safe:duration-200 " + (level === "high" ? "text-rose-700" : level === "near" ? "text-amber-700" : "text-emerald-700")}>
           {fmt(required)} <span className="text-lg font-medium">mmHg</span>
         </p>
         <p className="mt-1 text-xs text-slate-500">필요 ΔP {fmt(calculated?.target?.pressure)} − 낙차 보조 {fmt(calculated?.head)} mmHg (최소 0)</p>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className={"h-full rounded-full " + (level === "high" ? "bg-rose-500" : level === "near" ? "bg-amber-500" : "bg-emerald-500")} style={{ width: Math.min(100, (ratio ?? 0) * 100) + "%" }} />
+        <div
+          className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+          aria-label="설정 VAVD limit 대비 필요 VAVD"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(Math.max(0, Math.min(1, ratio ?? 0)) * 100)}
+          aria-valuetext={fmt(required) + " / " + fmt(vavdLimit, 0) + " mmHg"}
+        >
+          <div
+            className={"h-full w-full origin-left rounded-full motion-safe:transition-[transform,background-color] motion-safe:duration-200 motion-safe:ease-out " + (level === "high" ? "bg-rose-500" : level === "near" ? "bg-amber-500" : "bg-emerald-500")}
+            style={{ transform: "scaleX(" + Math.max(0, Math.min(1, ratio ?? 0)) + ")" }}
+          />
         </div>
         {isExceeded ? <p className="mt-3 font-bold text-rose-700">−{fmt(vavdLimit, 0)} 초과 ({fmt(required - vavdLimit)} mmHg 오버)</p> :
-          <p className={"mt-3 text-sm font-semibold " + (level === "near" ? "text-amber-700" : "text-emerald-700")}>{level === "near" ? "VAVD limit 90~100% 근접" : "VAVD limit 90% 미만"}</p>}
+          <p className={"mt-3 text-sm font-semibold motion-safe:transition-colors motion-safe:duration-200 " + (level === "near" ? "text-amber-700" : "text-emerald-700")}>{level === "near" ? "VAVD limit 90~100% 근접" : "VAVD limit 90% 미만"}</p>}
         <p className="mt-1 text-xs text-slate-500">설정 VAVD limit −{fmt(vavdLimit, 0)} mmHg</p>
       </> : <div className="mt-3 rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-600">
         목표 유량이 제조사 cannula 곡선 범위를 벗어나 필요 VAVD를 계산할 수 없습니다. 외삽하지 않습니다.
