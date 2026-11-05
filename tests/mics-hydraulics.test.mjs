@@ -134,3 +134,27 @@ test("calculator numeric inputs are bold and scoped away from transplant timing"
   assert.match(scopedStyle, /font-variant-numeric:\s*tabular-nums/)
   assert.ok(!css.includes('.cpbu-time-input :is('))
 })
+
+
+test("exact 6 L/min manufacturer endpoints retain a VAVD estimate for every FV cannula", () => {
+  for (const fv of Object.keys(FV_CURVES).map(Number)) {
+    const atEndpoint = solveMicsTarget({ ...defaults, fv, targetFlow: 6, vavdLimit: 120 })
+    assert.ok(atEndpoint?.target, "FV " + fv + " Fr endpoint must be calculable")
+    assert.equal(atEndpoint.target.fvFlow, 6)
+    assert.equal(atEndpoint.target.totalFlow, 6)
+    assert.ok(Number.isFinite(atEndpoint.requiredVavd))
+
+    // Keep the no-extrapolation rule strict beyond the measured curve.
+    const outside = solveMicsTarget({ ...defaults, fv, targetFlow: 6.000001, vavdLimit: 120 })
+    assert.equal(outside?.target, null, "FV " + fv + " Fr beyond endpoint must be rejected")
+  }
+})
+
+test("zero flow is an exact valid boundary and does not create phantom drainage", () => {
+  const result = solveMicsTarget({ ...defaults, ijv: 17, targetFlow: 0 })
+  assert.ok(result?.target)
+  assert.equal(result.target.fvFlow, 0)
+  assert.equal(result.target.svcFlow, 0)
+  assert.equal(result.target.totalFlow, 0)
+  assert.equal(result.requiredVavd, 0)
+})
