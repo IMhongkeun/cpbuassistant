@@ -53,7 +53,7 @@ function invertBranch(curve: number[], pressure: number, lengthM: number, diamet
   if (maxPressure === null || pressure < 0 || pressure > maxPressure) return null
   let low = 0
   let high = maxFlow
-  for (let i = 0; i < 70; i += 1) {
+  for (let i = 0; i < 32; i += 1) {
     const mid = (low + high) / 2
     if ((branchLoss(curve, mid, lengthM, diameterIn) ?? Infinity) < pressure) low = mid
     else high = mid
@@ -85,7 +85,7 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number, 
   if (!maxResult || target > maxResult.totalFlow) return null
   let low = 0
   let high = maxPressure
-  for (let i = 0; i < 70; i += 1) {
+  for (let i = 0; i < 32; i += 1) {
     const mid = (low + high) / 2
     const result = flowAtPressure(fv, tube, svc, mid, fvLengthM, ijvLengthM)
     if (!result || result.totalFlow < target) low = mid
@@ -154,9 +154,8 @@ function hydraulicAtFlow(input: MicsHydraulicInput, flow: number): MicsFlowResul
   return pressureForFlow(input.fv, input.tube, input.ijv, flow, fvLengthM, ijvLengthM)
 }
 
-export function solveMicsDrainage(input: MicsHydraulicInput) {
-  const valid =
-    FV_CURVES[input.fv] !== undefined &&
+function validInput(input: MicsHydraulicInput) {
+  return FV_CURVES[input.fv] !== undefined &&
     (input.ijv === 0 || IJV_CURVES[input.ijv] !== undefined) &&
     (input.tube === 0.375 || input.tube === 0.5) &&
     [input.targetFlow, input.vavdLimit, input.heightCm, input.fvLengthCm, input.ijvLengthCm, input.ijvPercent]
@@ -165,16 +164,33 @@ export function solveMicsDrainage(input: MicsHydraulicInput) {
     input.vavdLimit >= 0 && input.heightCm >= 0 &&
     input.fvLengthCm > 0 && input.ijvLengthCm > 0 &&
     (!input.snaring || input.ijv === 0 || (input.ijvPercent > 0 && input.ijvPercent < 100))
-  if (!valid) return null
+}
 
+/**
+ * Only the target flow, branch choice, cannulas, lengths and height affect
+ * target pressure. Split this from the max-flow calculation so dragging the
+ * target slider never reruns the nested 0–8 L/min maximum search.
+ */
+export function solveMicsTarget(input: MicsHydraulicInput) {
+  if (!validInput(input)) return null
   const head = input.heightCm * 0.7356
-  const budget = head + input.vavdLimit
   const target = hydraulicAtFlow(input, input.targetFlow)
-  const requiredVavd = target ? Math.max(0, target.pressure - head) : null
+  return {
+    head,
+    target,
+    requiredVavd: target ? Math.max(0, target.pressure - head) : null,
+  }
+}
 
-  // Monotone binary search over 0–8 L/min, honoring curve validity at every probe.
-  // This replaces the former single-pressure inverse; neither cannula nor tube
-  // loss equations and neither source curve are modified.
+/**
+ * Maximum flow is independent of targetFlow: cache this at the call site when
+ * only the target slider changes. The original cannula/tubing loss functions
+ * and manufacturer-curve bounds are preserved.
+ */
+export function solveMicsMaximum(input: MicsHydraulicInput) {
+  if (!validInput(input)) return null
+  const budget = input.heightCm * 0.7356 + input.vavdLimit
+  // Bisection of total flow in the requested 0–8 L/min domain.
   let low = 0
   let high = 8
   for (let i = 0; i < 24; i += 1) {
@@ -186,14 +202,17 @@ export function solveMicsDrainage(input: MicsHydraulicInput) {
   const maxResult = hydraulicAtFlow(input, low)
   const nextProbe = hydraulicAtFlow(input, Math.min(8, low + 0.001))
   const curveLimited = low < 8 - 1e-6 && nextProbe === null
-
   return {
-    head,
     budget,
-    target,
-    requiredVavd,
     maxResult,
     maxFlow: maxResult?.totalFlow ?? 0,
     curveLimited,
   }
+}
+
+/** Convenience API for comparisons and regression tests. */
+export function solveMicsDrainage(input: MicsHydraulicInput) {
+  const target = solveMicsTarget(input)
+  const maximum = solveMicsMaximum(input)
+  return target && maximum ? { ...target, ...maximum } : null
 }
