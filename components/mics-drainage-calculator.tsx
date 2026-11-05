@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
-import { solveMicsDrainage, type MicsFlowResult, type MicsHydraulicInput } from "@/lib/mics-hydraulics"
+import { solveMicsMaximum, solveMicsTarget, type MicsFlowResult } from "@/lib/mics-hydraulics"
 
 const fvSizes = [19, 21, 23, 25, 27, 29]
 const ijvSizes = [15, 17, 19]
@@ -81,14 +81,14 @@ function FlowSplit({ title, flow, snaring }: { title: string; flow: MicsFlowResu
     <div
       className="flex h-3 overflow-hidden rounded-full bg-slate-100"
       role="img"
-      aria-label={"FV " + fmt(flow.fvFlow) + " L/min " + fmt(fvPercent, 0) + "%, IJV " + fmt(flow.svcFlow) + " L/min " + fmt(ijvPercent, 0) + "%"}
+      aria-label={"상부 IJV " + fmt(flow.svcFlow) + " L/min " + fmt(ijvPercent, 0) + "%, 하부 FV " + fmt(flow.fvFlow) + " L/min " + fmt(fvPercent, 0) + "%"}
     >
-      <div className="bg-teal-600" style={{ width: fvPercent + "%" }} />
       <div className="bg-sky-400" style={{ width: ijvPercent + "%" }} />
+      <div className="bg-teal-600" style={{ width: fvPercent + "%" }} />
     </div>
     <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-      <div><span className="inline-block h-2 w-2 rounded-full bg-teal-600" /> <span className="font-medium text-slate-600">하부 · FV</span><p className="mt-1 font-bold tabular-nums text-slate-900">{fmt(flow.fvFlow)} L/min <span className="font-medium text-slate-500">({fmt(fvPercent, 0)}%)</span></p></div>
       <div><span className="inline-block h-2 w-2 rounded-full bg-sky-400" /> <span className="font-medium text-slate-600">상부 · IJV</span><p className="mt-1 font-bold tabular-nums text-slate-900">{fmt(flow.svcFlow)} L/min <span className="font-medium text-slate-500">({fmt(ijvPercent, 0)}%)</span></p></div>
+      <div><span className="inline-block h-2 w-2 rounded-full bg-teal-600" /> <span className="font-medium text-slate-600">하부 · FV</span><p className="mt-1 font-bold tabular-nums text-slate-900">{fmt(flow.fvFlow)} L/min <span className="font-medium text-slate-500">({fmt(fvPercent, 0)}%)</span></p></div>
     </div>
     {snaring ? <p className="mt-3 text-xs text-amber-700">Snaring: 지정한 정맥 환류 비율 가정으로 분배 (동일 ΔP 분배가 아님)</p> : null}
   </div>
@@ -115,13 +115,17 @@ export default function MicsDrainageCalculator() {
 
   const dual = ijv !== 0
   const isSnaring = dual && snaring
-  const input: MicsHydraulicInput = {
+  // Target changes frequently while dragging; max flow depends only on the
+  // hydraulic configuration and VAVD limit, not on targetFlow.
+  const targetResult = useMemo(() => solveMicsTarget({
     fv, ijv, tube, targetFlow, vavdLimit, heightCm, fvLengthCm, ijvLengthCm,
     snaring: isSnaring, ijvPercent,
-  }
-  const calculated = useMemo(() => solveMicsDrainage(input), [
-    fv, ijv, tube, targetFlow, vavdLimit, heightCm, fvLengthCm, ijvLengthCm, isSnaring, ijvPercent,
-  ])
+  }), [fv, ijv, tube, targetFlow, vavdLimit, heightCm, fvLengthCm, ijvLengthCm, isSnaring, ijvPercent])
+  const maximumResult = useMemo(() => solveMicsMaximum({
+    fv, ijv, tube, targetFlow: 0, vavdLimit, heightCm, fvLengthCm, ijvLengthCm,
+    snaring: isSnaring, ijvPercent,
+  }), [fv, ijv, tube, vavdLimit, heightCm, fvLengthCm, ijvLengthCm, isSnaring, ijvPercent])
+  const calculated = targetResult && maximumResult ? { ...targetResult, ...maximumResult } : null
 
   const required = calculated?.requiredVavd ?? null
   const ratio = required === null ? null : vavdLimit === 0 ? (required === 0 ? 0 : Infinity) : required / vavdLimit
@@ -151,34 +155,39 @@ export default function MicsDrainageCalculator() {
             <button type="button" aria-pressed={!dual} onClick={() => { setIjv(0); setSnaring(false) }}
               className={"rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors " + (!dual ? "bg-white text-teal-800 shadow-sm" : "text-slate-600 hover:text-slate-900")}>FV 단독</button>
             <button type="button" aria-pressed={dual} onClick={() => setIjv(selectedIjv)}
-              className={"rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors " + (dual ? "bg-white text-teal-800 shadow-sm" : "text-slate-600 hover:text-slate-900")}>FV + IJV</button>
+              className={"rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors " + (dual ? "bg-white text-teal-800 shadow-sm" : "text-slate-600 hover:text-slate-900")}>IJV + FV</button>
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">FV cannula</span>
-            <select value={fv} onChange={(event) => setFv(Number(event.target.value))}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100">
-              {fvSizes.map((size) => <option key={size} value={size}>{size} Fr</option>)}
-            </select>
-          </label>
           {dual ? <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">IJV cannula</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700">상부 · IJV cannula</span>
             <select value={ijv} onChange={(event) => { setIjv(Number(event.target.value)); setSelectedIjv(Number(event.target.value)) }}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100">
               {ijvSizes.map((size) => <option key={size} value={size}>{size} Fr</option>)}
             </select>
           </label> : null}
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-slate-700">{dual ? "하부 · FV cannula" : "FV cannula"}</span>
+            <select value={fv} onChange={(event) => setFv(Number(event.target.value))}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100">
+              {fvSizes.map((size) => <option key={size} value={size}>{size} Fr</option>)}
+            </select>
+          </label>
         </div>
 
-        <div>
-          <p className="mb-2 text-sm font-medium text-slate-700">FV tubing</p>
-          <div className="grid grid-cols-2 gap-2">
-            {tubeOptions.map((option) => <button type="button" key={option.value} aria-pressed={tube === option.value} onClick={() => setTube(option.value)}
-              className={"rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors " + (tube === option.value ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600 hover:border-teal-300")}>{option.label}</button>)}
+        <div className="space-y-3">
+          {dual ? <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+            <span className="font-medium text-slate-700">상부 · IJV tubing</span>
+            <span className="font-semibold text-slate-900">3/8″ <span className="text-xs font-normal text-slate-500">고정</span></span>
+          </div> : null}
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">{dual ? "하부 · FV tubing" : "FV tubing"}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {tubeOptions.map((option) => <button type="button" key={option.value} aria-pressed={tube === option.value} onClick={() => setTube(option.value)}
+                className={"rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors " + (tube === option.value ? "border-teal-600 bg-teal-50 text-teal-800" : "border-slate-200 bg-white text-slate-600 hover:border-teal-300")}>{option.label}</button>)}
+            </div>
           </div>
-          {dual ? <p className="mt-1.5 text-xs text-slate-500">IJV tubing은 기존 모델과 동일하게 3/8″ 적용</p> : null}
         </div>
 
         <div className="rounded-xl border border-teal-100 bg-teal-50/50 p-3 sm:p-4">
@@ -193,8 +202,8 @@ export default function MicsDrainageCalculator() {
           <div className="grid gap-4 border-t border-slate-100 p-4 sm:grid-cols-2">
             <NumericControl label="VAVD limit" value={vavdLimit} onChange={setVavdLimit} min={0} max={120} unit="mmHg" />
             <NumericControl label="낙차 보조" value={heightCm} onChange={setHeightCm} min={0} max={150} unit="cm" />
-            <NumericControl label="FV tubing 길이" value={fvLengthCm} onChange={setFvLengthCm} min={10} max={500} unit="cm" />
-            {dual ? <NumericControl label="IJV tubing 길이" value={ijvLengthCm} onChange={setIjvLengthCm} min={10} max={500} unit="cm" /> : null}
+            {dual ? <NumericControl label="상부 · IJV tubing 길이" value={ijvLengthCm} onChange={setIjvLengthCm} min={10} max={500} unit="cm" /> : null}
+            <NumericControl label={dual ? "하부 · FV tubing 길이" : "FV tubing 길이"} value={fvLengthCm} onChange={setFvLengthCm} min={10} max={500} unit="cm" />
             {dual ? <div className="sm:col-span-2">
               <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                 <input type="checkbox" checked={snaring} onChange={(event) => setSnaring(event.target.checked)} className="h-4 w-4 accent-teal-600" />
@@ -249,7 +258,7 @@ export default function MicsDrainageCalculator() {
     {dual ? <section aria-label="IJV FV 유량 분배" className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-6">
       <div>
         <h3 className="font-bold text-slate-900">상·하부 drainage 분배</h3>
-        <p className="mt-1 text-xs text-slate-500">{isSnaring ? "Snaring · 설정한 환류 비율 가정" : "FV·IJV 경로의 ΔP가 같아지는 수력학적 분배"}</p>
+        <p className="mt-1 text-xs text-slate-500">{isSnaring ? "Snaring · 설정한 환류 비율 가정" : "IJV·FV 경로의 ΔP가 같아지는 수력학적 분배"}</p>
       </div>
       <FlowSplit title="목표 flow에서" flow={calculated?.target ?? null} snaring={isSnaring} />
       <FlowSplit title="최대 flow에서" flow={calculated?.maxResult ?? null} snaring={isSnaring} />
@@ -285,7 +294,7 @@ export default function MicsDrainageCalculator() {
         <ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
       </summary>
       <div className="space-y-3 border-t border-slate-100 p-4 text-xs leading-5 text-slate-600">
-        <p>필요 VAVD = max(0, cannula + tubing 경로 ΔP − 낙차 보조). FV+IJV, non-snaring에서는 두 branch의 ΔP가 동일한 지점에서 분배합니다.</p>
+        <p>필요 VAVD = max(0, cannula + tubing 경로 ΔP − 낙차 보조). IJV+FV, non-snaring에서는 두 branch의 ΔP가 동일한 지점에서 분배합니다.</p>
         <p>Snaring에서는 선택한 상·하부 환류 비율을 적용하여 두 branch loss 중 더 큰 값을 사용합니다. 실제 정맥압·혈관 허탈·chatter를 직접 예측하지 않습니다.</p>
         <p>IJV 접근 경로를 상부 branch로 표기하며, 상부 정맥 환류 전체와 동일하다는 뜻은 아닙니다. IJV 접근 경로의 제조사 곡선 데이터는 변경하지 않았습니다.</p>
         <a href="https://amsect.org/Portals/0/VAVD.pdf" target="_blank" rel="noreferrer" className="font-semibold text-teal-700 underline">AmSECT VAVD Clinical Guideline</a>
