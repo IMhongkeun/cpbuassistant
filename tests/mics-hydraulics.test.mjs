@@ -118,3 +118,19 @@ test("VAVD gauge follows slider smoothly without delaying clinical result values
   assert.ok(ui.includes("{fmt(required)} <span"))
   assert.ok(!ui.includes("requestAnimationFrame"))
 })
+
+
+test("calculator numeric inputs are bold and scoped away from transplant timing", () => {
+  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8")
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
+
+  // The transplant timing tab stays untouched while other tabs receive
+  // high-contrast numeric input styling, including decimal text keyboards.
+  assert.match(page, /activeTab === "transplant" \? "" : " cpbu-calculator-inputs"/)
+  assert.ok(css.includes('.cpbu-calculator-inputs :is(input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"])'))
+  const scopedStyle = css.slice(css.indexOf('.cpbu-calculator-inputs :is(input'))
+  assert.match(scopedStyle, /font-weight:\s*700/)
+  assert.match(scopedStyle, /color:\s*var\(--foreground\)/)
+  assert.match(scopedStyle, /font-variant-numeric:\s*tabular-nums/)
+  assert.ok(!css.includes('.cpbu-time-input :is('))
+})
