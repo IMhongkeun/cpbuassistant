@@ -94,7 +94,17 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number, 
   return flowAtPressure(fv, tube, svc, (low + high) / 2, fvLengthM, ijvLengthM)
 }
 
-// With snaring, use an assumed regional-return split instead of equal branch loss.
+// Snaring: assume a fixed regional return split and use the larger branch loss.
+function pressureForSnaredFlow(fv: number, tube: number, svc: number, totalFlow: number, svcPercent: number, fvLengthM = 2, ijvLengthM = 1.2) {
+  if (!svc || totalFlow < 0 || svcPercent <= 0 || svcPercent >= 100) return null
+  const svcFlow = totalFlow * svcPercent / 100
+  const fvFlow = totalFlow - svcFlow
+  const fvPressure = branchLoss(FV_CURVES[fv], fvFlow, fvLengthM, tube)
+  const svcPressure = branchLoss(IJV_CURVES[svc], svcFlow, ijvLengthM, 0.375)
+  if (fvPressure === null || svcPressure === null) return null
+  return { pressure: Math.max(fvPressure, svcPressure), fvFlow, svcFlow, totalFlow }
+}
+
 // Find the greatest flow within BOTH source-curve ranges and the pressure budget.
 // If the curve endpoints limit the answer first, flag it rather than extrapolating.
 function maxSnaredFlowAtPressure(fv: number, tube: number, svc: number, svcPercent: number, pressure: number, fvLengthM = 2, ijvLengthM = 1.2) {
