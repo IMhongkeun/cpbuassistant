@@ -92,3 +92,14 @@ test("UI uses IJV before FV for dual drainage and max is not coupled to target s
   assert.match(maximumMemo, /targetFlow: 0/)
   assert.doesNotMatch(maximumMemo.slice(maximumMemo.lastIndexOf("}), [")), /\\btargetFlow\\b/)
 })
+
+
+test("MICS first-load target is 4 L/min and conservative notice appears below results", () => {
+  const ui = readFileSync(new URL("../components/mics-drainage-calculator.tsx", import.meta.url), "utf8")
+  assert.match(ui, /const \[targetFlow, setTargetFlow\] = useState\(4\)/)
+  const disclaimer = "제조사 시험자료 기반의 이론적 추정치입니다."
+  assert.ok(ui.includes(disclaimer))
+  assert.ok(ui.indexOf(disclaimer) > ui.indexOf('aria-label="VAVD 제한에서 최대 유량"'))
+  assert.ok(ui.indexOf(disclaimer) > ui.indexOf('aria-label="IJV FV 유량 분배"'))
+  assert.ok(ui.indexOf(disclaimer) < ui.indexOf("참고 · FV tubing prime"))
+})
