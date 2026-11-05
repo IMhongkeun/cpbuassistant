@@ -326,3 +326,17 @@ body {
     overflow-wrap: anywhere;
   }
 }
+
+/*
+ * Numeric inputs in calculators: keep measured values prominent and units
+ * visually secondary. The class is applied only outside the transplant
+ * timing tab, whose existing time-entry typography must remain unchanged.
+ *
+ * Include decimal-keyboard text inputs (used by the hemodilution tool)
+ * as well as standard number inputs. Do not target range sliders or search.
+ */
+.cpbu-calculator-inputs :is(input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"]) {
+  font-weight: 700;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}

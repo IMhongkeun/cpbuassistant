@@ -440,7 +440,7 @@ const CPBUassistant = () => {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7">
+      <main className={"mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7" + (activeTab === "transplant" ? "" : " cpbu-calculator-inputs")}>
       {activeTab === "transplant" && (
         <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="이식 종류">
           <button type="button" role="tab" aria-selected={transplantSubTab === "lung"}
