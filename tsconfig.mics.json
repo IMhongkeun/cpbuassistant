@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "next-env.d.ts",
+    "components/mics-drainage-calculator.tsx",
+    "lib/mics-hydraulics.ts"
+  ],
+  "exclude": ["node_modules"]
+}
