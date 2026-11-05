@@ -257,11 +257,11 @@ export default function MicsDrainageCalculator() {
 
     <details className="group rounded-2xl border border-slate-200 bg-white">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3.5 text-sm font-semibold text-slate-700">
-        참고 · 200 cm tubing prime / 예상 Hct
+        참고 · FV tubing prime / 예상 Hct
         <ChevronDown size={16} className="shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
       </summary>
       <div className="space-y-4 border-t border-slate-100 p-4">
-        <p className="text-xs text-slate-500">기존 비교 기능을 유지했습니다. 아래 prime 값은 고급 설정의 길이와 별개로 200 cm 기준입니다.</p>
+        <p className="text-xs text-slate-500">기존 비교 기능을 유지했습니다. 아래 값은 고급 설정의 길이와 별개로 FV 200 cm · IJV 120 cm 기준입니다.</p>
         <div className="grid grid-cols-2 gap-3">
           <NumericControl label="환자 체중" value={weight} onChange={setWeight} min={30} max={150} unit="kg" />
           <NumericControl label="수술 전 Hct" value={preHct} onChange={setPreHct} min={15} max={55} step={0.1} unit="%" />
@@ -287,7 +287,7 @@ export default function MicsDrainageCalculator() {
       <div className="space-y-3 border-t border-slate-100 p-4 text-xs leading-5 text-slate-600">
         <p>필요 VAVD = max(0, cannula + tubing 경로 ΔP − 낙차 보조). FV+IJV, non-snaring에서는 두 branch의 ΔP가 동일한 지점에서 분배합니다.</p>
         <p>Snaring에서는 선택한 상·하부 환류 비율을 적용하여 두 branch loss 중 더 큰 값을 사용합니다. 실제 정맥압·혈관 허탈·chatter를 직접 예측하지 않습니다.</p>
-        <p>IJV 접근 경로를 상부 branch로 표기하며, 실제 해부학적 SVC 환류량과 동일하다는 뜻은 아닙니다. IJV 경로 source curve는 기존 SVC 표기 시 사용하던 데이터를 그대로 사용합니다.</p>
+        <p>IJV 접근 경로를 상부 branch로 표기하며, 상부 정맥 환류 전체와 동일하다는 뜻은 아닙니다. IJV 접근 경로의 제조사 곡선 데이터는 변경하지 않았습니다.</p>
         <a href="https://amsect.org/Portals/0/VAVD.pdf" target="_blank" rel="noreferrer" className="font-semibold text-teal-700 underline">AmSECT VAVD Clinical Guideline</a>
       </div>
     </details>
