@@ -1,6 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { solveMicsDrainage, FV_CURVES, IJV_CURVES } from "../lib/mics-hydraulics.ts"
+import { readFileSync } from "node:fs"
+import { solveMicsDrainage, solveMicsTarget, solveMicsMaximum, FV_CURVES, IJV_CURVES } from "../lib/mics-hydraulics.ts"
 
 const defaults = {
   fv: 25,
@@ -63,4 +64,31 @@ test("source curves and bounded search reject extrapolation", () => {
 test("invalid inputs do not yield misleading estimates", () => {
   assert.equal(solveMicsDrainage({ ...defaults, fvLengthCm: 0 }), null)
   assert.equal(solveMicsDrainage({ ...defaults, vavdLimit: Number.NaN }), null)
+})
+
+test("target slider changes target estimate but never the independently computed max flow", () => {
+  const config = { ...defaults, ijv: 17 }
+  const maximum = solveMicsMaximum({ ...config, targetFlow: 0 })
+  const before = solveMicsTarget({ ...config, targetFlow: 4.0 })
+  const after = solveMicsTarget({ ...config, targetFlow: 5.0 })
+  const combined = solveMicsDrainage({ ...config, targetFlow: 5.0 })
+
+  assert.ok(maximum && before && after && combined)
+  assert.ok(before.target && after.target)
+  assert.notEqual(before.requiredVavd, after.requiredVavd)
+  assert.equal(maximum.maxFlow, combined.maxFlow)
+  assert.deepEqual(maximum.maxResult, combined.maxResult)
+})
+
+test("UI uses IJV before FV for dual drainage and max is not coupled to target slider", () => {
+  const ui = readFileSync(new URL("../components/mics-drainage-calculator.tsx", import.meta.url), "utf8")
+  assert.ok(ui.includes(">IJV + FV</button>"))
+  assert.ok(ui.indexOf("상부 · IJV cannula") < ui.indexOf("하부 · FV cannula"))
+  assert.ok(ui.indexOf("상부 · IJV tubing") < ui.indexOf("하부 · FV tubing"))
+  assert.ok(ui.indexOf("상부 · IJV tubing 길이") < ui.indexOf("하부 · FV tubing 길이"))
+  assert.ok(ui.indexOf('className="bg-sky-400"') < ui.indexOf('className="bg-teal-600"'))
+  assert.ok(ui.indexOf("상부 · IJV</span>") < ui.indexOf("하부 · FV</span>"))
+  const maximumMemo = ui.slice(ui.indexOf("const maximumResult = useMemo"), ui.indexOf("const calculated ="))
+  assert.match(maximumMemo, /targetFlow: 0/)
+  assert.doesNotMatch(maximumMemo.slice(maximumMemo.lastIndexOf("}), [")), /\\btargetFlow\\b/)
 })
