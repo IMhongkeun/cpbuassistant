@@ -51,6 +51,11 @@ function invertBranch(curve: number[], pressure: number, lengthM: number, diamet
   const maxFlow = (curve.length - 1) * 0.5
   const maxPressure = branchLoss(curve, maxFlow, lengthM, diameterIn)
   if (maxPressure === null || pressure < 0 || pressure > maxPressure) return null
+  // Preserve the exact manufacturer curve endpoints. Bisection midpoints never
+  // equal the upper bound, so returning their average would round a valid
+  // 6.0 L/min target down to 5.999999999... L/min.
+  if (pressure === maxPressure) return maxFlow
+  if (pressure === 0) return 0
   let low = 0
   let high = maxFlow
   for (let i = 0; i < 32; i += 1) {
@@ -83,6 +88,10 @@ function pressureForFlow(fv: number, tube: number, svc: number, target: number, 
   }
   const maxResult = flowAtPressure(fv, tube, svc, maxPressure, fvLengthM, ijvLengthM)
   if (!maxResult || target > maxResult.totalFlow) return null
+  // A target at the valid upper endpoint must not be searched via midpoints:
+  // the midpoint can only approach that endpoint from below.
+  if (target === maxResult.totalFlow) return maxResult
+  if (target === 0) return flowAtPressure(fv, tube, svc, 0, fvLengthM, ijvLengthM)
   let low = 0
   let high = maxPressure
   for (let i = 0; i < 32; i += 1) {
