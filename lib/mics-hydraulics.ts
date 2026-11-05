@@ -177,7 +177,7 @@ export function solveMicsDrainage(input: MicsHydraulicInput) {
   // loss equations and neither source curve are modified.
   let low = 0
   let high = 8
-  for (let i = 0; i < 70; i += 1) {
+  for (let i = 0; i < 24; i += 1) {
     const mid = (low + high) / 2
     const result = hydraulicAtFlow(input, mid)
     if (result && result.pressure <= budget + 1e-9) low = mid
