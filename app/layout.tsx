@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "sonner"
+import { DisableNumberInputWheel } from "@/components/disable-number-input-wheel"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -43,6 +44,7 @@ export default function RootLayout({
   return (
     <html lang="ko" className={inter.variable}>
       <body className="font-sans">
+        <DisableNumberInputWheel />
         {children}
         <Toaster position="top-center" />
       </body>
