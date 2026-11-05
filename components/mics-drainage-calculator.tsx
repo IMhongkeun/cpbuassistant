@@ -99,7 +99,7 @@ export default function MicsDrainageCalculator() {
   const [ijv, setIjv] = useState(0)
   const [selectedIjv, setSelectedIjv] = useState(17)
   const [tube, setTube] = useState(0.375)
-  const [targetFlow, setTargetFlow] = useState(5)
+  const [targetFlow, setTargetFlow] = useState(4)
   const [vavdLimit, setVavdLimit] = useState(60)
   const [heightCm, setHeightCm] = useState(30)
   const [fvLengthCm, setFvLengthCm] = useState(200)
@@ -264,6 +264,8 @@ export default function MicsDrainageCalculator() {
       <FlowSplit title="최대 flow에서" flow={calculated?.maxResult ?? null} snaring={isSnaring} />
     </section> : null}
 
+    <p className="px-1 text-xs leading-5 text-slate-500" role="note">※ 제조사 시험자료 기반의 이론적 추정치입니다. 실제 배액 유량은 계산값보다 낮을 수 있으므로 보수적으로 판단하세요.</p>
+
     <details className="group rounded-2xl border border-slate-200 bg-white">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3.5 text-sm font-semibold text-slate-700">
         참고 · FV tubing prime / 예상 Hct
@@ -301,6 +303,5 @@ export default function MicsDrainageCalculator() {
       </div>
     </details>
 
-    <p className="px-1 text-xs leading-5 text-slate-500">※ 이상적 수력학 추정치이며, 실제 지속 가능한 flow는 정맥 허탈·혈액량·캐뉼라 위치 등으로 더 낮을 수 있습니다.</p>
   </div>
 }
