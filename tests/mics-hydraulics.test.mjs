@@ -86,7 +86,9 @@ test("UI uses IJV before FV for dual drainage and max is not coupled to target s
   assert.ok(ui.indexOf("상부 · IJV cannula") < ui.indexOf("하부 · FV cannula"))
   assert.ok(ui.indexOf("상부 · IJV tubing") < ui.indexOf("하부 · FV tubing"))
   assert.ok(ui.indexOf("상부 · IJV tubing 길이") < ui.indexOf("하부 · FV tubing 길이"))
-  assert.ok(ui.indexOf('className="bg-sky-400"') < ui.indexOf('className="bg-teal-600"'))
+  assert.ok(ui.includes('className="bg-sky-400 motion-safe:transition-[width]'))
+  assert.ok(ui.includes('className="bg-teal-600 motion-safe:transition-[width]'))
+  assert.ok(ui.indexOf('className="bg-sky-400 motion-safe:transition-[width]') < ui.indexOf('className="bg-teal-600 motion-safe:transition-[width]'))
   assert.ok(ui.indexOf("상부 · IJV</span>") < ui.indexOf("하부 · FV</span>"))
   const maximumMemo = ui.slice(ui.indexOf("const maximumResult = useMemo"), ui.indexOf("const calculated ="))
   assert.match(maximumMemo, /targetFlow: 0/)
@@ -102,4 +104,17 @@ test("MICS first-load target is 4 L/min and conservative notice appears below re
   assert.ok(ui.indexOf(disclaimer) > ui.indexOf('aria-label="VAVD 제한에서 최대 유량"'))
   assert.ok(ui.indexOf(disclaimer) > ui.indexOf('aria-label="IJV FV 유량 분배"'))
   assert.ok(ui.indexOf(disclaimer) < ui.indexOf("참고 · FV tubing prime"))
+})
+
+test("VAVD gauge follows slider smoothly without delaying clinical result values", () => {
+  const ui = readFileSync(new URL("../components/mics-drainage-calculator.tsx", import.meta.url), "utf8")
+  // Smooth only the visual gauge and threshold colors; values continue to use
+  // freshly calculated requiredVavd rather than a delayed animation counter.
+  assert.ok(ui.includes('role="progressbar"'))
+  assert.ok(ui.includes('aria-valuenow={Math.round'))
+  assert.ok(ui.includes('style={{ transform: "scaleX("'))
+  assert.ok(ui.includes("motion-safe:transition-[transform,background-color]"))
+  assert.ok(ui.includes("motion-safe:duration-200"))
+  assert.ok(ui.includes("{fmt(required)} <span"))
+  assert.ok(!ui.includes("requestAnimationFrame"))
 })
