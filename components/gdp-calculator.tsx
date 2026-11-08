@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Activity, Droplets, AlertCircle, Info, Target, TrendingUp, Thermometer } from "lucide-react"
+import { Activity, Droplets, AlertCircle, Info, Target, TrendingUp, Thermometer, Gauge } from "lucide-react"
+import { computeO2er } from "@/lib/o2er"
 
 // Helper functions
 const computeCao2 = (hgb: number, sao2: number, pao2: number) => {
@@ -57,7 +58,10 @@ export default function GDPCalculator() {
     sao2: "100",
     pao2: "",
     temperature: "", // Added temperature field for VO2 estimate only
+    svo2: "", // O2ER sub-tab only
+    pvo2: "", // O2ER sub-tab only (optional)
   })
+  const [gdpSubTab, setGdpSubTab] = useState<"do2i" | "o2er">("do2i")
 
   const [results, setResults] = useState<any>(null)
   const [showInfo, setShowInfo] = useState(false)
@@ -176,8 +180,47 @@ export default function GDPCalculator() {
   const bsa = n(params.bsa, 0)
   const vo2Estimate = temperature > 0 ? computeVO2Estimate(temperature, bsa) : null
 
+  const optionalNumber = (v: string) => {
+    if (String(v).trim() === "") return null
+    const x = Number.parseFloat(String(v).replace(",", "."))
+    return Number.isFinite(x) ? x : Number.NaN
+  }
+  const o2erReady = n(params.hgb) > 0 && String(params.svo2).trim() !== ""
+  const o2er = o2erReady
+    ? computeO2er({
+        hgb: n(params.hgb),
+        sao2: n(params.sao2, Number.NaN),
+        svo2: n(params.svo2, Number.NaN),
+        pao2: optionalNumber(params.pao2),
+        pvo2: optionalNumber(params.pvo2),
+        flow: optionalNumber(params.currentFlow),
+        bsa: optionalNumber(params.bsa),
+      })
+    : null
+
   return (
     <div className="space-y-6">
+      <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="GDP calculator type">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={gdpSubTab === "do2i"}
+          onClick={() => setGdpSubTab("do2i")}
+          className={"cpbu-subtab " + (gdpSubTab === "do2i" ? "cpbu-subtab-active" : "")}
+        >
+          DO₂i · Flow
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={gdpSubTab === "o2er"}
+          onClick={() => setGdpSubTab("o2er")}
+          className={"cpbu-subtab " + (gdpSubTab === "o2er" ? "cpbu-subtab-active" : "")}
+        >
+          O₂ER · 산소추출률
+        </button>
+      </div>
+
       {/* Header Card */}
       <Card>
         <CardHeader>
@@ -187,7 +230,9 @@ export default function GDPCalculator() {
                 <Target className="w-6 h-6 text-chart-1" />
               </div>
               <div>
-                <CardTitle className="text-xl">Goal-Directed Perfusion Calculator</CardTitle>
+                <CardTitle className="text-xl">
+                  {gdpSubTab === "do2i" ? "Goal-Directed Perfusion Calculator" : "Oxygen Extraction Ratio (O₂ER)"}
+                </CardTitle>
                 
               </div>
             </div>
@@ -197,7 +242,34 @@ export default function GDPCalculator() {
           </div>
         </CardHeader>
 
-        {showInfo && (
+        {showInfo && gdpSubTab === "o2er" && (
+          <CardContent>
+            <div className="p-4 bg-chart-1/10 border border-chart-1/20 rounded-lg">
+              <h3 className="font-semibold text-foreground mb-3">O₂ER 계산식</h3>
+              <div className="text-sm text-foreground space-y-3 font-mono text-xs">
+                <div>
+                  <p className="text-muted-foreground mb-1">산소함유량:</p>
+                  <p>CaO₂ = (Hgb × 1.34 × SaO₂/100) + (0.003 × PaO₂)</p>
+                  <p>CvO₂ = (Hgb × 1.34 × SvO₂/100) + (0.003 × PvO₂)</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground mb-1">산소추출률 (Pump flow는 약분됨):</p>
+                  <p>O₂ER = VO₂ / DO₂ = (CaO₂ − CvO₂) / CaO₂ × 100</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground mb-1">Flow·BSA 입력 시:</p>
+                  <p>DO₂i = CI × CaO₂ × 10</p>
+                  <p>VO₂i = CI × (CaO₂ − CvO₂) × 10</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground mb-1">간편식 (용존산소 무시, 비교용):</p>
+                  <p>O₂ER ≈ (SaO₂ − SvO₂) / SaO₂ × 100</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        )}
+        {showInfo && gdpSubTab === "do2i" && (
           <CardContent>
             <div className="p-4 bg-chart-1/10 border border-chart-1/20 rounded-lg">
               <h3 className="font-semibold text-foreground mb-3">GDP 계산식</h3>
@@ -221,6 +293,7 @@ export default function GDPCalculator() {
       </Card>
 
       {/* Target DO2i Settings */}
+      {gdpSubTab === "do2i" && (
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -245,8 +318,9 @@ export default function GDPCalculator() {
 
         </CardContent>
       </Card>
+      )}
 
-      {/* Input Card */}
+      {/* Input Card (shared by DO2i and O2ER sub-tabs) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">환자 정보 입력</CardTitle>
@@ -316,6 +390,8 @@ export default function GDPCalculator() {
               />
             </div>
 
+            {gdpSubTab === "do2i" && (
+            <>
             <Separator />
 
             <div className="space-y-2">
@@ -333,11 +409,183 @@ export default function GDPCalculator() {
               />
               <p className="text-xs text-muted-foreground">체온 입력 시 하단에 대사율 추정 정보가 표시됩니다 (참고용)</p>
             </div>
+            {n(params.sao2, 100) !== 100 && (
+              <p className="text-xs text-chart-4">SaO₂ {n(params.sao2, 100)}% 적용 중 (O₂ER 탭 입력값)</p>
+            )}
+            </>
+            )}
 
 
         </CardContent>
       </Card>
 
+      {gdpSubTab === "o2er" && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">산소포화도 입력</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sao2" className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-destructive" />
+                    SaO₂ (%) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="sao2"
+                    type="number"
+                    step="0.1"
+                    value={params.sao2}
+                    onChange={(e) => handleInputChange("sao2", e.target.value)}
+                    placeholder=""
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="svo2" className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-chart-1" />
+                    SvO₂ (%) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="svo2"
+                    type="number"
+                    step="0.1"
+                    value={params.svo2}
+                    onChange={(e) => handleInputChange("svo2", e.target.value)}
+                    placeholder=""
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pvo2" className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-chart-1" />
+                    PvO₂ (mmHg) – 선택사항
+                  </Label>
+                  <Input
+                    id="pvo2"
+                    type="number"
+                    step="1"
+                    value={params.pvo2}
+                    onChange={(e) => handleInputChange("pvo2", e.target.value)}
+                    placeholder=""
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Hgb·PaO₂·Pump Flow·BSA는 위 환자 정보 입력값을 함께 사용합니다. SaO₂ 변경 시 DO₂i 탭 계산에도 반영됩니다.
+              </p>
+            </CardContent>
+          </Card>
+
+          {o2er && o2er.ok ? (
+            <>
+              <Card className="border-2">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold mb-1 flex items-center gap-2">
+                        <Gauge className="w-4 h-4 text-chart-1" /> O₂ER
+                      </p>
+                      <p className="text-xs text-muted-foreground">(CaO₂ − CvO₂) / CaO₂</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-4xl font-extrabold tracking-tight text-slate-900">
+                        {o2er.o2er.toFixed(1)}
+                        <span className="text-base font-medium text-slate-400 ml-1">%</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        간편식 (SaO₂−SvO₂)/SaO₂: {o2er.o2erSaturationOnly.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "CaO₂", value: o2er.cao2.toFixed(2), unit: "mL/dL", dot: "bg-violet-500" },
+                  { label: "CvO₂", value: o2er.cvo2.toFixed(2), unit: "mL/dL", dot: "bg-indigo-500" },
+                  {
+                    label: "DO₂i",
+                    value: o2er.do2i !== null ? o2er.do2i.toFixed(1) : "---",
+                    unit: "mL/min/m²",
+                    dot: "bg-emerald-500",
+                  },
+                  {
+                    label: "VO₂i",
+                    value: o2er.vo2i !== null ? o2er.vo2i.toFixed(1) : "---",
+                    unit: "mL/min/m²",
+                    dot: "bg-rose-500",
+                  },
+                ].map((m) => (
+                  <div key={m.label} className="rounded-xl bg-white border border-slate-200/80 p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-2 h-2 rounded-full ${m.dot}`} />
+                      <p className="text-[11px] font-semibold text-slate-500 tracking-wider">{m.label}</p>
+                    </div>
+                    <p className="text-2xl font-extrabold tracking-tight text-slate-900">{m.value}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{m.unit}</p>
+                  </div>
+                ))}
+              </div>
+              {o2er.do2i === null && (
+                <p className="text-xs text-muted-foreground">DO₂i·VO₂i는 Pump Flow와 BSA 입력 시 표시됩니다.</p>
+              )}
+
+              {o2er.warnings.length > 0 && (
+                <div className="p-3 rounded-lg border border-chart-4/30 bg-chart-4/10 text-xs text-chart-4 space-y-1">
+                  {o2er.warnings.map((w) => (
+                    <p key={w}>⚠ {w}</p>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : o2er && !o2er.ok ? (
+            <Card className="border-2 border-destructive/50 bg-destructive/5">
+              <CardContent className="p-5 text-sm text-destructive space-y-1">
+                {o2er.errors.map((e) => (
+                  <p key={e} className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" /> {e}
+                  </p>
+                ))}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-12 text-muted-foreground">
+                <Gauge className="w-20 h-20 mx-auto mb-4 opacity-30" />
+                <p className="text-lg">Hgb, SaO₂, SvO₂를 입력하면</p>
+                <p className="text-lg">산소추출률(O₂ER)이 자동 계산됩니다</p>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardContent className="p-5">
+              <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                <Info className="w-5 h-5 text-chart-1" />
+                O₂ER 해석 – 요점
+              </h3>
+              <div className="text-xs text-muted-foreground space-y-2 leading-relaxed">
+                <p>
+                  <strong>• 참고 범위:</strong> 정상 생리에서 약 20–30%. CPB 중 단일 임계값은 확립되어 있지 않음.
+                </p>
+                <p>
+                  <strong>• 용존산소:</strong> 고 PaO₂·저 Hgb 상황에서는 간편식이 O₂ER을 과소평가할 수 있어 PaO₂/PvO₂ 포함 계산을 권장.
+                </p>
+                <p>
+                  <strong>• 해석:</strong> 상승 시 DO₂i 부족 또는 대사 증가(재가온, 마취 심도) 고려. 낮은 값이 항상 적정 관류를 의미하지는 않음(shunt·국소 저관류). DO₂i, lactate, rSO₂, VCO₂와 함께 추세로 판단.
+                </p>
+                <p className="mt-3 text-muted-foreground italic">
+                  이 계산기는 임상 판단을 보조하는 도구입니다. 환자‑/수술‑특이적 상황과 기관 프로토콜을 항상 우선하십시오.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {gdpSubTab === "do2i" && (
+      <>
       {/* Results */}
       {results ? (
         <>
@@ -628,6 +876,8 @@ export default function GDPCalculator() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   )
 }
