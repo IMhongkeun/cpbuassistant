@@ -1,13 +1,69 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Activity, Droplets, AlertCircle, Info, Target, TrendingUp, Thermometer, Gauge } from "lucide-react"
 import { computeO2er } from "@/lib/o2er"
+
+type Tone = "default" | "good" | "warn" | "bad" | "muted"
+const TONE_TEXT: Record<Tone, string> = {
+  default: "text-slate-900",
+  good: "text-emerald-700",
+  warn: "text-amber-700",
+  bad: "text-rose-700",
+  muted: "text-slate-400",
+}
+
+// Flat utility-style stat cell; used inside StatGrid (1px divider grid)
+function StatCell({
+  label,
+  caption,
+  value,
+  unit,
+  tone = "default",
+  primary = false,
+}: {
+  label: string
+  caption?: string
+  value: string
+  unit?: React.ReactNode
+  tone?: Tone
+  primary?: boolean
+}) {
+  return (
+    <div className={`p-4 ${primary ? "bg-slate-50" : "bg-white"}`}>
+      <p className={`text-sm ${primary ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>{label}</p>
+      {caption && <p className="text-xs text-slate-500">{caption}</p>}
+      <p className={`mt-1.5 ${primary ? "text-4xl" : "text-3xl"} font-semibold tracking-tight tabular-nums ${TONE_TEXT[tone]}`}>
+        {value}
+      </p>
+      {unit && <p className="mt-0.5 text-sm text-slate-600 tabular-nums">{unit}</p>}
+    </div>
+  )
+}
+
+function StatGrid({ cols, children }: { cols: 2 | 4; children: React.ReactNode }) {
+  return (
+    <div
+      className={`grid grid-cols-2 ${cols === 4 ? "md:grid-cols-4" : ""} gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden`}
+    >
+      {children}
+    </div>
+  )
+}
+
+function Notice({ title = "주의", children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <div className="border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-slate-800 rounded-r-md">
+      <p className="font-semibold text-amber-800 mb-0.5">{title}</p>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  )
+}
 
 // Helper functions
 const computeCao2 = (hgb: number, sao2: number, pao2: number) => {
@@ -224,27 +280,24 @@ export default function GDPCalculator() {
       {/* Header Card */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-chart-1/10 p-2 rounded-lg">
-                <Target className="w-6 h-6 text-chart-1" />
-              </div>
-              <div>
-                <CardTitle className="text-xl">
-                  {gdpSubTab === "do2i" ? "Goal-Directed Perfusion Calculator" : "Oxygen Extraction Ratio (O₂ER)"}
-                </CardTitle>
-                
-              </div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl text-slate-900">
+                {gdpSubTab === "do2i" ? "Goal-Directed Perfusion Calculator" : "Oxygen Extraction Ratio (O₂ER)"}
+              </CardTitle>
+              <p className="text-sm text-slate-600 mt-1">
+                {gdpSubTab === "do2i" ? "목표 DO₂i 달성을 위한 최소 Pump Flow" : "CPB 중 산소 공급 대비 소비 비율"}
+              </p>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => setShowInfo(!showInfo)}>
-              <Info className="w-5 h-5" />
+            <Button variant="outline" size="sm" onClick={() => setShowInfo(!showInfo)} aria-expanded={showInfo}>
+              계산식
             </Button>
           </div>
         </CardHeader>
 
         {showInfo && gdpSubTab === "o2er" && (
           <CardContent>
-            <div className="p-4 bg-chart-1/10 border border-chart-1/20 rounded-lg">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
               <h3 className="font-semibold text-foreground mb-3">O₂ER 계산식</h3>
               <div className="text-foreground space-y-3 font-mono text-sm">
                 <div>
@@ -271,7 +324,7 @@ export default function GDPCalculator() {
         )}
         {showInfo && gdpSubTab === "do2i" && (
           <CardContent>
-            <div className="p-4 bg-chart-1/10 border border-chart-1/20 rounded-lg">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
               <h3 className="font-semibold text-foreground mb-3">GDP 계산식</h3>
               <div className="text-foreground space-y-3 font-mono text-sm">
                 <div>
@@ -296,9 +349,8 @@ export default function GDPCalculator() {
       {gdpSubTab === "do2i" && (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Target className="w-5 h-5 text-chart-4" />
-            목표 DO₂i 설정
+          <CardTitle className="text-lg">
+            목표 DO₂i (mL/min/m²)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -328,8 +380,7 @@ export default function GDPCalculator() {
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="bsa" className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-chart-1" />
+              <Label htmlFor="bsa" className="text-sm font-medium text-slate-800">
                 BSA (m²) <span className="text-destructive">*</span>
               </Label>
               <Input
@@ -343,8 +394,7 @@ export default function GDPCalculator() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="hgb" className="flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-destructive" />
+              <Label htmlFor="hgb" className="text-sm font-medium text-slate-800">
                 Hemoglobin (g/dL) <span className="text-destructive">*</span>
               </Label>
               <Input
@@ -358,8 +408,7 @@ export default function GDPCalculator() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="pao2" className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-chart-1" />
+              <Label htmlFor="pao2" className="text-sm font-medium text-slate-800">
                 PaO₂ (mmHg)
               </Label>
               <Input
@@ -376,9 +425,8 @@ export default function GDPCalculator() {
           <Separator />
 
             <div className="space-y-2">
-              <Label htmlFor="currentFlow" className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-chart-2" />
-                현재 Pump Flow (L/min) – 선택사항
+              <Label htmlFor="currentFlow" className="text-sm font-medium text-slate-800">
+                현재 Pump Flow (L/min) <span className="font-normal text-slate-500">(선택)</span>
               </Label>
               <Input
                 id="currentFlow"
@@ -395,9 +443,8 @@ export default function GDPCalculator() {
             <Separator />
 
             <div className="space-y-2">
-              <Label htmlFor="temperature" className="flex items-center gap-2">
-                <Thermometer className="w-4 h-4 text-chart-5" />
-                Temperature (°C) – VO₂ 추정용 (선택사항)
+              <Label htmlFor="temperature" className="text-sm font-medium text-slate-800">
+                Temperature (°C) <span className="font-normal text-slate-500">(선택, VO₂ 추정용)</span>
               </Label>
               <Input
                 id="temperature"
@@ -407,10 +454,10 @@ export default function GDPCalculator() {
                 onChange={(e) => handleInputChange("temperature", e.target.value)}
                 placeholder=""
               />
-              <p className="text-xs text-muted-foreground">체온 입력 시 하단에 대사율 추정 정보가 표시됩니다 (참고용)</p>
+              <p className="text-xs text-slate-500">체온 입력 시 하단에 대사율 추정 정보가 표시됩니다 (참고용)</p>
             </div>
             {n(params.sao2, 100) !== 100 && (
-              <p className="text-xs text-chart-4">SaO₂ {n(params.sao2, 100)}% 적용 중 (O₂ER 탭 입력값)</p>
+              <p className="text-xs text-amber-700">SaO₂ {n(params.sao2, 100)}% 적용 중 (O₂ER 탭 입력값)</p>
             )}
             </>
             )}
@@ -428,8 +475,7 @@ export default function GDPCalculator() {
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="sao2" className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-destructive" />
+                  <Label htmlFor="sao2" className="text-sm font-medium text-slate-800">
                     SaO₂ (%) <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -442,8 +488,7 @@ export default function GDPCalculator() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="svo2" className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-chart-1" />
+                  <Label htmlFor="svo2" className="text-sm font-medium text-slate-800">
                     SvO₂ (%) <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -456,9 +501,8 @@ export default function GDPCalculator() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pvo2" className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-chart-1" />
-                    PvO₂ (mmHg) – 선택사항
+                  <Label htmlFor="pvo2" className="text-sm font-medium text-slate-800">
+                    PvO₂ (mmHg) <span className="font-normal text-slate-500">(선택)</span>
                   </Label>
                   <Input
                     id="pvo2"
@@ -470,7 +514,7 @@ export default function GDPCalculator() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-500">
                 Hgb·PaO₂·Pump Flow·BSA는 위 환자 정보 입력값을 함께 사용합니다. SaO₂ 변경 시 DO₂i 탭 계산에도 반영됩니다.
               </p>
             </CardContent>
@@ -478,51 +522,49 @@ export default function GDPCalculator() {
 
           {o2er && o2er.ok ? (
             <>
-              <Card className="border-2 border-slate-300">
+              <Card>
                 <CardContent className="p-5 space-y-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                        <Gauge className="w-5 h-5 text-chart-1" /> 산소추출률 O₂ER
-                      </p>
-                      <p className="text-sm text-slate-600 mt-1">(CaO₂ − CvO₂) / CaO₂</p>
-                      <p className="text-sm text-slate-700 mt-1">
-                        a–v O₂ 차이 <span className="font-semibold">{o2er.avDiff.toFixed(2)}</span> mL/dL
+                      <p className="text-base font-semibold text-slate-900">O₂ER</p>
+                      <p className="text-sm text-slate-600 mt-0.5">(CaO₂ − CvO₂) / CaO₂</p>
+                      <p className="text-sm text-slate-600 mt-2">
+                        a–v O₂ 차이 <span className="font-semibold text-slate-900 tabular-nums">{o2er.avDiff.toFixed(2)}</span> mL/dL
                       </p>
                     </div>
-                    <p className="text-5xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+                    <p className="text-5xl font-semibold tracking-tight text-slate-900 tabular-nums">
                       {o2er.o2er.toFixed(1)}
-                      <span className="text-xl font-semibold text-slate-600 ml-1">%</span>
+                      <span className="text-xl font-medium text-slate-500 ml-1">%</span>
                     </p>
                   </div>
 
-                  {/* Reference scale 0–60 %, physiologic reference band 20–30 % (no CPB threshold implied) */}
+                  {/* Scale 0–60 %, physiologic reference band 20–30 % (no CPB threshold implied) */}
                   <div className="space-y-1.5">
-                    <div className="relative h-3 rounded-full bg-slate-100 border border-slate-200">
+                    <div className="relative h-2 rounded-full bg-slate-100">
                       <div
-                        className="absolute top-0 bottom-0 bg-slate-300/80"
+                        className="absolute inset-y-0 bg-slate-300"
                         style={{ left: `${(20 / 60) * 100}%`, width: `${(10 / 60) * 100}%` }}
                       />
                       <div
-                        className="absolute -top-1 -bottom-1 w-1 rounded-full bg-slate-900"
-                        style={{ left: `calc(${Math.min(Math.max(o2er.o2er, 0), 60) / 60 * 100}% - 2px)` }}
+                        className="absolute -top-1.5 -bottom-1.5 w-0.5 bg-slate-900"
+                        style={{ left: `${(Math.min(Math.max(o2er.o2er, 0), 60) / 60) * 100}%` }}
                       />
                     </div>
-                    <div className="relative h-4 text-xs text-slate-600 tabular-nums">
+                    <div className="relative h-4 text-xs text-slate-500 tabular-nums">
                       <span className="absolute left-0">0</span>
                       <span className="absolute -translate-x-1/2" style={{ left: `${(20 / 60) * 100}%` }}>20</span>
                       <span className="absolute -translate-x-1/2" style={{ left: `${(30 / 60) * 100}%` }}>30</span>
                       <span className="absolute right-0">60%</span>
                     </div>
-                    <p className="text-xs text-slate-600">회색 구간: 정상 생리 참고 범위 20–30% (CPB 임계값 아님)</p>
+                    <p className="text-xs text-slate-500">회색 구간 = 정상 생리 참고 범위 20–30% (CPB 임계값 아님)</p>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm">
-                    <span className="text-slate-700">간편식 (SaO₂ − SvO₂) / SaO₂</span>
-                    <span className="font-semibold text-slate-900 tabular-nums whitespace-nowrap">
-                      {o2er.o2erSaturationOnly.toFixed(1)}%
-                      <span className="font-normal text-slate-600 ml-1.5">
-                        (차이 {(o2er.o2er - o2er.o2erSaturationOnly) >= 0 ? "+" : ""}
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-3 text-sm">
+                    <span className="text-slate-600">간편식 (SaO₂ − SvO₂) / SaO₂</span>
+                    <span className="text-slate-900 tabular-nums whitespace-nowrap">
+                      <span className="font-semibold">{o2er.o2erSaturationOnly.toFixed(1)}%</span>
+                      <span className="text-slate-500 ml-1.5">
+                        (차이 {o2er.o2er - o2er.o2erSaturationOnly >= 0 ? "+" : ""}
                         {(o2er.o2er - o2er.o2erSaturationOnly).toFixed(1)}%p)
                       </span>
                     </span>
@@ -530,87 +572,67 @@ export default function GDPCalculator() {
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { label: "CaO₂", sub: "동맥 산소함유량", value: o2er.cao2.toFixed(2), unit: "mL/dL", dot: "bg-violet-500" },
-                  { label: "CvO₂", sub: "정맥 산소함유량", value: o2er.cvo2.toFixed(2), unit: "mL/dL", dot: "bg-indigo-500" },
-                  {
-                    label: "DO₂i",
-                    sub: "산소 공급량",
-                    value: o2er.do2i !== null ? o2er.do2i.toFixed(1) : "---",
-                    unit: "mL/min/m²",
-                    dot: "bg-emerald-500",
-                  },
-                  {
-                    label: "VO₂i",
-                    sub: "산소 소비량",
-                    value: o2er.vo2i !== null ? o2er.vo2i.toFixed(1) : "---",
-                    unit: "mL/min/m²",
-                    dot: "bg-rose-500",
-                  },
-                ].map((m) => (
-                  <div key={m.label} className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2.5 h-2.5 rounded-full ${m.dot}`} />
-                      <p className="text-sm font-semibold text-slate-800">{m.label}</p>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-0.5">{m.sub}</p>
-                    <p className={`text-3xl font-bold tracking-tight mt-2 tabular-nums ${m.value === "---" ? "text-slate-400" : "text-slate-900"}`}>
-                      {m.value}
-                    </p>
-                    <p className="text-sm text-slate-600">{m.unit}</p>
-                  </div>
-                ))}
-              </div>
+              <StatGrid cols={4}>
+                <StatCell label="CaO₂" caption="동맥 산소함유량" value={o2er.cao2.toFixed(2)} unit="mL/dL" />
+                <StatCell label="CvO₂" caption="정맥 산소함유량" value={o2er.cvo2.toFixed(2)} unit="mL/dL" />
+                <StatCell
+                  label="DO₂i"
+                  caption="산소 공급량"
+                  value={o2er.do2i !== null ? o2er.do2i.toFixed(1) : "—"}
+                  unit="mL/min/m²"
+                  tone={o2er.do2i !== null ? "default" : "muted"}
+                />
+                <StatCell
+                  label="VO₂i"
+                  caption="산소 소비량"
+                  value={o2er.vo2i !== null ? o2er.vo2i.toFixed(1) : "—"}
+                  unit="mL/min/m²"
+                  tone={o2er.vo2i !== null ? "default" : "muted"}
+                />
+              </StatGrid>
               {o2er.do2i === null && (
                 <p className="text-sm text-slate-600">DO₂i·VO₂i는 Pump Flow와 BSA 입력 시 표시됩니다.</p>
               )}
 
               {o2er.warnings.length > 0 && (
-                <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-800 space-y-1">
+                <Notice>
                   {o2er.warnings.map((w) => (
-                    <p key={w}>⚠ {w}</p>
+                    <p key={w}>{w}</p>
                   ))}
-                </div>
+                </Notice>
               )}
             </>
           ) : o2er && !o2er.ok ? (
-            <Card className="border-2 border-destructive/50 bg-destructive/5">
-              <CardContent className="p-5 text-sm text-destructive space-y-1">
-                {o2er.errors.map((e) => (
-                  <p key={e} className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" /> {e}
-                  </p>
-                ))}
-              </CardContent>
-            </Card>
+            <div className="border-l-4 border-rose-600 bg-rose-50 px-4 py-3 text-sm text-slate-800 rounded-r-md">
+              <p className="font-semibold text-rose-800 mb-0.5">입력 확인</p>
+              {o2er.errors.map((e) => (
+                <p key={e}>{e}</p>
+              ))}
+            </div>
           ) : (
             <Card>
-              <CardContent className="text-center py-12 text-muted-foreground">
-                <Gauge className="w-20 h-20 mx-auto mb-4 opacity-30" />
-                <p className="text-lg">Hgb, SaO₂, SvO₂를 입력하면</p>
-                <p className="text-lg">산소추출률(O₂ER)이 자동 계산됩니다</p>
+              <CardContent className="py-10 text-center text-base text-slate-600">
+                <p>Hgb, SaO₂, SvO₂를 입력하면 O₂ER이 계산됩니다.</p>
               </CardContent>
             </Card>
           )}
 
           <Card>
             <CardContent className="p-5">
-              <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                <Info className="w-5 h-5 text-chart-1" />
+              <h3 className="text-base font-semibold text-slate-900 mb-2">
                 O₂ER 해석 – 요점
               </h3>
               <div className="text-sm text-slate-700 space-y-2 leading-relaxed">
                 <p>
-                  <strong>• 참고 범위:</strong> 정상 생리에서 약 20–30%. CPB 중 단일 임계값은 확립되어 있지 않음.
+                  <strong>참고 범위:</strong> 정상 생리에서 약 20–30%. CPB 중 단일 임계값은 확립되어 있지 않음.
                 </p>
                 <p>
-                  <strong>• 용존산소:</strong> 고 PaO₂·저 Hgb 상황에서는 간편식이 O₂ER을 과소평가할 수 있어 PaO₂/PvO₂ 포함 계산을 권장.
+                  <strong>용존산소:</strong> 고 PaO₂·저 Hgb 상황에서는 간편식이 O₂ER을 과소평가할 수 있어 PaO₂/PvO₂ 포함 계산을 권장.
                 </p>
                 <p>
-                  <strong>• 해석:</strong> 상승 시 DO₂i 부족 또는 대사 증가(재가온, 마취 심도) 고려. 낮은 값이 항상 적정 관류를 의미하지는 않음(shunt·국소 저관류). DO₂i, lactate, rSO₂, VCO₂와 함께 추세로 판단.
+                  <strong>해석:</strong> 상승 시 DO₂i 부족 또는 대사 증가(재가온, 마취 심도) 고려. 낮은 값이 항상 적정 관류를 의미하지는 않음(shunt·국소 저관류). DO₂i, lactate, rSO₂, VCO₂와 함께 추세로 판단.
                 </p>
-                <p className="mt-3 text-muted-foreground italic">
+                <p className="mt-3 pt-3 border-t border-slate-200 text-slate-500">
                   이 계산기는 임상 판단을 보조하는 도구입니다. 환자‑/수술‑특이적 상황과 기관 프로토콜을 항상 우선하십시오.
                 </p>
               </div>
@@ -625,171 +647,120 @@ export default function GDPCalculator() {
       {results ? (
         <>
           {/* Flow Adequacy */}
-          {results.minRequiredFlow && (
+          {results.minRequiredFlow && (() => {
+            const hasFlow = n(params.currentFlow) > 0 && !!results.flowPercentage
+            const pct = hasFlow ? Number.parseFloat(results.flowPercentage) : 0
+            const flowTone: Tone = !hasFlow ? "muted" : pct >= 100 ? "good" : pct >= 90 ? "warn" : "bad"
+            const statusTone: Tone =
+              results.status === "optimal" ? "good" : results.status === "borderline" ? "warn" : "bad"
+            const diff = results.flowDifference ? Number.parseFloat(results.flowDifference) : 0
+            return (
             <>
-              <Card className="border-2 border-slate-300">
-                <CardContent className="p-5">
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-base font-semibold text-slate-900">현재 Flow 적정성</p>
-                        <p className="text-sm text-slate-600 mt-0.5">기준 = 목표 DO₂i {results.targetDO2i} 달성 최소 Flow (100%)</p>
-                      </div>
-                      {n(params.currentFlow) > 0 && results.assessment && (
-                        <div className="text-right">
-                          <p className="text-sm text-slate-600">임상평가</p>
-                          <p
-                            className={`text-base font-bold ${
-                              results.status === "optimal"
-                                ? "text-emerald-700"
-                                : results.status === "borderline"
-                                  ? "text-amber-700"
-                                  : "text-rose-700"
-                            }`}
-                          >
-                            {results.assessment}
-                          </p>
-                        </div>
-                      )}
+              <Card>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-base font-semibold text-slate-900">현재 Flow 적정성</p>
+                      <p className="text-sm text-slate-600 mt-0.5">
+                        기준 = 목표 DO₂i {results.targetDO2i} 달성 최소 Flow (100%)
+                      </p>
                     </div>
-
-                    <div className="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                      {n(params.currentFlow) > 0 && results.flowPercentage && (
-                        <div
-                          className={`h-full transition-all duration-500 ${
-                            Number.parseFloat(results.flowPercentage) >= 100
-                              ? "bg-emerald-500"
-                              : Number.parseFloat(results.flowPercentage) >= 90
-                                ? "bg-amber-500"
-                                : "bg-rose-500"
-                          }`}
-                          style={{
-                            width: `${Math.min(Math.max(Number.parseFloat(results.flowPercentage), 0), 100)}%`,
-                          }}
-                        />
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {/* Min Required Flow - primary */}
-                      <div className="p-3 bg-blue-50 border-2 border-blue-300 rounded-xl text-center">
-                        <p className="text-sm font-semibold text-blue-800">최소 필요 Flow</p>
-                        <p className="text-4xl font-bold text-blue-700 tabular-nums mt-1">{results.minRequiredFlow}</p>
-                        <p className="text-sm text-blue-800">
-                          L/min
-                          {n(params.bsa) > 0 && (
-                            <span> · CI {(Number.parseFloat(results.minRequiredFlow) / n(params.bsa)).toFixed(2)}</span>
-                          )}
-                        </p>
-                      </div>
-
-                      <div className="p-3 bg-white border border-slate-200 rounded-xl text-center">
-                        <p className="text-sm font-semibold text-slate-700">현재 Flow</p>
-                        <p className={`text-3xl font-bold tabular-nums mt-1 ${n(params.currentFlow) > 0 ? "text-slate-900" : "text-slate-400"}`}>
-                          {n(params.currentFlow) > 0 ? n(params.currentFlow).toFixed(2) : "---"}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          L/min
-                          {n(params.currentFlow) > 0 && results.actualCI && <span> · CI {results.actualCI}</span>}
-                        </p>
-                      </div>
-
-                      <div className="p-3 bg-white border border-slate-200 rounded-xl text-center">
-                        <p className="text-sm font-semibold text-slate-700">차이</p>
-                        {n(params.currentFlow) > 0 && results.flowDifference ? (
-                          <p className={`text-3xl font-bold tabular-nums mt-1 ${Number.parseFloat(results.flowDifference) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                            {Number.parseFloat(results.flowDifference) >= 0 ? "+" : ""}{results.flowDifference}
-                          </p>
-                        ) : (
-                          <p className="text-3xl font-bold text-slate-400 mt-1">---</p>
-                        )}
-                        <p className="text-sm text-slate-600">L/min</p>
-                      </div>
-
-                      <div className={`p-3 rounded-xl text-center border ${
-                        n(params.currentFlow) > 0 && results.flowPercentage
-                          ? Number.parseFloat(results.flowPercentage) >= 100
-                            ? "bg-emerald-50 border-emerald-300"
-                            : Number.parseFloat(results.flowPercentage) >= 90
-                              ? "bg-amber-50 border-amber-300"
-                              : "bg-rose-50 border-rose-300"
-                          : "bg-white border-slate-200"
-                      }`}>
-                        <p className="text-sm font-semibold text-slate-700">적정성</p>
-                        {n(params.currentFlow) > 0 && results.flowPercentage ? (
-                          <>
-                            <p className={`text-3xl font-bold tabular-nums mt-1 ${
-                              Number.parseFloat(results.flowPercentage) >= 100
-                                ? "text-emerald-700"
-                                : Number.parseFloat(results.flowPercentage) >= 90
-                                  ? "text-amber-700"
-                                  : "text-rose-700"
-                            }`}>
-                              {results.flowPercentage}%
-                            </p>
-                            <p className="text-sm text-slate-600 tabular-nums">
-                              {n(params.currentFlow).toFixed(2)} / {results.minRequiredFlow} L/min
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-3xl font-bold text-slate-400 mt-1">---</p>
-                            <p className="text-sm text-slate-600">현재 / 최소 Flow</p>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                    {n(params.currentFlow) > 0 && results.assessment && (
+                      <span
+                        className={`shrink-0 rounded-md border px-2.5 py-1 text-sm font-semibold ${TONE_TEXT[statusTone]} ${
+                          statusTone === "good"
+                            ? "border-emerald-300"
+                            : statusTone === "warn"
+                              ? "border-amber-300"
+                              : "border-rose-300"
+                        }`}
+                      >
+                        {results.assessment}
+                      </span>
+                    )}
                   </div>
+
+                  <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                    {hasFlow && (
+                      <div
+                        className={`h-full transition-all duration-500 ${
+                          flowTone === "good" ? "bg-emerald-600" : flowTone === "warn" ? "bg-amber-500" : "bg-rose-600"
+                        }`}
+                        style={{ width: `${Math.min(Math.max(pct, 0), 100)}%` }}
+                      />
+                    )}
+                  </div>
+
+                  <StatGrid cols={4}>
+                    <StatCell
+                      primary
+                      label="최소 필요 Flow"
+                      value={results.minRequiredFlow}
+                      unit={
+                        <>
+                          L/min
+                          {n(params.bsa) > 0 &&
+                            ` · CI ${(Number.parseFloat(results.minRequiredFlow) / n(params.bsa)).toFixed(2)}`}
+                        </>
+                      }
+                    />
+                    <StatCell
+                      label="현재 Flow"
+                      value={n(params.currentFlow) > 0 ? n(params.currentFlow).toFixed(2) : "—"}
+                      tone={n(params.currentFlow) > 0 ? "default" : "muted"}
+                      unit={<>L/min{n(params.currentFlow) > 0 && results.actualCI && ` · CI ${results.actualCI}`}</>}
+                    />
+                    <StatCell
+                      label="차이"
+                      value={hasFlow && results.flowDifference ? `${diff >= 0 ? "+" : ""}${results.flowDifference}` : "—"}
+                      tone={!hasFlow ? "muted" : diff >= 0 ? "good" : "bad"}
+                      unit="L/min"
+                    />
+                    <StatCell
+                      label="적정성"
+                      value={hasFlow ? `${results.flowPercentage}%` : "—"}
+                      tone={flowTone}
+                      unit={
+                        hasFlow
+                          ? `${n(params.currentFlow).toFixed(2)} / ${results.minRequiredFlow} L/min`
+                          : "현재 / 최소 Flow"
+                      }
+                    />
+                  </StatGrid>
                 </CardContent>
               </Card>
 
-              {/* Detailed Metrics: DO2i primary, CaO2 secondary (CI shown under 현재 Flow) */}
-              <div className="grid md:grid-cols-3 gap-3">
-                {results.actualDO2i && (
-                  <div className="md:col-span-2 rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <p className="text-sm font-semibold text-slate-800">실제 DO₂i</p>
-                    </div>
-                    <div className="flex items-end justify-between gap-3 mt-2">
-                      <p className="text-4xl font-bold tracking-tight text-slate-900 tabular-nums">
-                        {results.actualDO2i}
-                        <span className="text-sm font-medium text-slate-600 ml-1.5">mL/min/m²</span>
-                      </p>
-                      {results.do2iGap && (
-                        <p className={`text-sm font-semibold tabular-nums ${Number.parseFloat(results.do2iGap) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                          목표 {results.targetDO2i} 대비 {Number.parseFloat(results.do2iGap) >= 0 ? "+" : ""}{results.do2iGap}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {results.cao2 && (
-                  <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                      <p className="text-sm font-semibold text-slate-800">CaO₂</p>
-                    </div>
-                    <p className="text-3xl font-bold tracking-tight text-slate-900 tabular-nums mt-2">
-                      {results.cao2}
-                      <span className="text-sm font-medium text-slate-600 ml-1.5">mL/dL</span>
-                    </p>
-                    {!params.pao2 && <p className="text-xs text-slate-600 mt-1">PaO₂ 미입력: 200 mmHg 가정</p>}
-                  </div>
-                )}
-              </div>
+              {results.actualDO2i && (
+                <StatGrid cols={2}>
+                  <StatCell
+                    primary
+                    label="실제 DO₂i"
+                    value={results.actualDO2i}
+                    tone={results.do2iGap && Number.parseFloat(results.do2iGap) < 0 ? "bad" : "default"}
+                    unit={
+                      <>
+                        mL/min/m²
+                        {results.do2iGap &&
+                          ` · 목표 ${results.targetDO2i} 대비 ${Number.parseFloat(results.do2iGap) >= 0 ? "+" : ""}${results.do2iGap}`}
+                      </>
+                    }
+                  />
+                  <StatCell
+                    label="CaO₂"
+                    value={results.cao2}
+                    unit={<>mL/dL{!params.pao2 && " · PaO₂ 200 가정"}</>}
+                  />
+                </StatGrid>
+              )}
 
               {/* Recommendations - Only show critical recommendations */}
               {n(params.currentFlow) > 0 &&
                 results.flowAdequacy &&
                 (results.flowAdequacy === "insufficient" || results.flowAdequacy === "borderline") && (
-                  <Card className="border-2 border-destructive/50 bg-destructive/5">
+                  <Card className="border-l-4 border-l-rose-600">
                     <CardContent className="p-5">
-                      <p className="font-bold text-destructive mb-3 flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5" /> 우선 개선 권장 사항
-                      </p>
-                      <div className="space-y-2 text-sm text-destructive">
+                      <p className="text-base font-semibold text-rose-800 mb-2">우선 개선 권장 사항</p>
+                      <div className="space-y-2 text-sm text-slate-800">
                         <ol className="list-decimal list-inside space-y-1 ml-2">
                           <li>펌프 유량을 {results.minRequiredFlow} L/min 이상으로 증량 고려</li>
                           <li>헤모글로빈 최적화(예: 9–11 g/dL 범위 등, 센터 프로토콜/환자상태에 따라 판단)</li>
@@ -802,56 +773,51 @@ export default function GDPCalculator() {
                   </Card>
                 )}
             </>
-          )}
+            )
+          })()}
         </>
       ) : (
         <Card>
-          <CardContent className="text-center py-12 text-muted-foreground">
-            <Target className="w-20 h-20 mx-auto mb-4 opacity-30" />
-            <p className="text-lg">BSA와 Hgb를 입력하면 GDP 목표 달성을 위한</p>
-            <p className="text-lg">최소 필요 Flow가 자동 계산됩니다</p>
+          <CardContent className="py-10 text-center text-base text-slate-600">
+            <p>BSA와 Hgb를 입력하면 목표 DO₂i 달성을 위한 최소 Flow가 계산됩니다.</p>
           </CardContent>
         </Card>
       )}
 
       {vo2Estimate && (
-        <Card className="border-dashed border-2 border-border bg-muted/50">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Thermometer className="w-4 h-4" />
-                Temperature-based metabolic estimate (info only)
+              <h3 className="text-base font-semibold text-slate-900">
+                체온 기반 대사율 추정 <span className="text-sm font-normal text-slate-500">(참고용)</span>
               </h3>
-              <button
-                type="button"
-                onClick={() => setShowVo2Info(!showVo2Info)}
-                className="p-1 rounded-full hover:bg-muted transition-colors"
-                aria-label="VO2 계산식 정보"
-              >
-                <Info className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-              </button>
+              <Button variant="outline" size="sm" onClick={() => setShowVo2Info(!showVo2Info)} aria-expanded={showVo2Info}>
+                계산식
+              </Button>
             </div>
             {showVo2Info && (
-              <div className="mb-3 p-2 bg-background rounded-md border border-border text-xs text-muted-foreground">
+              <div className="my-3 p-3 bg-slate-50 rounded-md border border-slate-200 text-sm text-slate-700">
                 <p className="font-semibold mb-1">VO₂ Factor 계산식 (Q10 방식)</p>
                 <p className="font-mono text-xs">Factor = Q10^((T - 37) / 10)</p>
                 <p className="mt-1">Q10 = 2.0~2.3 (대사율 온도 계수)</p>
                 <p>기준: CI 2.4 L/min/m² @ 37°C</p>
               </div>
             )}
-            <p className="text-sm text-amber-800 font-medium mb-3">
-              ⚠ 체온은 Flow를 줄이기 위한 지표가 아니라, 현재 관류 상태가 얼마나 안전한 영역에 있는지 확인하고, 향후 대사량 증가를 대비하기 위한 지표로 사용해야 합니다.
-            </p>
-            <div className="space-y-2 text-sm text-foreground">
-              <div className="flex justify-between">
+            <div className="my-3">
+              <Notice>
+                체온은 Flow를 줄이기 위한 지표가 아니라, 현재 관류 상태가 얼마나 안전한 영역에 있는지 확인하고, 향후 대사량 증가를 대비하기 위한 지표로 사용해야 합니다.
+              </Notice>
+            </div>
+            <div className="divide-y divide-slate-200 text-sm text-slate-700 tabular-nums">
+              <div className="flex justify-between py-2">
                 <span>Estimated VO₂ factor (Q10 2.0–2.3):</span>
                 <span>
                   {Math.round(vo2Estimate.factorHigh)}–{Math.round(vo2Estimate.factorLow)}%
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-3 py-2">
                 <span>Equivalent Flow:</span>
-                <span className="font-bold leading-7 text-sm">
+                <span className="font-semibold text-slate-900 text-right">
                   {vo2Estimate.flowLow !== null && vo2Estimate.flowHigh !== null
                     ? `${vo2Estimate.flowHigh.toFixed(2)}–${vo2Estimate.flowLow.toFixed(2)} L/min (CI ${vo2Estimate.ciHigh.toFixed(2)}–${vo2Estimate.ciLow.toFixed(2)})`
                     : "—"}
@@ -865,21 +831,20 @@ export default function GDPCalculator() {
       {/* Footer */}
       <Card>
         <CardContent className="p-5">
-          <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-            <Info className="w-5 h-5 text-chart-1" />
-            근거 기반 GDP 적용 – 요점
+          <h3 className="text-base font-semibold text-slate-900 mb-2">
+                근거 기반 GDP 적용 – 요점
           </h3>
           <div className="text-sm text-slate-700 space-y-2 leading-relaxed">
             <p>
-              <strong>• 성인 GDP:</strong> DO₂i ≈ ≥280 mL/min/m²를 흔히 목표로 하며, 헤모글로빈/산소화에 따라 개별화.
+              <strong>성인 GDP:</strong> DO₂i ≈ ≥280 mL/min/m²를 흔히 목표로 하며, 헤모글로빈/산소화에 따라 개별화.
             </p>
             <p>
-              <strong>• 소아/영아:</strong> 더 높은 DO₂i 목표를 고려(센터/연령/수술 유형에 따른 차이 반영).
+              <strong>소아/영아:</strong> 더 높은 DO₂i 목표를 고려(센터/연령/수술 유형에 따른 차이 반영).
             </p>
             <p>
-              <strong>• 해석:</strong> 단일 수치 대신 lactate, rSO₂를 함께 보며 추세 기반으로 판단.
+              <strong>해석:</strong> 단일 수치 대신 lactate, rSO₂를 함께 보며 추세 기반으로 판단.
             </p>
-            <p className="mt-3 text-muted-foreground italic">
+            <p className="mt-3 pt-3 border-t border-slate-200 text-slate-500">
               이 계산기는 임상 판단을 보조하는 도구입니다. 환자‑/수술‑특이적 상황과 기관 프로토콜을 항상 우선하십시오.
             </p>
           </div>
