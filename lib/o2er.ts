@@ -95,3 +95,12 @@ export function computeO2er(input: O2erInput): O2erResult {
     warnings,
   }
 }
+
+// Shared SaO2 field (editable in the O2ER tab, also used by the DO2i tab).
+// Empty or out-of-range input is invalid and must not be replaced by an assumed value.
+export function parseSaO2(raw: string): number | null {
+  const t = String(raw).trim()
+  if (t === "") return null
+  const x = Number.parseFloat(t.replace(",", "."))
+  return Number.isFinite(x) && x > 0 && x <= 100 ? x : null
+}

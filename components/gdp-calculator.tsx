@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { computeO2er } from "@/lib/o2er"
+import { computeO2er, parseSaO2 } from "@/lib/o2er"
 
 type Tone = "default" | "good" | "warn" | "bad" | "muted"
 const TONE_TEXT: Record<Tone, string> = {
@@ -129,8 +129,6 @@ export default function GDPCalculator() {
     return Number.isFinite(x) ? x : fallback
   }
 
-  const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max)
-
   const handleInputChange = (field: string, value: string) => {
     setParams((prev) => ({ ...prev, [field]: value }))
   }
@@ -139,10 +137,10 @@ export default function GDPCalculator() {
     const bsa = n(params.bsa)
     const hgb = n(params.hgb)
     const flow = n(params.currentFlow)
-    const sao2 = clamp(n(params.sao2, 100), 0, 100)
+    const sao2 = parseSaO2(params.sao2)
     const pao2 = Math.max(n(params.pao2, 200), 0)
 
-    if (bsa > 0 && hgb > 0) {
+    if (bsa > 0 && hgb > 0 && sao2 !== null) {
       const cao2 = computeCao2(hgb, sao2, pao2)
       const baseTarget = n(targetDO2i, 280)
       const minRequiredFlow = computeMinFlow(bsa, cao2, baseTarget)
@@ -235,6 +233,7 @@ export default function GDPCalculator() {
   const temperature = n(params.temperature, 0)
   const bsa = n(params.bsa, 0)
   const vo2Estimate = temperature > 0 ? computeVO2Estimate(temperature, bsa) : null
+  const sao2Shared = parseSaO2(params.sao2)
 
   const optionalNumber = (v: string) => {
     if (String(v).trim() === "") return null
@@ -456,8 +455,13 @@ export default function GDPCalculator() {
               />
               <p className="text-xs text-slate-500">체온 입력 시 하단에 대사율 추정 정보가 표시됩니다 (참고용)</p>
             </div>
-            {n(params.sao2, 100) !== 100 && (
-              <p className="text-xs text-amber-700">SaO₂ {n(params.sao2, 100)}% 적용 중 (O₂ER 탭 입력값)</p>
+            {sao2Shared !== null && sao2Shared !== 100 && (
+              <p className="text-xs text-amber-700">SaO₂ {sao2Shared}% 적용 중 (O₂ER 탭 입력값)</p>
+            )}
+            {sao2Shared === null && (
+              <Notice title="입력 확인">
+                SaO₂가 비어 있거나 0 초과 100 이하 범위를 벗어났습니다. O₂ER 탭에서 SaO₂를 입력해야 DO₂i가 계산됩니다.
+              </Notice>
             )}
             </>
             )}
@@ -779,7 +783,11 @@ export default function GDPCalculator() {
       ) : (
         <Card>
           <CardContent className="py-10 text-center text-base text-slate-600">
-            <p>BSA와 Hgb를 입력하면 목표 DO₂i 달성을 위한 최소 Flow가 계산됩니다.</p>
+            <p>
+              {sao2Shared === null
+                ? "SaO₂ 입력값을 확인하세요 (O₂ER 탭)."
+                : "BSA와 Hgb를 입력하면 목표 DO₂i 달성을 위한 최소 Flow가 계산됩니다."}
+            </p>
           </CardContent>
         </Card>
       )}

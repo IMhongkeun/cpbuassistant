@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { computeO2er } from "../lib/o2er.ts"
+import { computeO2er, parseSaO2 } from "../lib/o2er.ts"
 
 const close = (actual, expected, tol = 0.01) =>
   assert.ok(Math.abs(actual - expected) <= tol, `expected ${expected}, got ${actual}`)
@@ -65,4 +65,20 @@ test("GDP component exposes DO2i / O2ER sub-tabs sharing one input state", () =>
   // existing DO2i behaviour preserved
   assert.match(src, /computeMinFlow\(bsa, cao2, baseTarget\)/)
   assert.match(src, /Math\.max\(n\(params\.pao2, 200\), 0\)/)
+})
+
+test("shared SaO2: empty or out-of-range is invalid (no silent 100% fallback)", () => {
+  assert.equal(parseSaO2(""), null)
+  assert.equal(parseSaO2("   "), null)
+  assert.equal(parseSaO2("abc"), null)
+  assert.equal(parseSaO2("0"), null)
+  assert.equal(parseSaO2("100.5"), null)
+  assert.equal(parseSaO2("-5"), null)
+  assert.equal(parseSaO2("100"), 100)
+  assert.equal(parseSaO2("97,5"), 97.5)
+  const src = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
+  // DO2i path requires a valid shared SaO2 and no longer clamps/falls back to 100
+  assert.match(src, /const sao2 = parseSaO2\(params\.sao2\)/)
+  assert.match(src, /if \(bsa > 0 && hgb > 0 && sao2 !== null\)/)
+  assert.doesNotMatch(src, /n\(params\.sao2, 100\)/)
 })
