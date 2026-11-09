@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { computeO2er, parseSaO2 } from "@/lib/o2er"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 
 type Tone = "default" | "good" | "warn" | "bad" | "muted"
 const TONE_TEXT: Record<Tone, string> = {
@@ -123,6 +124,18 @@ export default function GDPCalculator() {
   const [showInfo, setShowInfo] = useState(false)
   const [showVo2Info, setShowVo2Info] = useState(false)
   const [targetDO2i, setTargetDO2i] = useState("280")
+
+  // Patient Workspace only: BSA follows the case; other inputs are saved with it.
+  useWorkspaceSync("gdp", {
+    params: { value: params, set: setParams },
+    gdpSubTab: { value: gdpSubTab, set: setGdpSubTab },
+    targetDO2i: { value: targetDO2i, set: setTargetDO2i },
+    bsa: {
+      value: params.bsa,
+      set: (bsa: string) => setParams((prev) => ({ ...prev, bsa: String(bsa) })),
+      patient: "bsa",
+    },
+  })
 
   const n = (v: string, fallback = 0) => {
     const x = Number.parseFloat(String(v).replace(",", "."))
@@ -384,6 +397,7 @@ export default function GDPCalculator() {
               </Label>
               <Input
                 id="bsa"
+                data-ws-patient="bsa"
                 type="number"
                 step="0.01"
                 value={params.bsa}

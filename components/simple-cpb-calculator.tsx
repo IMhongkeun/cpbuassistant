@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { ChevronDown, Heart, Info } from "lucide-react"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 
 /**
  * 간단 CPB 유량 계산기 (Boer LBM)
@@ -93,6 +94,13 @@ export default function SimpleCPBCalculator() {
   const [sex, setSex] = useState<"M" | "F">("M")
   const [showTable, setShowTable] = useState<boolean>(false)
   const [showFormula, setShowFormula] = useState<boolean>(false)
+
+  // Patient Workspace only: sex, height and weight follow the active case.
+  useWorkspaceSync("lbm", {
+    sex: { value: sex, set: setSex, patient: "sex" },
+    heightCm: { value: heightCm, set: setHeightCm, patient: "heightCm" },
+    weightKg: { value: weightKg, set: setWeightKg, patient: "weightKg" },
+  })
 
   // 계산된 값들
   const metrics = useMemo(() => {

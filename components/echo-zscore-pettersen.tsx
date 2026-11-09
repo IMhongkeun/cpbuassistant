@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { Separator } from "@/components/ui/separator"
 import { Info } from "lucide-react"
 
@@ -154,6 +155,14 @@ export default function EchoZScorePettersen() {
   const [weight, setWeight] = useState<number | string>("")
   const [bsaValue, setBsaValue] = useState("")
   const [showFormulaGuide, setShowFormulaGuide] = useState(false)
+
+  // Patient Workspace only: height and weight follow the active case. The BSA
+  // field here stays calculator-specific (this tool's own formula notes apply).
+  useWorkspaceSync("echo-pettersen", {
+    height: { value: height, set: setHeight, patient: "heightCm" },
+    weight: { value: weight, set: setWeight, patient: "weightKg" },
+    bsaValue: { value: bsaValue, set: setBsaValue },
+  })
 
   // Parse inputs
   const h = typeof height === "number" ? height : Number.parseFloat(height as string) || 0

@@ -10,7 +10,8 @@
     "test:hct": "node --experimental-strip-types --test tests/adult-hct.test.mjs tests/hct-navigation.test.mjs tests/transplant-navigation.test.mjs",
     "test:cannula": "node --experimental-strip-types --test tests/cannula-browser.test.mjs",
     "test:mics": "node --experimental-strip-types --test tests/mics-hydraulics.test.mjs",
-    "test:o2er": "node --experimental-strip-types --test tests/o2er.test.mjs"
+    "test:o2er": "node --experimental-strip-types --test tests/o2er.test.mjs",
+    "test:workspace": "node --experimental-strip-types --test tests/patient-workspace.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

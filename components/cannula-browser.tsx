@@ -15,6 +15,7 @@ import {
 } from "recharts"
 import sourceData from "@/data/cannula-medtronic-maquet.json"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { buildCannulaChartRows, snapCannulaChartFlow, estimateCannulaCurvePressure, getCannulaChartMaxFlow, isCannulaEndpointApproximation, compareCannulaManufacturers, formatCannulaSize, getCannulaFrLabel, getCannulaShortName, groupSharedCannulaCurves, matchesCannulaSearch, toggleCannulaSelection } from "@/lib/cannula-estimate"
 
 type CannulaCurve = {
@@ -153,6 +154,15 @@ export default function CannulaBrowser() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [flowText, setFlowText] = useState("4")
   const [previewFlow, setPreviewFlow] = useState<number | null>(null)
+
+  // Patient Workspace only: the selected cannulas and flow are saved with the active case.
+  useWorkspaceSync("cannula", {
+    search: { value: search, set: setSearch },
+    manufacturer: { value: manufacturer, set: setManufacturer },
+    typeFilter: { value: typeFilter, set: setTypeFilter },
+    selectedIds: { value: selectedIds, set: setSelectedIds },
+    flowText: { value: flowText, set: setFlowText },
+  })
 
   const selected = useMemo(
     () => selectedIds.map((id) => ALL_CURVES.find((item) => item.id === id))
