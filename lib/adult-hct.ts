@@ -7,6 +7,8 @@
 // Simplified red-cell mass balance; verify against actual measured Hct and volumes.
 export const ADULT_BLOOD_VOLUME_ML_PER_KG = 65
 export const KRC_VOLUME_ML_PER_UNIT = 250
+// Department standard: KRC product Hct 66% (0.66), fixed like the 250 mL unit volume.
+export const KRC_PRODUCT_HCT_PERCENT = 66
 
 export type AdultPreCpbInputs = {
   weightKg: number

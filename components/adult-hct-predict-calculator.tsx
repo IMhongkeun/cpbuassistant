@@ -12,6 +12,7 @@ import {
   estimateAdultBloodVolumeMl,
   ADULT_BLOOD_VOLUME_ML_PER_KG,
   KRC_VOLUME_ML_PER_UNIT,
+  KRC_PRODUCT_HCT_PERCENT,
 } from "@/lib/adult-hct"
 
 type NumericFieldProps = {
@@ -90,13 +91,29 @@ function asOptionalAdjustment(value: string) {
 const format = (value: number, digits = 1) =>
   value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
+// Department-fixed value shown in the same box style as the inputs beside it.
+function FixedValue({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="block min-h-5 text-xs font-semibold text-slate-700">{label}</p>
+      <div className="flex h-11 items-center justify-between rounded-md border border-slate-200 bg-slate-100 px-3 text-base" aria-label={label + " " + value + " " + unit + " 고정값"}>
+        <span className="font-bold tabular-nums text-slate-900">
+          {value} <span className="text-xs font-semibold text-slate-500">{unit}</span>
+        </span>
+        <span className="rounded bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">고정</span>
+      </div>
+    </div>
+  )
+}
+
 export default function AdultHctPredictCalculator() {
   const [weight, setWeight] = useState("")
   const [bloodVolumeCoefficient, setBloodVolumeCoefficient] = useState(String(ADULT_BLOOD_VOLUME_ML_PER_KG))
   const [preHct, setPreHct] = useState("")
   const [prime, setPrime] = useState("1200")
   const [desiredPreHct, setDesiredPreHct] = useState("")
-  const [productHct, setProductHct] = useState("66")
+  // KRC product Hct is a department-fixed value (66% = 0.66).
+  const productHct = String(KRC_PRODUCT_HCT_PERCENT)
   const [currentHct, setCurrentHct] = useState("")
   const [crystalloidAdded, setCrystalloidAdded] = useState("")
   const [fluidRemoved, setFluidRemoved] = useState("")
@@ -110,7 +127,6 @@ export default function AdultHctPredictCalculator() {
     bloodVolumeCoefficient: { value: bloodVolumeCoefficient, set: setBloodVolumeCoefficient },
     prime: { value: prime, set: setPrime },
     desiredPreHct: { value: desiredPreHct, set: setDesiredPreHct },
-    productHct: { value: productHct, set: setProductHct },
     currentHct: { value: currentHct, set: setCurrentHct },
     crystalloidAdded: { value: crystalloidAdded, set: setCrystalloidAdded },
     fluidRemoved: { value: fluidRemoved, set: setFluidRemoved },
@@ -185,7 +201,6 @@ export default function AdultHctPredictCalculator() {
     setPreHct("")
     setPrime("1200")
     setDesiredPreHct("")
-    setProductHct("66")
     setCurrentHct("")
     setCrystalloidAdded("")
     setFluidRemoved("")
@@ -241,11 +256,8 @@ export default function AdultHctPredictCalculator() {
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="mb-3 text-sm font-semibold">RBC (KRC) 설정</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
-                <p className="text-xs font-semibold text-slate-600">RBC (KRC) volume (mL/unit)</p>
-                <p className="mt-1 text-base font-bold">{KRC_VOLUME_ML_PER_UNIT} (고정)</p>
-              </div>
-              <NumericField id="ahd-product-hct" label="KRC product Hct (%)" value={productHct} onChange={setProductHct} min="0.1" required />
+              <FixedValue label="RBC (KRC) volume (mL/unit)" value={String(KRC_VOLUME_ML_PER_UNIT)} unit="mL" />
+              <FixedValue label="KRC product Hct (%)" value={String(KRC_PRODUCT_HCT_PERCENT)} unit="% (0.66)" />
             </div>
           </div>
         </CardContent>
@@ -322,7 +334,7 @@ export default function AdultHctPredictCalculator() {
             <NumericField id="ahd-current-hct" label="Current Hct (%)" value={currentHct} onChange={setCurrentHct} min="0.1" required />
             <NumericField id="ahd-krc-units" label="RBC (KRC) 주입 (unit)" value={plannedKrcUnits} onChange={setPlannedKrcUnits} min="0" step="1" note="정수 unit만 허용 · 1 unit = 250 mL" />
             <NumericField id="ahd-crystalloid-added" label="Crystalloid 추가 (mL)" value={crystalloidAdded} onChange={setCrystalloidAdded} min="0" />
-            <NumericField id="ahd-fluid-removed" label="Crystalloid/수분 제거 (mL)" value={fluidRemoved} onChange={setFluidRemoved} min="0" note="KRC에 대응하는 HF/UF 외에 추가로 제거할 수분량" />
+            <NumericField id="ahd-fluid-removed" label="UF/HF 제거 (mL)" value={fluidRemoved} onChange={setFluidRemoved} min="0" note="KRC 주입과 동량 HF/UF 외에 추가로 제거한 양" />
           </div>
           <p className="text-xs text-slate-600">
             Current volume estimate: {currentEstimatedVolume === null ? "—" : format(currentEstimatedVolume, 0) + " mL"}
@@ -335,11 +347,11 @@ export default function AdultHctPredictCalculator() {
                 ? "현재 Hct 대비 " + (onPumpResult.hctChangePoints >= 0 ? "+" : "") + format(onPumpResult.hctChangePoints) + " %p" : undefined} />
             <ResultCard label="예상 최종 Volume (mL)"
               value={onPumpResult?.plannedFeasible ? format(onPumpResult.finalVolumeMl, 0) + " mL" : "—"}
-              caption="Crystalloid 추가 − 별도 수분 제거 (KRC 주입과 동량 HF/UF는 상쇄)" />
+              caption="Crystalloid 추가 − 별도 UF/HF 제거 (KRC 주입과 동량 HF/UF는 상쇄)" />
             <ResultCard label="KRC 주입에 따른 HF/UF (mL)"
               value={onPumpResult?.plannedFeasible ? format(onPumpResult.matchedKrcUfMl, 0) + " mL" : "—"}
-              caption="KRC 주입량과 동일한 수분량" />
-            <ResultCard label="총 수분 제거 (mL)"
+              caption="KRC 주입량과 동량" />
+            <ResultCard label="총 UF/HF 제거 (mL)"
               value={onPumpResult?.plannedFeasible ? format(onPumpResult.totalUfMl, 0) + " mL" : "—"}
               caption="KRC 동량 HF/UF + 별도로 입력한 제거량" />
           </div>
@@ -380,7 +392,7 @@ export default function AdultHctPredictCalculator() {
                   )}
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold text-slate-700">Crystalloid/수분만 변화 시 (mL)</p>
+                  <p className="text-xs font-semibold text-slate-700">Crystalloid 추가 또는 UF/HF 제거만 할 때 (mL)</p>
                   <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900">
                     {targetResult.fluidOnlyAdjustmentMl === null ? "—"
                       : (targetResult.fluidOnlyAdjustmentMl > 0 ? "+" : "") + format(targetResult.fluidOnlyAdjustmentMl, 0) + " mL"}
@@ -389,7 +401,7 @@ export default function AdultHctPredictCalculator() {
                     {targetResult.fluidOnlyAdjustmentMl === null ? "—" : targetResult.fluidOnlyAdjustmentMl > 0
                       ? "양수 (+): Crystalloid 추가"
                       : targetResult.fluidOnlyAdjustmentMl < 0
-                        ? "음수 (−): 수분 제거 (HF/UF)"
+                        ? "음수 (−): UF/HF 제거"
                         : "추가·제거가 필요하지 않습니다."}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
@@ -408,7 +420,7 @@ export default function AdultHctPredictCalculator() {
           {!onPumpResult && <p className="text-sm text-amber-700" role="status">현재 Hct, Crystalloid 추가·제거량, KRC 주입 unit를 확인해주세요.</p>}
           {onPumpResult?.plannedFeasible === false && (
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="alert">
-              수분 제거 후 적혈구량이 전체 volume보다 많아 계산 조건이 성립하지 않습니다.
+              UF/HF 제거 후 적혈구량이 전체 volume보다 많아 계산 조건이 성립하지 않습니다.
             </p>
           )}
           {onPumpResult?.targetFeasible === false && (
