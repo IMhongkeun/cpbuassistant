@@ -802,7 +802,7 @@ body {
   box-shadow: 0 8px 24px rgba(22, 67, 68, .12);
 }
 .cpbu-o2er-table-wrap { overflow-x: auto; border: 1px solid var(--cpbu-border); border-radius: 12px; }
-.cpbu-o2er-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.cpbu-o2er-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
 .cpbu-o2er-table th {
   position: sticky;
   top: 0;
@@ -844,4 +844,25 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .cpbu-o2er-table tbody tr[data-new="true"] { animation: none; }
+}
+/* Change column: fixed width so O2ER values stay aligned whether or not a change is shown. */
+.cpbu-o2er-table .cpbu-o2er-delta-col { width: 4.6rem; padding-left: .2rem; }
+.cpbu-o2er-change { display: inline-block; min-width: 3.6rem; font-size: .75rem; font-weight: 700; text-align: right; }
+.cpbu-o2er-change[data-dir="up"] { color: #a2413a; }
+.cpbu-o2er-change[data-dir="down"] { color: #0f6b5a; }
+.cpbu-o2er-change[data-dir="flat"] { color: var(--cpbu-muted); }
+.cpbu-o2er-table :is(th, td):nth-child(-n + 2) { text-align: left; }
+.cpbu-o2er-guide { padding: 1.1rem 1.2rem; border: 1px solid var(--cpbu-border); border-left: 3px solid #8bbfba; border-radius: 14px; background: #fbfdfc; }
+.cpbu-o2er-steps { display: grid; gap: .6rem; counter-reset: none; }
+@media (min-width: 768px) { .cpbu-o2er-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cpbu-o2er-step { position: relative; display: flex; gap: .7rem; padding: .75rem .85rem; border: 1px solid var(--cpbu-border); border-radius: 11px; background: #fff; }
+@media (min-width: 768px) {
+  .cpbu-o2er-step:not(:last-child)::after {
+    content: "→"; position: absolute; top: 50%; right: -.55rem; z-index: 1; transform: translate(50%, -50%);
+    color: #8bbfba; font-weight: 700;
+  }
+}
+.cpbu-o2er-step-num {
+  display: inline-flex; width: 26px; height: 26px; flex-shrink: 0; align-items: center; justify-content: center;
+  border-radius: 999px; background: var(--cpbu-brand); color: #fff; font-size: .8rem; font-weight: 800;
 }

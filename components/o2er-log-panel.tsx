@@ -364,6 +364,7 @@ export function O2erLogPanel({ records, onChange, current, persisted }: Props) {
                   <th className="text-left">#</th>
                   <th className="text-left">시각</th>
                   <th>O₂ER</th>
+                  <th className="cpbu-o2er-delta-col">변화</th>
                   <th>간편식</th>
                   <th>Hgb</th>
                   <th>SaO₂</th>
@@ -394,12 +395,17 @@ export function O2erLogPanel({ records, onChange, current, persisted }: Props) {
                         <span className="cpbu-o2er-pill" data-above={r.result.o2er > O2ER_REFERENCE_PERCENT ? "true" : undefined}>
                           {r.result.o2er.toFixed(1)}
                         </span>
-                        {d !== null && Math.abs(d) >= 0.05 ? (
-                          <span className="ml-1 text-[11px] text-[var(--cpbu-muted)]">
-                            {d > 0 ? "▲" : "▼"}
-                            {Math.abs(d).toFixed(1)}
+                      </td>
+                      <td className="cpbu-o2er-delta-col">
+                        {d === null ? (
+                          <span className="text-[var(--cpbu-muted)]">–</span>
+                        ) : Math.abs(d) < 0.05 ? (
+                          <span className="cpbu-o2er-change" data-dir="flat">0.0</span>
+                        ) : (
+                          <span className="cpbu-o2er-change" data-dir={d > 0 ? "up" : "down"}>
+                            {d > 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}
                           </span>
-                        ) : null}
+                        )}
                       </td>
                       <td>{r.result.o2erSaturationOnly.toFixed(1)}</td>
                       <td>{f(r.inputs.hgb, 1)}</td>
@@ -474,5 +480,36 @@ function O2erTooltip({ active, payload, records }: any) {
         <dd className="text-right">{f(r.result.do2i, 0)} / {f(r.result.vo2i, 0)}</dd>
       </dl>
     </div>
+  )
+}
+
+// Response sequence proposed (not yet validated) by Ahmad et al., JTCVS 2026.
+export function O2erResponseGuide() {
+  const steps = [
+    { title: "유량·배액 최적화", body: "Indexed flow(CI)를 올리고 venous drainage가 충분한지 확인" },
+    { title: "산소 함량 교정", body: "필요 시 hemoconcentration 또는 수혈로 Hgb·CaO₂ 보정" },
+    { title: "대사 요구 감소", body: "그래도 지속되면 경도 저체온으로 VO₂ 감소 고려" },
+  ]
+  return (
+    <section className="cpbu-o2er-guide" aria-labelledby="o2er-guide-title">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 id="o2er-guide-title" className="text-base font-bold text-[var(--cpbu-ink)]">O₂ER이 계속 높을 때 · 논문 제안 대응 순서</h3>
+        <span className="text-xs text-[var(--cpbu-muted)]">Ahmad et al., JTCVS 2026</span>
+      </div>
+      <ol className="cpbu-o2er-steps">
+        {steps.map((step, index) => (
+          <li key={step.title} className="cpbu-o2er-step">
+            <span className="cpbu-o2er-step-num" aria-hidden>{index + 1}</span>
+            <div>
+              <p className="font-semibold text-[var(--cpbu-ink)]">{step.title}</p>
+              <p className="mt-0.5 text-sm leading-5 text-[var(--cpbu-muted)]">{step.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs leading-5 text-[var(--cpbu-muted)]">
+        저자 기관이 전향 연구를 위해 개발 중인 O₂ER 중심 GDP 프레임워크로, 아직 검증된 프로토콜이 아닙니다. 환자 상태와 기관 프로토콜을 우선하세요.
+      </p>
+    </section>
   )
 }

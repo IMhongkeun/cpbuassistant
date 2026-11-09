@@ -104,3 +104,21 @@ test("GDP O2ER tab renders the log panel and saves it with the workspace case", 
   assert.match(gdp, /<O2erLogPanel records=\{o2erLog\} onChange=\{setO2erLog\} current=\{o2erCurrent\} persisted=\{workspaceActive\} \/>/)
   assert.match(gdp, /o2erLog: \{ value: o2erLog, set: \(saved: unknown\) => setO2erLog\(sanitizeO2erLog\(saved\)\) \}/)
 })
+
+test("change is shown in its own fixed-width column so O2ER values stay aligned", () => {
+  const panel = readFileSync(new URL("../components/o2er-log-panel.tsx", import.meta.url), "utf8")
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
+  assert.match(panel, /<th className="cpbu-o2er-delta-col">변화<\/th>/)
+  const o2erCell = panel.slice(panel.indexOf('<span className="cpbu-o2er-pill"'), panel.indexOf('<td className="cpbu-o2er-delta-col">'))
+  assert.doesNotMatch(o2erCell, /▲|▼/, "no change marker inside the O2ER cell")
+  assert.match(css, /\.cpbu-o2er-table \.cpbu-o2er-delta-col \{ width: 4\.6rem;/)
+})
+
+test("O2ER tab shows the paper's proposed response sequence as unvalidated guidance", () => {
+  const panel = readFileSync(new URL("../components/o2er-log-panel.tsx", import.meta.url), "utf8")
+  const gdp = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
+  const order = ["유량·배액 최적화", "산소 함량 교정", "대사 요구 감소"].map((t) => panel.indexOf(t))
+  assert.ok(order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2])
+  assert.match(panel, /아직 검증된 프로토콜이 아닙니다/)
+  assert.match(gdp, /<O2erResponseGuide \/>/)
+})

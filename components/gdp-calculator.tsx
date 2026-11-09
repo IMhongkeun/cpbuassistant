@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { computeO2er, parseSaO2 } from "@/lib/o2er"
 import { useWorkspaceActive, useWorkspaceSync } from "@/components/workspace/workspace-provider"
-import { O2erLogPanel } from "@/components/o2er-log-panel"
+import { O2erLogPanel, O2erResponseGuide } from "@/components/o2er-log-panel"
 import { sanitizeO2erLog, type O2erRecord } from "@/lib/o2er-log"
 
 type Tone = "default" | "good" | "warn" | "bad" | "muted"
@@ -666,6 +666,8 @@ export default function GDPCalculator() {
           )}
 
           <O2erLogPanel records={o2erLog} onChange={setO2erLog} current={o2erCurrent} persisted={workspaceActive} />
+
+          <O2erResponseGuide />
 
           <Card>
             <CardContent className="p-5">
