@@ -3,7 +3,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   WORKSPACE_STORAGE_KEY,
-  WORKSPACE_UI_STORAGE_KEY,
   createCase,
   isCaseExpired,
   parseStoredCase,
@@ -42,8 +41,6 @@ type WorkspaceContextValue = {
   updateCalculator: (calculatorId: string, values: Record<string, unknown>) => void
   // Last patient field changed from a calculator, for summary-bar feedback.
   lastPatientEdit: { key: PatientBindingKey; at: number } | null
-  uiPrefs: Record<string, unknown>
-  setUiPref: (key: string, value: unknown) => void
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
@@ -74,17 +71,6 @@ const safeRemove = (key: string) => {
   }
 }
 
-const readUiPrefs = (): Record<string, unknown> => {
-  const raw = safeGet(WORKSPACE_UI_STORAGE_KEY)
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
 export function PatientWorkspaceProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [mode, setModeState] = useState<WorkspaceMode>("quick")
@@ -92,15 +78,12 @@ export function PatientWorkspaceProvider({ children }: { children: ReactNode }) 
   const [activeCase, setActiveCase] = useState<WorkspaceCase | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [lastPatientEdit, setLastPatientEdit] = useState<WorkspaceContextValue["lastPatientEdit"]>(null)
-  const [uiPrefs, setUiPrefs] = useState<Record<string, unknown>>({})
   const caseRef = useRef<WorkspaceCase | null>(null)
   caseRef.current = activeCase
 
-  // Initial load: expiry is evaluated before anything can resume or touch the case.
+  // Initial load: the site always opens in Quick Calc. Expiry is evaluated
+  // before anything can resume or touch a stored case.
   useEffect(() => {
-    const prefs = readUiPrefs()
-    setUiPrefs(prefs)
-    setModeState(prefs.mode === "workspace" ? "workspace" : "quick")
     const stored = parseStoredCase(safeGet(WORKSPACE_STORAGE_KEY), Date.now())
     if (stored.status === "active") {
       setActiveCase(stored.case)
@@ -117,10 +100,6 @@ export function PatientWorkspaceProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     if (status === "active" && activeCase) safeSet(WORKSPACE_STORAGE_KEY, serializeCase(activeCase))
   }, [status, activeCase])
-
-  useEffect(() => {
-    if (ready) safeSet(WORKSPACE_UI_STORAGE_KEY, JSON.stringify(uiPrefs))
-  }, [ready, uiPrefs])
 
   const expireNow = useCallback(() => {
     safeRemove(WORKSPACE_STORAGE_KEY)
@@ -174,17 +153,7 @@ export function PatientWorkspaceProvider({ children }: { children: ReactNode }) 
     return () => window.removeEventListener("storage", onStorage)
   }, [])
 
-  const setUiPref = useCallback((key: string, value: unknown) => {
-    setUiPrefs((prev) => (prev[key] === value ? prev : { ...prev, [key]: value }))
-  }, [])
-
-  const setMode = useCallback(
-    (next: WorkspaceMode) => {
-      setModeState(next)
-      setUiPref("mode", next)
-    },
-    [setUiPref],
-  )
+  const setMode = useCallback((next: WorkspaceMode) => setModeState(next), [])
 
   const startCase = useCallback((patient: PatientInfo) => {
     const created = createCase(patient, Date.now())
@@ -245,10 +214,8 @@ export function PatientWorkspaceProvider({ children }: { children: ReactNode }) 
       updatePatient,
       updateCalculator,
       lastPatientEdit,
-      uiPrefs,
-      setUiPref,
     }),
-    [ready, mode, setMode, status, activeCase, workspaceActive, scopeKey, notice, startCase, resumeCase, resetCase, replacePatient, updatePatient, updateCalculator, lastPatientEdit, uiPrefs, setUiPref],
+    [ready, mode, setMode, status, activeCase, workspaceActive, scopeKey, notice, startCase, resumeCase, resetCase, replacePatient, updatePatient, updateCalculator, lastPatientEdit],
   )
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>

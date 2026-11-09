@@ -696,3 +696,6 @@ body {
   background: var(--cpbu-brand-softest);
   box-shadow: inset 3px 0 0 var(--cpbu-brand), 0 0 0 1px #cae4e1;
 }
+.cpbu-home-link { border-radius: 10px; transition: opacity .15s; }
+.cpbu-home-link:hover { opacity: .82; }
+.cpbu-home-link:focus-visible { outline: 2px solid var(--cpbu-brand); outline-offset: 4px; }

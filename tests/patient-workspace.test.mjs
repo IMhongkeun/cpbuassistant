@@ -197,7 +197,7 @@ test("page wires the workspace: provider, mode switch, summary bar, per-case rem
   assert.match(page, /<PatientWorkspaceProvider>/)
   assert.match(page, /<WorkspaceModeSwitch \/>/)
   assert.match(page, /<WorkspaceSummaryBar \/>/)
-  assert.match(page, /<main key=\{scopeKey\}/)
+  assert.match(page, /<main key=\{mainKey\}/)
   assert.match(page, /useWorkspaceSync\("transplant"/)
   assert.match(page, /setLungData\(createInitialLungData\(\)\)/)
 })
@@ -206,4 +206,22 @@ test("shared patient edits from calculators never clear the case value", () => {
   const provider = read("components/workspace/workspace-provider.tsx")
   assert.match(provider, /local\[name\]\.trim\(\) !== ""/)
   assert.match(provider, /binding\.writePatient !== false/)
+})
+
+test("site always opens in Quick Calc and the title link returns to that first screen", () => {
+  const provider = read("components/workspace/workspace-provider.tsx")
+  const shell = read("components/workspace/workspace-shell.tsx")
+  const page = read("app/page.tsx")
+  assert.match(provider, /useState<WorkspaceMode>\("quick"\)/)
+  assert.doesNotMatch(provider, /uiPrefs|cpbu\.ui\.v1/)
+  assert.match(shell, /label: "Quick Calc"/)
+  assert.doesNotMatch(shell, /빠른 계산/)
+  assert.match(page, /<a\s+href="\/"/)
+  const home = page.slice(page.indexOf("const goHome = () => {"), page.indexOf("const showWorkspaceGate"))
+  for (const step of ['setMode("quick")', 'setActiveTab("transplant")', 'setTransplantSubTab("lung")', 'setPcsSubTab("echo")', 'setHctSubTab("ahd")', "setHomeNonce"]) {
+    assert.ok(home.includes(step), "goHome missing " + step)
+  }
+  for (const [name, initial] of [["activeTab", "transplant"], ["transplantSubTab", "lung"], ["pcsSubTab", "echo"], ["hctSubTab", "ahd"]]) {
+    assert.match(page, new RegExp("const \\[" + name + ", set\\w+\\] = useState\\(\"" + initial + "\"\\)"), name + " default matches home")
+  }
 })

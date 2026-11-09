@@ -1,6 +1,6 @@
 "use client" // Add this directive at the top to mark this as a client component
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Clock } from "lucide-react"
 import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
@@ -323,7 +323,6 @@ const createInitialHeartData = () => ({
   warmIschemicTime: { start: "", end: "" },
   anastomosisTime: { start: "", end: "" },
 })
-const MAIN_TAB_IDS = ["transplant", "hct", "pediatric", "gdp", "mics", "cannula", "cpb"]
 
 // Main CPBU Assistant component
 const CPBUassistant = () => {
@@ -372,31 +371,29 @@ const CPBUassistant = () => {
   // Patient Workspace: quick mode keeps transplant times in memory only (unchanged);
   // in Patient Workspace they are saved with the active case.
   const workspace = usePatientWorkspace()
-  const scopeKey = workspace?.scopeKey ?? "quick"
+  const [homeNonce, setHomeNonce] = useState(0)
+  const mainKey = (workspace?.scopeKey ?? "quick") + ":" + homeNonce
   useEffect(() => {
     setLungData(createInitialLungData())
     setHeartData(createInitialHeartData())
-  }, [scopeKey])
+  }, [mainKey])
   useWorkspaceSync("transplant", {
     lungData: { value: lungData, set: setLungData },
     heartData: { value: heartData, set: setHeartData },
     transplantSubTab: { value: transplantSubTab, set: setTransplantSubTab },
   })
 
-  // Remember the last main tab on this device (no patient data).
-  const restoredTabRef = useRef(false)
-  useEffect(() => {
-    if (!workspace?.ready) return
-    if (!restoredTabRef.current) {
-      restoredTabRef.current = true
-      const saved = workspace.uiPrefs.activeTab
-      if (typeof saved === "string" && MAIN_TAB_IDS.includes(saved) && saved !== activeTab) {
-        setActiveTab(saved)
-        return
-      }
-    }
-    workspace.setUiPref("activeTab", activeTab)
-  }, [workspace?.ready, activeTab])
+  // Home (title click) = the site's first screen: Quick Calc, default tabs,
+  // fresh quick-calculator inputs. A Patient Workspace case is kept as is.
+  const goHome = () => {
+    workspace?.setMode("quick")
+    setActiveTab("transplant")
+    setTransplantSubTab("lung")
+    setPcsSubTab("echo")
+    setHctSubTab("ahd")
+    setHomeNonce((n) => n + 1)
+    window.scrollTo({ top: 0 })
+  }
 
   const showWorkspaceGate = workspace?.mode === "workspace" && !workspace.workspaceActive
 
@@ -462,8 +459,19 @@ const CPBUassistant = () => {
       <header className="cpbu-header">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3">
           <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2.5">
+            <a
+              href="/"
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
+                event.preventDefault()
+                goHome()
+              }}
+              className="cpbu-home-link flex items-center gap-3"
+              aria-label="CPBU assistant 홈"
+            >
             <img src="/asan-foundation-mark.svg" alt="아산재단 로고" width={42} height={42} className="h-10 w-10 shrink-0 object-contain" />
             <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-[#173940] sm:text-2xl">CPBU assistant</h1>
+            </a>
             <div className="w-full sm:ml-auto sm:w-auto">
               <WorkspaceModeSwitch />
             </div>
@@ -495,7 +503,7 @@ const CPBUassistant = () => {
         </div>
       </header>
       <WorkspaceSummaryBar />
-      <main key={scopeKey} className={"mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7" + (activeTab === "transplant" ? "" : " cpbu-calculator-inputs") + (workspace?.workspaceActive ? " cpbu-ws-linked" : "")}>
+      <main key={mainKey} className={"mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7" + (activeTab === "transplant" ? "" : " cpbu-calculator-inputs") + (workspace?.workspaceActive ? " cpbu-ws-linked" : "")}>
       {!workspace?.ready ? null : showWorkspaceGate ? <WorkspaceGate /> : (<>
       {activeTab === "transplant" && (
         <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="이식 종류">

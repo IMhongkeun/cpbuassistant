@@ -47,7 +47,7 @@ export function WorkspaceModeSwitch() {
   const ws = usePatientWorkspace()
   if (!ws) return null
   const options: { value: WorkspaceMode; label: string; short: string; icon: ReactNode }[] = [
-    { value: "quick", label: "빠른 계산", short: "빠른 계산", icon: <Zap className="h-3.5 w-3.5" aria-hidden /> },
+    { value: "quick", label: "Quick Calc", short: "Quick Calc", icon: <Zap className="h-3.5 w-3.5" aria-hidden /> },
     { value: "workspace", label: "Patient Workspace", short: "Workspace", icon: <UserRound className="h-3.5 w-3.5" aria-hidden /> },
   ]
   const hasCase = ws.status === "active" || ws.status === "pending-resume"
@@ -65,8 +65,14 @@ export function WorkspaceModeSwitch() {
           onClick={() => ws.setMode(option.value)}
         >
           {option.icon}
-          <span className="hidden sm:inline">{option.label}</span>
-          <span className="sm:hidden">{option.short}</span>
+          {option.short === option.label ? (
+            <span>{option.label}</span>
+          ) : (
+            <>
+              <span className="hidden sm:inline">{option.label}</span>
+              <span className="sm:hidden">{option.short}</span>
+            </>
+          )}
           {option.value === "workspace" && hasCase ? (
             <span className="cpbu-ws-live-dot" aria-label="진행 중인 케이스 있음" />
           ) : null}

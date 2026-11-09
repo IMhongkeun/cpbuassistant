@@ -11,7 +11,6 @@
 //   per calculator id.
 
 export const WORKSPACE_STORAGE_KEY = "cpbu.patientWorkspace.v1"
-export const WORKSPACE_UI_STORAGE_KEY = "cpbu.ui.v1"
 export const WORKSPACE_VERSION = 1
 export const WORKSPACE_TTL_MS = 12 * 60 * 60 * 1000
 
