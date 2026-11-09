@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { computeO2er, parseSaO2 } from "@/lib/o2er"
-import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
+import { useWorkspaceActive, useWorkspaceSync } from "@/components/workspace/workspace-provider"
+import { O2erLogPanel } from "@/components/o2er-log-panel"
+import { sanitizeO2erLog, type O2erRecord } from "@/lib/o2er-log"
 
 type Tone = "default" | "good" | "warn" | "bad" | "muted"
 const TONE_TEXT: Record<Tone, string> = {
@@ -124,12 +126,16 @@ export default function GDPCalculator() {
   const [showInfo, setShowInfo] = useState(false)
   const [showVo2Info, setShowVo2Info] = useState(false)
   const [targetDO2i, setTargetDO2i] = useState("280")
+  // Serial O2ER records (memory only in Quick Calc; saved with the case in Patient Workspace).
+  const [o2erLog, setO2erLog] = useState<O2erRecord[]>([])
+  const workspaceActive = useWorkspaceActive()
 
   // Patient Workspace only: BSA follows the case; other inputs are saved with it.
   useWorkspaceSync("gdp", {
     params: { value: params, set: setParams },
     gdpSubTab: { value: gdpSubTab, set: setGdpSubTab },
     targetDO2i: { value: targetDO2i, set: setTargetDO2i },
+    o2erLog: { value: o2erLog, set: (saved: unknown) => setO2erLog(sanitizeO2erLog(saved)) },
     bsa: {
       value: params.bsa,
       set: (bsa: string) => setParams((prev) => ({ ...prev, bsa: String(bsa) })),
@@ -265,6 +271,30 @@ export default function GDPCalculator() {
         bsa: optionalNumber(params.bsa),
       })
     : null
+  const finiteOrNull = (v: number | null) => (v !== null && Number.isFinite(v) ? v : null)
+  const o2erCurrent =
+    o2er && o2er.ok
+      ? {
+          inputs: {
+            hgb: n(params.hgb),
+            sao2: n(params.sao2, Number.NaN),
+            svo2: n(params.svo2, Number.NaN),
+            pao2: finiteOrNull(optionalNumber(params.pao2)),
+            pvo2: finiteOrNull(optionalNumber(params.pvo2)),
+            flow: finiteOrNull(optionalNumber(params.currentFlow)),
+            bsa: finiteOrNull(optionalNumber(params.bsa)),
+            temperature: finiteOrNull(optionalNumber(params.temperature)),
+          },
+          result: {
+            o2er: o2er.o2er,
+            o2erSaturationOnly: o2er.o2erSaturationOnly,
+            cao2: o2er.cao2,
+            cvo2: o2er.cvo2,
+            do2i: o2er.do2i,
+            vo2i: o2er.vo2i,
+          },
+        }
+      : null
 
   return (
     <div className="space-y-6">
@@ -634,6 +664,8 @@ export default function GDPCalculator() {
               </CardContent>
             </Card>
           )}
+
+          <O2erLogPanel records={o2erLog} onChange={setO2erLog} current={o2erCurrent} persisted={workspaceActive} />
 
           <Card>
             <CardContent className="p-5">
