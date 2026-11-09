@@ -243,3 +243,14 @@ test("optional AHD changes start and reset blank but use zero for omitted calcul
   near(baseline.finalVolumeMl, 5000)
 })
 
+
+test("AHD KRC settings are department-fixed: 250 mL/unit and product Hct 66% (0.66), shown in matching boxes", async () => {
+  const { KRC_PRODUCT_HCT_PERCENT } = await import("../lib/adult-hct.ts")
+  assert.equal(KRC_PRODUCT_HCT_PERCENT, 66)
+  const adult = readFileSync(new URL("../components/adult-hct-predict-calculator.tsx", import.meta.url), "utf8")
+  assert.match(adult, /const productHct = String\(KRC_PRODUCT_HCT_PERCENT\)/)
+  assert.doesNotMatch(adult, /id="ahd-product-hct"/)
+  assert.equal((adult.match(/<FixedValue label=/g) || []).length, 2)
+  assert.match(adult, /label="UF\/HF 제거 \(mL\)"/)
+  assert.doesNotMatch(adult, /수분/)
+})

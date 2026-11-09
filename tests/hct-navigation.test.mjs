@@ -62,6 +62,6 @@ test("Desired Hct uses measured Current Hct and the initial CPB volume independe
   assert.match(adult, /requiredKrcEquivalentUnits/)
   assert.match(adult, /fluidOnlyAdjustmentMl/)
   assert.match(adult, /KRC만 주입/)
-  assert.match(adult, /Crystalloid\/수분만 변화 시/)
+  assert.match(adult, /Crystalloid 추가 또는 UF\/HF 제거만 할 때/)
 })
 
