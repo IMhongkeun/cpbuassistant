@@ -5,6 +5,7 @@ import { useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 
 type SaturationInputProps = {
   id: string
@@ -82,6 +83,12 @@ function SaturationInput({ id, label, description, value, onChange, error }: Sat
 export default function QpQsCalculator() {
   const [raSvcSat, setRaSvcSat] = useState("")
   const [paMpaSat, setPaMpaSat] = useState("")
+
+  // Patient Workspace only: saturations are saved with the active case.
+  useWorkspaceSync("qpqs", {
+    raSvcSat: { value: raSvcSat, set: setRaSvcSat },
+    paMpaSat: { value: paMpaSat, set: setPaMpaSat },
+  })
 
   const result = useMemo(() => {
     const raSvcValue = parseSaturation(raSvcSat)

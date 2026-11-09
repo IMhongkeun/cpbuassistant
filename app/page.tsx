@@ -1,6 +1,6 @@
 "use client" // Add this directive at the top to mark this as a client component
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Clock } from "lucide-react"
 import EchoZScoreTool from "../components/echo-zscore-tool"
 import SimpleCPBCalculator from "../components/simple-cpb-calculator"
@@ -11,6 +11,8 @@ import QpQsCalculator from "../components/qp-qs-calculator"
 import GDPCalculator from "../components/gdp-calculator" // Import the GDPCalculator component
 import MicsDrainageCalculator from "../components/mics-drainage-calculator"
 import CannulaBrowser from "../components/cannula-browser"
+import { PatientWorkspaceProvider, usePatientWorkspace, useWorkspaceSync } from "../components/workspace/workspace-provider"
+import { WorkspaceGate, WorkspaceModeSwitch, WorkspaceSummaryBar } from "../components/workspace/workspace-shell"
 
 // Helper function to convert HH:MM string (allowing HH > 23) to total minutes from midnight
 const timeToMinutes = (timeStr) => {
@@ -307,6 +309,22 @@ const timeToMinutes = (timeStr) => {
   )
 
 
+// Initial transplant timing records (fresh objects for every new case or mode switch)
+const createInitialLungData = () => ({
+  donorAccTime: "",
+  coldIschemicTime: { lt: { start: "", end: "" }, rt: { start: "", end: "" } },
+  warmIschemicTime: { lt: { start: "", end: "" }, rt: { start: "", end: "" } },
+  anastomosisTime: { lt: { start: "", end: "" }, rt: { start: "", end: "" } },
+  pumpTime: { start: "", end: "" },
+})
+const createInitialHeartData = () => ({
+  donorAccTime: "",
+  coldIschemicTime: { start: "", end: "" },
+  warmIschemicTime: { start: "", end: "" },
+  anastomosisTime: { start: "", end: "" },
+})
+const MAIN_TAB_IDS = ["transplant", "hct", "pediatric", "gdp", "mics", "cannula", "cpb"]
+
 // Main CPBU Assistant component
 const CPBUassistant = () => {
   // State to manage the active tab (lung, heart, pediatric, cpb, or gdp)
@@ -350,6 +368,37 @@ const CPBUassistant = () => {
   const [pediatricData, setPediatricData] = useState({
     // Placeholder for pediatric-specific data
   })
+
+  // Patient Workspace: quick mode keeps transplant times in memory only (unchanged);
+  // in Patient Workspace they are saved with the active case.
+  const workspace = usePatientWorkspace()
+  const scopeKey = workspace?.scopeKey ?? "quick"
+  useEffect(() => {
+    setLungData(createInitialLungData())
+    setHeartData(createInitialHeartData())
+  }, [scopeKey])
+  useWorkspaceSync("transplant", {
+    lungData: { value: lungData, set: setLungData },
+    heartData: { value: heartData, set: setHeartData },
+    transplantSubTab: { value: transplantSubTab, set: setTransplantSubTab },
+  })
+
+  // Remember the last main tab on this device (no patient data).
+  const restoredTabRef = useRef(false)
+  useEffect(() => {
+    if (!workspace?.ready) return
+    if (!restoredTabRef.current) {
+      restoredTabRef.current = true
+      const saved = workspace.uiPrefs.activeTab
+      if (typeof saved === "string" && MAIN_TAB_IDS.includes(saved) && saved !== activeTab) {
+        setActiveTab(saved)
+        return
+      }
+    }
+    workspace.setUiPref("activeTab", activeTab)
+  }, [workspace?.ready, activeTab])
+
+  const showWorkspaceGate = workspace?.mode === "workspace" && !workspace.workspaceActive
 
   // Function to calculate duration between two time strings (HH:MM) in minutes
   const calculateDuration = (start, end) => {
@@ -411,12 +460,16 @@ const CPBUassistant = () => {
   return (
     <div className="cpbu-shell min-h-screen">
       <header className="cpbu-header">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-          <div className="flex shrink-0 items-center gap-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2.5">
             <img src="/asan-foundation-mark.svg" alt="아산재단 로고" width={42} height={42} className="h-10 w-10 shrink-0 object-contain" />
             <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-[#173940] sm:text-2xl">CPBU assistant</h1>
+            <div className="w-full sm:ml-auto sm:w-auto">
+              <WorkspaceModeSwitch />
+            </div>
           </div>
           {/* A compact underline navigation matching the supplied reference layout. */}
+          {!showWorkspaceGate && (
           <nav className="cpbu-nav flex min-w-0 gap-1 overflow-x-auto" aria-label="주요 계산기 및 이식 관리">
             {[
               { id: "transplant", label: "이식관리" },
@@ -438,9 +491,12 @@ const CPBUassistant = () => {
               </button>
             ))}
           </nav>
+          )}
         </div>
       </header>
-      <main className={"mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7" + (activeTab === "transplant" ? "" : " cpbu-calculator-inputs")}>
+      <WorkspaceSummaryBar />
+      <main key={scopeKey} className={"mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6 sm:py-7" + (activeTab === "transplant" ? "" : " cpbu-calculator-inputs") + (workspace?.workspaceActive ? " cpbu-ws-linked" : "")}>
+      {!workspace?.ready ? null : showWorkspaceGate ? <WorkspaceGate /> : (<>
       {activeTab === "transplant" && (
         <div className="cpbu-subtabs grid grid-cols-2 gap-1" role="tablist" aria-label="이식 종류">
           <button type="button" role="tab" aria-selected={transplantSubTab === "lung"}
@@ -955,9 +1011,16 @@ const CPBUassistant = () => {
           <MicsDrainageCalculator />
         </div>
       )}
+      </>)}
       </main>
     </div>
   )
 }
 
-export default CPBUassistant
+const CPBUassistantPage = () => (
+  <PatientWorkspaceProvider>
+    <CPBUassistant />
+  </PatientWorkspaceProvider>
+)
+
+export default CPBUassistantPage

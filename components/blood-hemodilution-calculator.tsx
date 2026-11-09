@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useWorkspaceActive, useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const OLD_CALCULATOR_STORAGE_KEY = "cpbuassistant:bloodHemodilutionCalculator"
@@ -522,6 +523,9 @@ export default function BloodHemodilutionCalculator() {
   const [removedFluidVolume, setRemovedFluidVolume] = useState("")
   const [intraDesiredHct, setIntraDesiredHct] = useState("")
   const [hasLoadedSavedState, setHasLoadedSavedState] = useState(false)
+  // In Patient Workspace the active case is the only case store; the quick-mode
+  // session restore below is skipped so patient values never leak between modes.
+  const workspaceActive = useWorkspaceActive()
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -554,7 +558,7 @@ export default function BloodHemodilutionCalculator() {
     safeLocalStorageRemoveItem(OLD_CURRENT_ESTIMATED_TOTAL_VOLUME_STORAGE_KEY)
 
     try {
-      const savedCaseState = safeSessionStorageGetItem(CASE_SESSION_STORAGE_KEY)
+      const savedCaseState = workspaceActive ? null : safeSessionStorageGetItem(CASE_SESSION_STORAGE_KEY)
       if (savedCaseState) {
         const parsedCaseState = JSON.parse(savedCaseState) as Partial<CaseSessionState>
         setWeightKg(normalizeStoredNumericString(parsedCaseState.weightKg) ?? "")
@@ -589,7 +593,7 @@ export default function BloodHemodilutionCalculator() {
   }, [bloodVolumeCoefficient, hasLoadedSavedState, rbcProductHct, rbcUnitVolume])
 
   useEffect(() => {
-    if (!hasLoadedSavedState || typeof window === "undefined") return
+    if (!hasLoadedSavedState || typeof window === "undefined" || workspaceActive) return
 
     const caseState: CaseSessionState = {
       weightKg,
@@ -625,7 +629,26 @@ export default function BloodHemodilutionCalculator() {
     removedFluidVolume,
     selectedPresetId,
     weightKg,
+    workspaceActive,
   ])
+
+  // Declared after the preference load so saved case values win on hydration.
+  useWorkspaceSync("pcs-hct", {
+    weightKg: { value: weightKg, set: setWeightKg, patient: "weightKg" },
+    preHct: { value: preHct, set: setPreHct, patient: "preHct" },
+    bloodVolumeCoefficient: { value: bloodVolumeCoefficient, set: setBloodVolumeCoefficient },
+    selectedPresetId: { value: selectedPresetId, set: setSelectedPresetId },
+    primeVolume: { value: primeVolume, set: setPrimeVolume },
+    preDesiredHct: { value: preDesiredHct, set: setPreDesiredHct },
+    rbcProductHct: { value: rbcProductHct, set: setRbcProductHct },
+    rbcUnitVolume: { value: rbcUnitVolume, set: setRbcUnitVolume },
+    currentHct: { value: currentHct, set: setCurrentHct },
+    intraNetVolumeChangeFromBase: { value: intraNetVolumeChangeFromBase, set: setIntraNetVolumeChangeFromBase },
+    plannedRbcAddition: { value: plannedRbcAddition, set: setPlannedRbcAddition },
+    addedCrystalloidVolume: { value: addedCrystalloidVolume, set: setAddedCrystalloidVolume },
+    removedFluidVolume: { value: removedFluidVolume, set: setRemovedFluidVolume },
+    intraDesiredHct: { value: intraDesiredHct, set: setIntraDesiredHct },
+  })
 
 
   const selectedPreset = selectedPresetId ? PRIMING_VOLUME_PRESETS[Number.parseInt(selectedPresetId, 10)] : undefined

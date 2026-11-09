@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { solveMicsMaximum, solveMicsTarget, type MicsFlowResult } from "@/lib/mics-hydraulics"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 
 const fvSizes = [19, 21, 23, 25, 27, 29]
 const ijvSizes = [15, 17, 19]
@@ -112,6 +113,28 @@ export default function MicsDrainageCalculator() {
   const [preHct, setPreHct] = useState(35)
   const [ebvPerKg, setEbvPerKg] = useState(55)
   const [otherPrime, setOtherPrime] = useState(1200)
+
+  // Patient Workspace only. heightCm here is the drainage height difference,
+  // not patient height, so it is saved per calculator and never shared.
+  // Weight/Pre Hct follow the case but are not written back: this control
+  // clamps to 30–150 kg / 15–55 %, which must not alter the patient record.
+  useWorkspaceSync("mics", {
+    weight: { value: weight, set: setWeight, patient: "weightKg", writePatient: false },
+    preHct: { value: preHct, set: setPreHct, patient: "preHct", writePatient: false },
+    fv: { value: fv, set: setFv },
+    ijv: { value: ijv, set: setIjv },
+    selectedIjv: { value: selectedIjv, set: setSelectedIjv },
+    tube: { value: tube, set: setTube },
+    targetFlow: { value: targetFlow, set: setTargetFlow },
+    vavdLimit: { value: vavdLimit, set: setVavdLimit },
+    heightCm: { value: heightCm, set: setHeightCm },
+    fvLengthCm: { value: fvLengthCm, set: setFvLengthCm },
+    ijvLengthCm: { value: ijvLengthCm, set: setIjvLengthCm },
+    snaring: { value: snaring, set: setSnaring },
+    ijvPercent: { value: ijvPercent, set: setIjvPercent },
+    ebvPerKg: { value: ebvPerKg, set: setEbvPerKg },
+    otherPrime: { value: otherPrime, set: setOtherPrime },
+  })
 
   const dual = ijv !== 0
   const isSnaring = dual && snaring

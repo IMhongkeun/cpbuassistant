@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lock, Unlock, Copy, Check } from "lucide-react"
 import { toast } from "sonner"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 
 // --- Helper Functions ---
 
@@ -36,6 +37,14 @@ export default function ScmpFlowCalculator() {
   const [mainFlow, setMainFlow] = useState<string>("")
   const [coronaryFlow, setCoronaryFlow] = useState<string>("")
   const [copiedCell, setCopiedCell] = useState<string | null>(null)
+
+  // Patient Workspace only: weight follows the active case; flows are saved with it.
+  useWorkspaceSync("scmp", {
+    patientWeight: { value: patientWeight, set: setPatientWeight, patient: "weightKg" },
+    isWeightLocked: { value: isWeightLocked, set: setIsWeightLocked },
+    mainFlow: { value: mainFlow, set: setMainFlow },
+    coronaryFlow: { value: coronaryFlow, set: setCoronaryFlow },
+  })
 
   // --- Refs ---
   const coronaryFlowInputRef = useRef<HTMLInputElement>(null)

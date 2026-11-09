@@ -5,6 +5,7 @@ import { Droplets, HeartPulse, RefreshCcw } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import {
   predictAdultOnPumpHct,
   predictAdultPreCpbHct,
@@ -102,6 +103,21 @@ export default function AdultHctPredictCalculator() {
   const [plannedKrcUnits, setPlannedKrcUnits] = useState("")
   const [desiredOnPumpHct, setDesiredOnPumpHct] = useState("")
 
+  // Patient Workspace only: shared weight/Pre Hct and saved inputs (no effect in quick mode).
+  const workspaceSync = useWorkspaceSync("adult-hct", {
+    weight: { value: weight, set: setWeight, patient: "weightKg" },
+    preHct: { value: preHct, set: setPreHct, patient: "preHct" },
+    bloodVolumeCoefficient: { value: bloodVolumeCoefficient, set: setBloodVolumeCoefficient },
+    prime: { value: prime, set: setPrime },
+    desiredPreHct: { value: desiredPreHct, set: setDesiredPreHct },
+    productHct: { value: productHct, set: setProductHct },
+    currentHct: { value: currentHct, set: setCurrentHct },
+    crystalloidAdded: { value: crystalloidAdded, set: setCrystalloidAdded },
+    fluidRemoved: { value: fluidRemoved, set: setFluidRemoved },
+    plannedKrcUnits: { value: plannedKrcUnits, set: setPlannedKrcUnits },
+    desiredOnPumpHct: { value: desiredOnPumpHct, set: setDesiredOnPumpHct },
+  })
+
   const preResult = useMemo(() => {
     try {
       return predictAdultPreCpbHct({
@@ -175,6 +191,7 @@ export default function AdultHctPredictCalculator() {
     setFluidRemoved("")
     setPlannedKrcUnits("")
     setDesiredOnPumpHct("")
+    workspaceSync.refillPatient()
   }
 
   return (
