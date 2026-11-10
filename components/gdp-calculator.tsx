@@ -496,7 +496,7 @@ export default function GDPCalculator() {
 
             <div className="space-y-2">
               <Label htmlFor="pao2" className="text-sm font-medium text-slate-800">
-                PaO₂ (mmHg)
+                PaO₂ (mmHg) <span className="font-normal text-slate-500">(선택)</span>
               </Label>
               <Input
                 id="pao2"
@@ -506,6 +506,11 @@ export default function GDPCalculator() {
                 onChange={(e) => handleInputChange("pao2", e.target.value)}
                 placeholder=""
               />
+              {gdpSubTab === "do2i" ? (
+                <p className="text-xs text-slate-500">미입력 시 DO₂i 계산에는 PaO₂ 200 mmHg를 가정합니다.</p>
+              ) : (
+                <p className="text-xs text-slate-500">입력 시 동맥혈 용존산소를 CaO₂에 반영합니다.</p>
+              )}
             </div>
           </div>
 
@@ -546,6 +551,18 @@ export default function GDPCalculator() {
               />
               <p className="text-xs text-slate-500">체온 입력 시 하단에 대사율 추정 정보가 표시됩니다 (참고용)</p>
             </div>
+            {gdpSubTab === "do2i" && (
+              <details className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-sm">
+                <summary className="cursor-pointer font-medium text-slate-800">
+                  선택 항목을 입력하면 무엇이 달라지나요?
+                </summary>
+                <div className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
+                  <p><strong>PaO₂ (동맥 산소분압):</strong> 실제 측정값을 넣으면 CaO₂와 최소 필요 Flow·DO₂i 계산에 반영됩니다. 비우면 200 mmHg를 가정하므로 실제값 입력을 권장합니다.</p>
+                  <p><strong>Pump Flow (실제 펌프 유량):</strong> 입력하면 현재 CI·DO₂i, 목표 대비 부족한 유량과 달성률이 표시됩니다. 미입력 시 목표 DO₂i를 위한 최소 Flow만 계산합니다.</p>
+                  <p><strong>Temperature (체온):</strong> 입력하면 Q₁₀ 기반 대사율 변화와 참고용 환산 Flow가 표시됩니다. 측정한 VO₂가 아니며 Flow 감량 기준으로 사용하지 않습니다.</p>
+                </div>
+              </details>
+            )}
             {sao2Shared !== null && sao2Shared !== 100 && (
               <p className="text-xs text-amber-700">SaO₂ {sao2Shared}% 적용 중 (O₂ER 탭 입력값)</p>
             )}
@@ -612,6 +629,17 @@ export default function GDPCalculator() {
               <p className="text-xs text-slate-500">
                 Hgb·PaO₂·Pump Flow·BSA는 위 환자 정보 입력값을 함께 사용합니다. SaO₂ 변경 시 DO₂i 탭 계산에도 반영됩니다.
               </p>
+              <details className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-sm">
+                <summary className="cursor-pointer font-medium text-slate-800">
+                  선택 항목 입력 시 O₂ER 결과는 어떻게 달라지나요?
+                </summary>
+                <div className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
+                  <p><strong>PaO₂ (동맥 산소분압):</strong> 동맥혈에 녹은 산소를 CaO₂에 더합니다. 따라서 O₂ER이 달라지고, Flow·BSA 입력 시 DO₂i에도 반영됩니다.</p>
+                  <p><strong>PvO₂ (정맥 산소분압):</strong> 정맥혈에 녹은 산소를 CvO₂에 더해 O₂ER을 보정합니다. Flow·BSA 입력 시 VO₂i에도 반영됩니다. 정확한 비교를 위해 PaO₂와 PvO₂를 함께 입력하는 편이 좋습니다.</p>
+                  <p><strong>Pump Flow + BSA (체표면적):</strong> O₂ER 비율 자체는 변하지 않습니다. 둘 다 입력하면 CI와 체표면적당 산소전달량(DO₂i)·추정 산소소비량(VO₂i)을 추가로 확인할 수 있습니다.</p>
+                  <p className="text-slate-600">PaO₂·PvO₂를 비우면 해당 용존산소는 계산에서 제외됩니다. 한쪽만 입력하면 양쪽 산소함량에 서로 다른 기준이 적용되어 O₂ER이 왜곡될 수 있습니다.</p>
+                </div>
+              </details>
             </CardContent>
           </Card>
 
