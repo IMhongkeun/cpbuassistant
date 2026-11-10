@@ -454,20 +454,21 @@ export default function GDPCalculator() {
       {/* Input Card (shared by DO2i and O2ER sub-tabs) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">환자 정보 입력</CardTitle>
+          <CardTitle className="text-lg">환자 정보 입력 <span className="ml-2 text-xs font-medium text-slate-500">(<span className="font-bold text-rose-700">* 필수</span> 항목 우선 입력)</span></CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="bsa" className="text-sm font-medium text-slate-800">
+              <Label htmlFor="bsa" className={gdpSubTab === "do2i" ? "text-sm font-bold text-slate-900" : "text-sm font-medium text-slate-800"}>
                 BSA (m²) {gdpSubTab === "do2i" ? (
-                  <span className="text-destructive">*</span>
+                  <span className="ml-1 text-xs font-bold text-rose-700">* 필수</span>
                 ) : (
                   <span className="font-normal text-slate-500">(선택)</span>
                 )}
               </Label>
               <Input
                 id="bsa"
+                aria-required={gdpSubTab === "do2i"}
                 data-ws-patient="bsa"
                 type="number"
                 step="0.01"
@@ -476,16 +477,17 @@ export default function GDPCalculator() {
                 placeholder=""
               />
               {gdpSubTab === "o2er" && (
-                <p className="text-xs text-slate-500">O₂ER 계산 자체에는 BSA가 필요하지 않습니다.</p>
+                <p className="text-xs text-slate-500">O₂ER 비율에는 필요하지 않으며, Pump Flow와 함께 입력하면 체격 대비 DO₂i·VO₂i를 확인합니다.</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="hgb" className="text-sm font-medium text-slate-800">
-                Hemoglobin (g/dL) <span className="text-destructive">*</span>
+              <Label htmlFor="hgb" className="text-sm font-bold text-slate-900">
+                Hemoglobin (g/dL) <span className="ml-1 text-xs font-bold text-rose-700">* 필수</span>
               </Label>
               <Input
                 id="hgb"
+                aria-required="true"
                 type="number"
                 step="0.1"
                 value={params.hgb}
@@ -529,7 +531,7 @@ export default function GDPCalculator() {
                 placeholder=""
               />
               {gdpSubTab === "o2er" && (
-                <p className="text-xs text-slate-500">BSA와 Pump Flow를 모두 입력하면 DO₂i·VO₂i가 추가 계산됩니다.</p>
+                <p className="text-xs text-slate-500">BSA와 함께 입력하면 체표면적당 산소전달량(DO₂i)과 추정 산소소비량(VO₂i)을 확인합니다. O₂ER 비율은 바뀌지 않습니다.</p>
               )}
             </div>
 
@@ -582,16 +584,17 @@ export default function GDPCalculator() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">산소포화도 입력</CardTitle>
+              <CardTitle className="text-lg">산소포화도 입력 <span className="ml-2 text-xs font-medium text-slate-500">SaO₂·SvO₂ 필수</span></CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="sao2" className="text-sm font-medium text-slate-800">
-                    SaO₂ (%) <span className="text-destructive">*</span>
+                  <Label htmlFor="sao2" className="text-sm font-bold text-slate-900">
+                    SaO₂ (%) <span className="ml-1 text-xs font-bold text-rose-700">* 필수</span>
                   </Label>
                   <Input
                     id="sao2"
+                    aria-required="true"
                     type="number"
                     step="0.1"
                     value={params.sao2}
@@ -600,11 +603,12 @@ export default function GDPCalculator() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="svo2" className="text-sm font-medium text-slate-800">
-                    SvO₂ (%) <span className="text-destructive">*</span>
+                  <Label htmlFor="svo2" className="text-sm font-bold text-slate-900">
+                    SvO₂ (%) <span className="ml-1 text-xs font-bold text-rose-700">* 필수</span>
                   </Label>
                   <Input
                     id="svo2"
+                    aria-required="true"
                     type="number"
                     step="0.1"
                     value={params.svo2}
@@ -646,83 +650,114 @@ export default function GDPCalculator() {
 
           {o2er && o2er.ok ? (
             <>
+              {/* Step 1: oxygen extraction fraction from contents, independent of pump flow and BSA. */}
               <Card>
-                <CardContent className="p-5 space-y-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-base font-semibold text-slate-900">O₂ER</p>
-                      <p className="text-sm text-slate-600 mt-0.5">(CaO₂ − CvO₂) / CaO₂</p>
-                      <p className="text-sm text-slate-600 mt-2">
-                        a–v O₂ 차이 <span className="font-semibold text-slate-900 tabular-nums">{o2er.avDiff.toFixed(2)}</span> mL/dL
-                      </p>
-                    </div>
-                    <p className="text-5xl font-semibold tracking-tight text-slate-900 tabular-nums">
-                      {o2er.o2er.toFixed(1)}
-                      <span className="text-xl font-medium text-slate-500 ml-1">%</span>
+                <CardContent className="space-y-4 p-4 sm:p-5">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">① CaO₂·CvO₂ 기준 — 산소추출 비율</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                      동·정맥혈 100 mL당 산소함량(CaO₂·CvO₂)을 비교하여 공급된 산소 중 혈액에서 추출된 비율을 확인합니다.
+                      Pump Flow·BSA가 없어도 계산하지만, 이 비율만으로 환자의 산소전달량이 충분한지는 판단할 수 없습니다.
                     </p>
                   </div>
-
-                  {/* Scale 0–60 %, physiologic reference band 20–30 % (no CPB threshold implied) */}
+                  <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">O₂ER · 산소함량 기반</p>
+                      <p className="mt-1 text-xs text-slate-600">(CaO₂ − CvO₂) / CaO₂ × 100</p>
+                    </div>
+                    <p className="text-4xl font-bold tracking-tight text-slate-900 tabular-nums sm:text-5xl">
+                      {o2er.o2er.toFixed(1)}<span className="ml-1 text-xl font-medium text-slate-500">%</span>
+                    </p>
+                  </div>
+                  <StatGrid cols={2}>
+                    <StatCell label="CaO₂" caption="동맥 산소함량" value={o2er.cao2.toFixed(2)} unit="mL O₂/dL" />
+                    <StatCell label="CvO₂" caption="정맥 산소함량" value={o2er.cvo2.toFixed(2)} unit="mL O₂/dL" />
+                  </StatGrid>
+                  <p className="text-sm text-slate-700">
+                    동·정맥 산소함량 차이(A–V O₂ difference): <strong className="font-semibold tabular-nums text-slate-900">{o2er.avDiff.toFixed(2)} mL O₂/dL</strong>
+                    <span className="mt-1 block text-xs leading-relaxed text-slate-600">
+                      혈액 100 mL당 추출된 산소량입니다. 분당 산소소비량(VO₂)을 뜻하지는 않습니다.
+                    </span>
+                  </p>
                   <div className="space-y-1.5">
                     <div className="relative h-2 rounded-full bg-slate-100">
-                      <div
-                        className="absolute inset-y-0 bg-slate-300"
-                        style={{ left: `${(20 / 60) * 100}%`, width: `${(10 / 60) * 100}%` }}
-                      />
-                      <div
-                        className="absolute -top-1.5 -bottom-1.5 w-0.5 bg-slate-900"
-                        style={{ left: `${(Math.min(Math.max(o2er.o2er, 0), 60) / 60) * 100}%` }}
-                      />
+                      <div className="absolute inset-y-0 bg-slate-300" style={{ left: "33.3333%", width: "16.6667%" }} />
+                      <div className="absolute -top-1.5 -bottom-1.5 w-0.5 bg-slate-900" style={{ left: String((Math.min(Math.max(o2er.o2er, 0), 60) / 60) * 100) + "%" }} />
                     </div>
                     <div className="relative h-4 text-xs text-slate-500 tabular-nums">
                       <span className="absolute left-0">0</span>
-                      <span className="absolute -translate-x-1/2" style={{ left: `${(20 / 60) * 100}%` }}>20</span>
-                      <span className="absolute -translate-x-1/2" style={{ left: `${(30 / 60) * 100}%` }}>30</span>
+                      <span className="absolute -translate-x-1/2" style={{ left: "33.3333%" }}>20</span>
+                      <span className="absolute -translate-x-1/2" style={{ left: "50%" }}>30</span>
                       <span className="absolute right-0">60%</span>
                     </div>
                     <p className="text-xs text-slate-500">회색 구간 = 정상 생리 참고 범위 20–30% (CPB 임계값 아님)</p>
                   </div>
-
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-slate-200 pt-3 text-sm">
-                    <span className="text-slate-600">간편식 (SaO₂ − SvO₂) / SaO₂</span>
-                    <span className="text-slate-900 tabular-nums whitespace-nowrap">
+                    <span className="text-slate-600">간편식 · 포화도만 비교 (용존산소 제외)</span>
+                    <span className="whitespace-nowrap text-slate-900 tabular-nums">
                       <span className="font-semibold">{o2er.o2erSaturationOnly.toFixed(1)}%</span>
-                      <span className="text-slate-500 ml-1.5">
+                      <span className="ml-1.5 text-slate-500">
                         (차이 {o2er.o2er - o2er.o2erSaturationOnly >= 0 ? "+" : ""}
                         {(o2er.o2er - o2er.o2erSaturationOnly).toFixed(1)}%p)
                       </span>
                     </span>
                   </div>
+                  <p className="text-xs leading-relaxed text-slate-600">
+                    PaO₂·PvO₂ 입력 시 해당 용존산소를 CaO₂·CvO₂에 반영합니다. 두 값을 모두 비우면 용존산소를 제외한 계산값이 표시됩니다.
+                  </p>
                 </CardContent>
               </Card>
 
-              <StatGrid cols={4}>
-                <StatCell label="CaO₂" caption="동맥 산소함유량" value={o2er.cao2.toFixed(2)} unit="mL/dL" />
-                <StatCell label="CvO₂" caption="정맥 산소함유량" value={o2er.cvo2.toFixed(2)} unit="mL/dL" />
-                <StatCell
-                  label="DO₂i"
-                  caption="산소 공급량"
-                  value={o2er.do2i !== null ? o2er.do2i.toFixed(1) : "—"}
-                  unit="mL/min/m²"
-                  tone={o2er.do2i !== null ? "default" : "muted"}
-                />
-                <StatCell
-                  label="VO₂i"
-                  caption="산소 소비량"
-                  value={o2er.vo2i !== null ? o2er.vo2i.toFixed(1) : "—"}
-                  unit="mL/min/m²"
-                  tone={o2er.vo2i !== null ? "default" : "muted"}
-                />
-              </StatGrid>
-              {o2er.do2i === null && (
-                <p className="text-sm text-slate-600">DO₂i·VO₂i는 Pump Flow와 BSA 입력 시 표시됩니다.</p>
-              )}
-
+              {/* Step 2: indexed delivery and Fick-based estimated consumption, not a separate O2ER measurement. */}
+              <Card>
+                <CardContent className="space-y-4 p-4 sm:p-5">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">② DO₂i·VO₂i 기준 — 환자 체격 대비 산소 공급·소비</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                      Pump Flow와 BSA를 함께 입력하면 체표면적 1 m²당 분당 산소전달량(DO₂i)과 Fick 방식의 추정 산소소비량(VO₂i)을 계산합니다.
+                      산소추출 비율이 같아도 공급되는 산소량은 다를 수 있어 함께 확인하는 의미가 있습니다.
+                    </p>
+                  </div>
+                  {o2er.do2i !== null && o2er.vo2i !== null && o2er.ci !== null ? (
+                    <>
+                      <p className="text-sm text-slate-700">
+                        현재 Pump CI: <strong className="font-semibold tabular-nums text-slate-900">{o2er.ci.toFixed(2)} L/min/m²</strong>
+                      </p>
+                      <StatGrid cols={2}>
+                        <StatCell label="DO₂i" caption="체표면적당 산소전달량" value={o2er.do2i.toFixed(1)} unit="mL O₂/min/m²" />
+                        <StatCell label="VO₂i" caption="체표면적당 추정 산소소비량" value={o2er.vo2i.toFixed(1)} unit="mL O₂/min/m²" />
+                      </StatGrid>
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">O₂ER · DO₂i/VO₂i로 표현한 동일 비율</p>
+                          <p className="mt-1 text-xs text-slate-600">VO₂i / DO₂i × 100</p>
+                        </div>
+                        <p className="text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                          {((o2er.vo2i / o2er.do2i) * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        이 O₂ER은 ①의 CaO₂·CvO₂ 기반 O₂ER과 수학적으로 같습니다. 독립적인 두 측정값이 아닙니다.
+                        BSA나 Pump Flow를 추가해도 비율은 변하지 않지만, DO₂i·VO₂i로 산소 공급·추정 소비량의 크기까지 비교할 수 있습니다.
+                      </p>
+                      <p className="text-xs leading-relaxed text-slate-600">
+                        VO₂i는 Pump Flow와 동·정맥 산소함량 차이로 계산한 추정치이며 조직 산소소비량을 직접 측정한 값이 아닙니다.
+                        정맥혈 채혈 위치·혼합 상태와 CPB 회로 조건에 따라 실제 소비량과 다를 수 있습니다.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3 text-sm text-slate-700">
+                      <p className="font-semibold text-slate-900">추가 분석을 위한 입력: BSA + Pump Flow</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                        지금은 ① 산소함량 기준 O₂ER만 확인할 수 있습니다. BSA만 입력해서는 분당 산소 공급·추정 소비량을 산출할 수 없으며 Pump Flow도 함께 필요합니다.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               {o2er.warnings.length > 0 && (
                 <Notice>
-                  {o2er.warnings.map((w) => (
-                    <p key={w}>{w}</p>
-                  ))}
+                  {o2er.warnings.map((w) => (<p key={w}>{w}</p>))}
                 </Notice>
               )}
             </>
