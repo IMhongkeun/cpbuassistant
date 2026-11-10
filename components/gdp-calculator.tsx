@@ -346,7 +346,8 @@ export default function GDPCalculator() {
                   <h3 className="text-sm font-semibold text-slate-900">O₂ER 계산식</h3>
                   <section className="space-y-1.5">
                     <p className="text-xs text-slate-600">동·정맥 산소함량 (mL/dL)</p>
-                    <CompactEquation label="CaO2 = 1.34 곱하기 Hb 곱하기 SaO2 나누기 100 더하기 0.003 곱하기 PaO2">
+                    <div className="grid gap-1.5 lg:grid-cols-2">
+                      <CompactEquation label="CaO2 = 1.34 곱하기 Hb 곱하기 SaO2 나누기 100 더하기 0.003 곱하기 PaO2">
                       <span>CaO₂ = 1.34 × Hb ×</span>
                       <MathFraction numerator="SaO₂" denominator="100" />
                       <span>+ 0.003 × PaO₂</span>
@@ -356,6 +357,7 @@ export default function GDPCalculator() {
                       <MathFraction numerator="SvO₂" denominator="100" />
                       <span>+ 0.003 × PvO₂</span>
                     </CompactEquation>
+                    </div>
                   </section>
                   <section className="space-y-1.5">
                     <p className="text-xs text-slate-600">산소추출률 (Pump Flow는 비율에서 약분)</p>
@@ -367,7 +369,8 @@ export default function GDPCalculator() {
                   </section>
                   <section className="space-y-1.5">
                     <p className="text-xs text-slate-600">Pump Flow·BSA 입력 시 (mL/min/m²)</p>
-                    <CompactEquation label="CI = Pump Flow 나누기 BSA">
+                    <div className="grid gap-1.5 lg:grid-cols-3">
+                      <CompactEquation label="CI = Pump Flow 나누기 BSA">
                       <span>CI =</span>
                       <MathFraction numerator="Pump Flow" denominator="BSA" />
                     </CompactEquation>
@@ -377,6 +380,7 @@ export default function GDPCalculator() {
                     <CompactEquation label="VO2i = CI 곱하기 CaO2 빼기 CvO2 곱하기 10">
                       <span>VO₂i = CI × (CaO₂ − CvO₂) × 10</span>
                     </CompactEquation>
+                    </div>
                   </section>
                   <section className="space-y-1.5">
                     <p className="text-xs text-slate-600">간편식 (용존산소 제외, 비교용)</p>
