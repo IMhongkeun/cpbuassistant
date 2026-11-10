@@ -82,3 +82,30 @@ test("shared SaO2: empty or out-of-range is invalid (no silent 100% fallback)", 
   assert.match(src, /if \(bsa > 0 && hgb > 0 && sao2 !== null\)/)
   assert.doesNotMatch(src, /n\(params\.sao2, 100\)/)
 })
+
+
+test("O2ER shows BSA as optional, retains DO2i requirement and explains extra indices", () => {
+  const src = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
+  assert.match(src, /BSA \(m²\) \{gdpSubTab === "do2i"/)
+  assert.match(src, /O₂ER 계산 자체에는 BSA가 필요하지 않습니다/)
+  assert.match(src, /BSA와 Pump Flow를 모두 입력하면 DO₂i·VO₂i가 추가 계산됩니다/)
+  assert.match(src, /gdpSubTab === "o2er" && \(/)
+})
+
+test("calculator formula help uses compact math layout without plain slash equations", () => {
+  const pages = [
+    "../components/gdp-calculator.tsx",
+    "../components/qp-qs-calculator.tsx",
+    "../components/simple-cpb-calculator.tsx",
+    "../components/echo-zscore-tool.tsx",
+    "../components/echo-zscore-pettersen.tsx",
+  ]
+  for (const path of pages) {
+    const src = readFileSync(new URL(path, import.meta.url), "utf8")
+    assert.match(src, /<CompactEquation/, path)
+  }
+  const shared = readFileSync(new URL("../components/ui/compact-equation.tsx", import.meta.url), "utf8")
+  assert.match(shared, /role="math"/)
+  assert.match(shared, /overflow-x-auto/)
+  assert.match(shared, /border-b border-current/)
+})
