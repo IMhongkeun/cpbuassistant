@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { Separator } from "@/components/ui/separator"
+import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 import { Info } from "lucide-react"
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -371,16 +372,20 @@ export default function EchoZScorePettersen() {
                 <p className="text-sm">
                   <span className="font-semibold">모델 형태:</span> 3차 다항식 회귀 (log-transformed)
                 </p>
-                <div className="font-mono text-sm space-y-2">
-                  <p>
-                    <span className="font-bold">ln(Y)</span> = β₀ + β₁×BSA + β₂×BSA² + β₃×BSA³
-                  </p>
-                  <p>
-                    <span className="font-bold">예측값 (mm)</span> = exp(ln(Y)) × 10
-                  </p>
-                  <p>
-                    <span className="font-bold">Z-score</span> = (ln(측정값<sub>cm</sub>) − ln(예측값)) / √MSE
-                  </p>
+                <div className="space-y-1.5">
+                  <CompactEquation label="엘엔 와이는 베타 0 더하기 베타 1 곱하기 BSA 더하기 베타 2 곱하기 BSA 제곱 더하기 베타 3 곱하기 BSA 세제곱">
+                    <span>ln(Y) = β₀ + β₁ × BSA + β₂ × BSA² + β₃ × BSA³</span>
+                  </CompactEquation>
+                  <CompactEquation label="예측값 밀리미터는 엑스피 엘엔 와이 곱하기 10">
+                    <span>예측값(mm) = exp(ln(Y)) × 10</span>
+                  </CompactEquation>
+                  <CompactEquation label="Z-score는 로그 변환한 측정값 센티미터 빼기 로그 변환한 예측값 센티미터 나누기 루트 MSE">
+                    <span>Z-score =</span>
+                    <MathFraction
+                      numerator={<>ln(측정값<sub>cm</sub>) − ln(예측값<sub>cm</sub>)</>}
+                      denominator="√MSE"
+                    />
+                  </CompactEquation>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">

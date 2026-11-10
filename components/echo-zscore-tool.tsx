@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { Separator } from "@/components/ui/separator"
+import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import EchoZScorePettersen from "./echo-zscore-pettersen"
 
@@ -514,16 +515,17 @@ export default function EchoZScoreTool() {
             {/* 기본 공식 */}
             <div>
               <h3 className="font-semibold text-base mb-3">기본 계산 공식 (Power Law Model)</h3>
-              <div className="bg-muted p-4 rounded-lg space-y-2">
-                <p className="font-mono text-sm">
-                  <span className="font-bold">예측값 (mm)</span> = μ × BSA<sup>α</sup> × 10
-                </p>
-                <p className="font-mono text-sm">
-                  <span className="font-bold">표준편차 (mm)</span> = σ × BSA<sup>α</sup> × 10
-                </p>
-                <p className="font-mono text-sm">
-                  <span className="font-bold">Z-score</span> = (측정값 - 예측값) / 표준편차
-                </p>
+              <div className="space-y-1.5 rounded-lg bg-muted p-3">
+                <CompactEquation label="예측값 밀리미터는 뮤 곱하기 BSA의 알파 제곱 곱하기 10">
+                  <span>예측값(mm) = μ × BSA<sup>α</sup> × 10</span>
+                </CompactEquation>
+                <CompactEquation label="표준편차 밀리미터는 시그마 곱하기 BSA의 알파 제곱 곱하기 10">
+                  <span>표준편차(mm) = σ × BSA<sup>α</sup> × 10</span>
+                </CompactEquation>
+                <CompactEquation label="Z-score는 측정값 빼기 예측값 나누기 표준편차">
+                  <span>Z-score =</span>
+                  <MathFraction numerator="측정값 − 예측값" denominator="표준편차" />
+                </CompactEquation>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 * μ, σ는 indexed space의 값 (cm 단위), α는 power exponent
@@ -626,9 +628,13 @@ export default function EchoZScoreTool() {
                     2. 예측값 = 1.82 × 0.7071 × 10 = <span className="font-bold text-chart-1">12.9 mm</span>
                   </p>
                   <p className="font-mono ml-4">3. 표준편차 = 0.24 × 0.7071 × 10 = 1.7 mm</p>
-                  <p className="font-mono ml-4">
-                    4. Z-score = (15.0 - 12.9) / 1.7 = <span className="font-bold text-chart-1">+1.24</span>
-                  </p>
+                  <div className="ml-4">
+                    <CompactEquation label="4단계: Z-score는 15.0 빼기 12.9 나누기 1.7, 약 플러스 1.24">
+                      <span>4. Z-score =</span>
+                      <MathFraction numerator="15.0 − 12.9" denominator="1.7" />
+                      <span className="font-semibold text-chart-1">= +1.24</span>
+                    </CompactEquation>
+                  </div>
                 </div>
 
                 <p className="text-sm text-muted-foreground mt-3">
