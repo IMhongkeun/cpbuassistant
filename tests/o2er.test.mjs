@@ -87,8 +87,8 @@ test("shared SaO2: empty or out-of-range is invalid (no silent 100% fallback)", 
 test("O2ER shows BSA as optional, retains DO2i requirement and explains extra indices", () => {
   const src = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
   assert.match(src, /BSA \(m²\) \{gdpSubTab === "do2i"/)
-  assert.match(src, /O₂ER 계산 자체에는 BSA가 필요하지 않습니다/)
-  assert.match(src, /BSA와 Pump Flow를 모두 입력하면 DO₂i·VO₂i가 추가 계산됩니다/)
+  assert.match(src, /O₂ER 비율에는 필요하지 않으며, Pump Flow와 함께 입력하면 체격 대비 DO₂i·VO₂i를 확인합니다/)
+  assert.match(src, /BSA와 함께 입력하면 체표면적당 산소전달량\(DO₂i\)과 추정 산소소비량\(VO₂i\)을 확인합니다/)
   assert.match(src, /gdpSubTab === "o2er" && \(/)
 })
 
@@ -136,4 +136,47 @@ test("adding both dissolved oxygen pressures changes O2ER; adding flow and BSA o
   assert.equal(indexed.o2er, full.o2er)
   assert.ok(indexed.do2i > 0)
   assert.ok(indexed.vo2i > 0)
+})
+
+
+test("required inputs are strongly marked and accessible by calculation mode", () => {
+  const src = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
+  assert.match(src, /htmlFor="hgb" className="text-sm font-bold text-slate-900"/)
+  assert.match(src, /htmlFor="sao2" className="text-sm font-bold text-slate-900"/)
+  assert.match(src, /htmlFor="svo2" className="text-sm font-bold text-slate-900"/)
+  assert.match(src, /BSA \(m²\) \{gdpSubTab === "do2i"/)
+  assert.match(src, /aria-required=\{gdpSubTab === "do2i"\}/)
+  for (const id of ["hgb", "sao2", "svo2"]) {
+    assert.match(src, new RegExp('id="' + id + '"\\s+aria-required="true"'))
+  }
+  assert.ok((src.match(/\* 필수/g) ?? []).length >= 4)
+})
+
+test("O2ER result groups content-based extraction and indexed supply/consumption separately", () => {
+  const src = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
+  const contentStart = src.indexOf("① CaO₂·CvO₂ 기준 — 산소추출 비율")
+  const indexedStart = src.indexOf("② DO₂i·VO₂i 기준 — 환자 체격 대비 산소 공급·소비")
+  const logStart = src.indexOf("<O2erLogPanel records=")
+  assert.ok(contentStart > 0 && contentStart < indexedStart && indexedStart < logStart)
+  assert.match(src, /O₂ER · 산소함량 기반/)
+  assert.match(src, /O₂ER · DO₂i\/VO₂i로 표현한 동일 비율/)
+  assert.match(src, /VO₂i \/ DO₂i × 100/)
+  assert.match(src, /수학적으로 같습니다/)
+  assert.match(src, /독립적인 두 측정값이 아닙니다/)
+  assert.match(src, /BSA \+ Pump Flow/)
+  assert.match(src, /조직 산소소비량을 직접 측정한 값이 아닙니다/)
+})
+
+test("indexed oxygen delivery and consumption yield the identical extraction ratio over multiple values", () => {
+  for (const caseInput of [
+    { hgb: 8, sao2: 100, svo2: 70, pao2: 250, pvo2: 40, flow: 4.8, bsa: 2 },
+    { hgb: 10.2, sao2: 99, svo2: 64, pao2: 140, pvo2: 35, flow: 3.6, bsa: 1.5 },
+    { hgb: 12, sao2: 98, svo2: 81, flow: 5.3, bsa: 1.9 },
+  ]) {
+    const result = computeO2er(caseInput)
+    assert.equal(result.ok, true)
+    assert.ok(result.do2i > 0)
+    assert.ok(result.vo2i > 0)
+    close((result.vo2i / result.do2i) * 100, result.o2er, 1e-10)
+  }
 })
