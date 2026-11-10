@@ -557,7 +557,7 @@ export default function GDPCalculator() {
                   선택 항목을 입력하면 무엇이 달라지나요?
                 </summary>
                 <div className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
-                  <p><strong>PaO₂ (동맥 산소분압):</strong> 실제 측정값을 넣으면 CaO₂와 최소 필요 Flow·DO₂i 계산에 반영됩니다. 비우면 200 mmHg를 가정하므로 실제값 입력을 권장합니다.</p>
+                  <p><strong>PaO₂ (동맥 산소분압):</strong> 비우면 PaO₂ 200 mmHg를 가정합니다. 측정값이 200보다 높으면 CaO₂·DO₂i는 증가하고 필요한 최소 Flow는 감소합니다(다른 조건 동일 시). 낮으면 반대이므로 실제값 입력을 권장합니다.</p>
                   <p><strong>Pump Flow (실제 펌프 유량):</strong> 입력하면 현재 CI·DO₂i, 목표 대비 부족한 유량과 달성률이 표시됩니다. 미입력 시 목표 DO₂i를 위한 최소 Flow만 계산합니다.</p>
                   <p><strong>Temperature (체온):</strong> 입력하면 Q₁₀ 기반 대사율 변화와 참고용 환산 Flow가 표시됩니다. 측정한 VO₂가 아니며 Flow 감량 기준으로 사용하지 않습니다.</p>
                 </div>
@@ -634,10 +634,11 @@ export default function GDPCalculator() {
                   선택 항목 입력 시 O₂ER 결과는 어떻게 달라지나요?
                 </summary>
                 <div className="mt-2 space-y-2 text-xs leading-relaxed text-slate-700">
-                  <p><strong>PaO₂ (동맥 산소분압):</strong> 동맥혈에 녹은 산소를 CaO₂에 더합니다. 따라서 O₂ER이 달라지고, Flow·BSA 입력 시 DO₂i에도 반영됩니다.</p>
-                  <p><strong>PvO₂ (정맥 산소분압):</strong> 정맥혈에 녹은 산소를 CvO₂에 더해 O₂ER을 보정합니다. Flow·BSA 입력 시 VO₂i에도 반영됩니다. 정확한 비교를 위해 PaO₂와 PvO₂를 함께 입력하는 편이 좋습니다.</p>
+                  <p><strong>PaO₂ (동맥 산소분압):</strong> 동맥혈 용존산소를 CaO₂에 더합니다. 다른 값이 같다면 O₂ER은 상승 방향으로 변하며, Flow·BSA 입력 시 DO₂i도 증가합니다.</p>
+                  <p><strong>PvO₂ (정맥 산소분압):</strong> 정맥혈 용존산소를 CvO₂에 더합니다. 다른 값이 같다면 O₂ER은 감소 방향으로 변하며, Flow·BSA 입력 시 VO₂i도 감소합니다. 정확한 비교를 위해 PaO₂와 PvO₂를 함께 입력하는 편이 좋습니다.</p>
                   <p><strong>Pump Flow + BSA (체표면적):</strong> O₂ER 비율 자체는 변하지 않습니다. 둘 다 입력하면 CI와 체표면적당 산소전달량(DO₂i)·추정 산소소비량(VO₂i)을 추가로 확인할 수 있습니다.</p>
                   <p className="text-slate-600">PaO₂·PvO₂를 비우면 해당 용존산소는 계산에서 제외됩니다. 한쪽만 입력하면 양쪽 산소함량에 서로 다른 기준이 적용되어 O₂ER이 왜곡될 수 있습니다.</p>
+                  <p className="text-slate-600">예: Hb 8, SaO₂ 100%, SvO₂ 70%에서는 용존산소 제외 시 O₂ER 30.0%, PaO₂ 250·PvO₂ 40 mmHg까지 입력 시 약 33.5%입니다.</p>
                 </div>
               </details>
             </CardContent>
