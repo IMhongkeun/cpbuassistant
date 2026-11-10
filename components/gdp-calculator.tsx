@@ -11,6 +11,7 @@ import { computeO2er, parseSaO2 } from "@/lib/o2er"
 import { useWorkspaceActive, useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { O2erLogPanel, O2erResponseGuide } from "@/components/o2er-log-panel"
 import { sanitizeO2erLog, type O2erRecord } from "@/lib/o2er-log"
+import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 
 type Tone = "default" | "good" | "warn" | "bad" | "muted"
 const TONE_TEXT: Record<Tone, string> = {
@@ -337,51 +338,83 @@ export default function GDPCalculator() {
           </div>
         </CardHeader>
 
-        {showInfo && gdpSubTab === "o2er" && (
+        {showInfo && (
           <CardContent>
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-              <h3 className="font-semibold text-foreground mb-3">O₂ER 계산식</h3>
-              <div className="text-foreground space-y-3 font-mono text-sm">
-                <div>
-                  <p className="text-muted-foreground mb-1">산소함유량:</p>
-                  <p>CaO₂ = (Hgb × 1.34 × SaO₂/100) + (0.003 × PaO₂)</p>
-                  <p>CvO₂ = (Hgb × 1.34 × SvO₂/100) + (0.003 × PvO₂)</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">산소추출률 (Pump flow는 약분됨):</p>
-                  <p>O₂ER = VO₂ / DO₂ = (CaO₂ − CvO₂) / CaO₂ × 100</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">Flow·BSA 입력 시:</p>
-                  <p>DO₂i = CI × CaO₂ × 10</p>
-                  <p>VO₂i = CI × (CaO₂ − CvO₂) × 10</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">간편식 (용존산소 무시, 비교용):</p>
-                  <p>O₂ER ≈ (SaO₂ − SvO₂) / SaO₂ × 100</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        )}
-        {showInfo && gdpSubTab === "do2i" && (
-          <CardContent>
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-              <h3 className="font-semibold text-foreground mb-3">GDP 계산식</h3>
-              <div className="text-foreground space-y-3 font-mono text-sm">
-                <div>
-                  <p className="text-muted-foreground mb-1">CaO₂ (동맥혈 산소함유량):</p>
-                  <p>CaO₂ = (Hgb × 1.34 × SaO₂/100) + (0.003 × PaO₂)</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">최소 필요 Flow:</p>
-                  <p>Flow = (목표 DO₂i × BSA) / (CaO₂ × 10)</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">실제 DO₂i:</p>
-                  <p>DO₂i = CI × CaO₂ × 10</p>
-                </div>
-              </div>
+            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+              {gdpSubTab === "o2er" ? (
+                <>
+                  <h3 className="text-sm font-semibold text-slate-900">O₂ER 계산식</h3>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">동·정맥 산소함량 (mL/dL)</p>
+                    <CompactEquation label="CaO2 = 1.34 곱하기 Hb 곱하기 SaO2 나누기 100 더하기 0.003 곱하기 PaO2">
+                      <span>CaO₂ = 1.34 × Hb ×</span>
+                      <MathFraction numerator="SaO₂" denominator="100" />
+                      <span>+ 0.003 × PaO₂</span>
+                    </CompactEquation>
+                    <CompactEquation label="CvO2 = 1.34 곱하기 Hb 곱하기 SvO2 나누기 100 더하기 0.003 곱하기 PvO2">
+                      <span>CvO₂ = 1.34 × Hb ×</span>
+                      <MathFraction numerator="SvO₂" denominator="100" />
+                      <span>+ 0.003 × PvO₂</span>
+                    </CompactEquation>
+                  </section>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">산소추출률 (Pump Flow는 비율에서 약분)</p>
+                    <CompactEquation label="O2ER = CaO2 빼기 CvO2 나누기 CaO2 곱하기 100 퍼센트">
+                      <span>O₂ER =</span>
+                      <MathFraction numerator="CaO₂ − CvO₂" denominator="CaO₂" />
+                      <span>× 100%</span>
+                    </CompactEquation>
+                  </section>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">Pump Flow·BSA 입력 시 (mL/min/m²)</p>
+                    <CompactEquation label="CI = Pump Flow 나누기 BSA">
+                      <span>CI =</span>
+                      <MathFraction numerator="Pump Flow" denominator="BSA" />
+                    </CompactEquation>
+                    <CompactEquation label="DO2i = CI 곱하기 CaO2 곱하기 10">
+                      <span>DO₂i = CI × CaO₂ × 10</span>
+                    </CompactEquation>
+                    <CompactEquation label="VO2i = CI 곱하기 CaO2 빼기 CvO2 곱하기 10">
+                      <span>VO₂i = CI × (CaO₂ − CvO₂) × 10</span>
+                    </CompactEquation>
+                  </section>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">간편식 (용존산소 제외, 비교용)</p>
+                    <CompactEquation label="O2ER 약식 = SaO2 빼기 SvO2 나누기 SaO2 곱하기 100 퍼센트">
+                      <span>O₂ER ≈</span>
+                      <MathFraction numerator="SaO₂ − SvO₂" denominator="SaO₂" />
+                      <span>× 100%</span>
+                    </CompactEquation>
+                  </section>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-sm font-semibold text-slate-900">GDP · DO₂i 계산식</h3>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">동맥 산소함량 (mL/dL)</p>
+                    <CompactEquation label="CaO2 = 1.34 곱하기 Hb 곱하기 SaO2 나누기 100 더하기 0.003 곱하기 PaO2">
+                      <span>CaO₂ = 1.34 × Hb ×</span>
+                      <MathFraction numerator="SaO₂" denominator="100" />
+                      <span>+ 0.003 × PaO₂</span>
+                    </CompactEquation>
+                  </section>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">목표 DO₂i를 위한 최소 Pump Flow (L/min)</p>
+                    <CompactEquation label="최소 Pump Flow = 목표 DO2i 곱하기 BSA 나누기 CaO2 곱하기 10">
+                      <span>Flow<sub>min</sub> =</span>
+                      <MathFraction numerator="목표 DO₂i × BSA" denominator="CaO₂ × 10" />
+                    </CompactEquation>
+                  </section>
+                  <section className="space-y-1.5">
+                    <p className="text-xs text-slate-600">현재 DO₂i (mL/min/m²)</p>
+                    <CompactEquation label="DO2i = Pump Flow 나누기 BSA 곱하기 CaO2 곱하기 10">
+                      <span>DO₂i =</span>
+                      <MathFraction numerator="Pump Flow" denominator="BSA" />
+                      <span>× CaO₂ × 10</span>
+                    </CompactEquation>
+                  </section>
+                </>
+              )}
             </div>
           </CardContent>
         )}
@@ -423,7 +456,11 @@ export default function GDPCalculator() {
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="bsa" className="text-sm font-medium text-slate-800">
-                BSA (m²) <span className="text-destructive">*</span>
+                BSA (m²) {gdpSubTab === "do2i" ? (
+                  <span className="text-destructive">*</span>
+                ) : (
+                  <span className="font-normal text-slate-500">(선택)</span>
+                )}
               </Label>
               <Input
                 id="bsa"
@@ -434,6 +471,9 @@ export default function GDPCalculator() {
                 onChange={(e) => handleInputChange("bsa", e.target.value)}
                 placeholder=""
               />
+              {gdpSubTab === "o2er" && (
+                <p className="text-xs text-slate-500">O₂ER 계산 자체에는 BSA가 필요하지 않습니다.</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -479,6 +519,9 @@ export default function GDPCalculator() {
                 onChange={(e) => handleInputChange("currentFlow", e.target.value)}
                 placeholder=""
               />
+              {gdpSubTab === "o2er" && (
+                <p className="text-xs text-slate-500">BSA와 Pump Flow를 모두 입력하면 DO₂i·VO₂i가 추가 계산됩니다.</p>
+              )}
             </div>
 
             {gdpSubTab === "do2i" && (
@@ -854,7 +897,9 @@ export default function GDPCalculator() {
             {showVo2Info && (
               <div className="my-3 p-3 bg-slate-50 rounded-md border border-slate-200 text-sm text-slate-700">
                 <p className="font-semibold mb-1">VO₂ Factor 계산식 (Q10 방식)</p>
-                <p className="font-mono text-xs">Factor = Q10^((T - 37) / 10)</p>
+                <CompactEquation label="Factor = Q10 의 (T 빼기 37) 나누기 10 제곱">
+                  <span>Factor = Q₁₀<sup className="text-[0.8em]">(T − 37) / 10</sup></span>
+                </CompactEquation>
                 <p className="mt-1">Q10 = 2.0~2.3 (대사율 온도 계수)</p>
                 <p>기준: CI 2.4 L/min/m² @ 37°C</p>
               </div>
