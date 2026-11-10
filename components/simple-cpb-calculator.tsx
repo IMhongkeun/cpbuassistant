@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { ChevronDown, Heart, Info } from "lucide-react"
 import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
+import { CompactEquation } from "@/components/ui/compact-equation"
 
 /**
  * 간단 CPB 유량 계산기 (Boer LBM)
@@ -202,13 +203,13 @@ export default function SimpleCPBCalculator() {
             <Card className="mt-4 bg-muted/30 border-chart-1/20">
               <CardContent className="p-4 space-y-3">
                 <div className="font-semibold text-sm">Boer Formula (LBM 계산식)</div>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium text-chart-1">남성:</span> 0.407 × 체중(kg) + 0.267 × 신장(cm) - 19.2
-                  </div>
-                  <div>
-                    <span className="font-medium text-chart-2">여성:</span> 0.252 × 체중(kg) + 0.473 × 신장(cm) - 48.3
-                  </div>
+                <div className="space-y-1.5">
+                  <CompactEquation label="남성 제지방량 킬로그램은 0.407 곱하기 체중 킬로그램 더하기 0.267 곱하기 신장 센티미터 빼기 19.2">
+                    <span>남성 LBM = 0.407 × 체중(kg) + 0.267 × 신장(cm) − 19.2</span>
+                  </CompactEquation>
+                  <CompactEquation label="여성 제지방량 킬로그램은 0.252 곱하기 체중 킬로그램 더하기 0.473 곱하기 신장 센티미터 빼기 48.3">
+                    <span>여성 LBM = 0.252 × 체중(kg) + 0.473 × 신장(cm) − 48.3</span>
+                  </CompactEquation>
                 </div>
               </CardContent>
             </Card>
