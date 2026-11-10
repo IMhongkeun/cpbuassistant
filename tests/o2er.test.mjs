@@ -109,3 +109,31 @@ test("calculator formula help uses compact math layout without plain slash equat
   assert.match(shared, /overflow-x-auto/)
   assert.match(shared, /border-b border-current/)
 })
+
+
+test("optional inputs are clearly marked and their clinical calculation effects explained", () => {
+  const src = readFileSync(new URL("../components/gdp-calculator.tsx", import.meta.url), "utf8")
+  assert.match(src, /PaO₂ \(mmHg\) <span className="font-normal text-slate-500">\(선택\)<\/span>/)
+  assert.match(src, /미입력 시 DO₂i 계산에는 PaO₂ 200 mmHg를 가정합니다/)
+  assert.match(src, /입력 시 동맥혈 용존산소를 CaO₂에 반영합니다/)
+  assert.match(src, /선택 항목을 입력하면 무엇이 달라지나요\?/)
+  assert.match(src, /선택 항목 입력 시 O₂ER 결과는 어떻게 달라지나요\?/)
+  assert.match(src, /PaO₂와 PvO₂를 함께 입력하는 편이 좋습니다/)
+  assert.match(src, /O₂ER 비율 자체는 변하지 않습니다/)
+})
+
+test("adding both dissolved oxygen pressures changes O2ER; adding flow and BSA only adds indexed values", () => {
+  const base = { hgb: 8, sao2: 100, svo2: 70 }
+  const simplified = computeO2er(base)
+  const full = computeO2er({ ...base, pao2: 250, pvo2: 40 })
+  const indexed = computeO2er({ ...base, pao2: 250, pvo2: 40, flow: 4.8, bsa: 2 })
+  assert.equal(simplified.ok, true)
+  assert.equal(full.ok, true)
+  assert.equal(indexed.ok, true)
+  assert.equal(simplified.o2er.toFixed(1), "30.0")
+  assert.equal(full.o2er.toFixed(1), "33.5")
+  assert.equal(full.do2i, null)
+  assert.equal(indexed.o2er, full.o2er)
+  assert.ok(indexed.do2i > 0)
+  assert.ok(indexed.vo2i > 0)
+})
