@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { Separator } from "@/components/ui/separator"
+import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import EchoZScorePettersen from "./echo-zscore-pettersen"
 import { EchoBsaDisplay } from "./echo-bsa-display"
@@ -408,16 +409,17 @@ export default function EchoZScoreTool() {
             {/* 기본 공식 */}
             <div>
               <h3 className="font-semibold text-base mb-3">기본 계산 공식 (Power Law Model)</h3>
-              <div className="bg-muted p-4 rounded-lg space-y-2">
-                <p className="font-mono text-sm">
-                  <span className="font-bold">예측값 (원문 단위)</span> = μ × BSA<sup>α</sup>
-                </p>
-                <p className="font-mono text-sm">
-                  <span className="font-bold">표준편차 (원문 단위)</span> = σ × BSA<sup>α</sup>
-                </p>
-                <p className="font-mono text-sm">
-                  <span className="font-bold">Z-score</span> = (측정값 - 예측값) / 표준편차
-                </p>
+              <div className="space-y-1.5 rounded-lg bg-muted p-3">
+                <CompactEquation label="예측값 원문 단위는 뮤 곱하기 BSA의 알파 제곱">
+                  <span>예측값 (원문 단위) = μ × BSA<sup>α</sup></span>
+                </CompactEquation>
+                <CompactEquation label="표준편차 원문 단위는 시그마 곱하기 BSA의 알파 제곱">
+                  <span>표준편차 (원문 단위) = σ × BSA<sup>α</sup></span>
+                </CompactEquation>
+                <CompactEquation label="Z-score는 동일 단위의 측정값 빼기 예측값 나누기 표준편차">
+                  <span>Z-score =</span>
+                  <MathFraction numerator="측정값 − 예측값" denominator="표준편차" />
+                </CompactEquation>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 * 원문 cm 치수만 mm로 변환(×10). 관상동맥 mm, 면적 cm², 용적 mL, 질량 g 및 비율은 원문 단위 그대로 표시. α=0은 BSA 보정 없음.
@@ -481,9 +483,14 @@ export default function EchoZScoreTool() {
                     2. 예측값 = 1.82 × 0.7071 × 10 = <span className="font-bold text-chart-1">12.9 mm</span>
                   </p>
                   <p className="font-mono ml-4">3. 표준편차 = 0.24 × 0.7071 × 10 = 1.7 mm</p>
-                  <p className="font-mono ml-4">
-                    4. Z-score (반올림 전 값 적용) = <span className="font-bold text-chart-1">+1.26</span>
-                  </p>
+                  <div className="ml-4">
+                    <CompactEquation label="4단계: Z-score는 반올림 전 예측값과 표준편차 적용 시 약 플러스 1.26">
+                      <span>4. Z-score =</span>
+                      <MathFraction numerator={<>15.0 − 1.82 × √0.5 × 10</>} denominator={<>0.24 × √0.5 × 10</>} />
+                      <span className="font-semibold text-chart-1">≈ +1.26</span>
+                    </CompactEquation>
+                    <p className="mt-1 text-xs text-muted-foreground">반올림 전 값 적용</p>
+                  </div>
                 </div>
 
                 <p className="text-sm text-muted-foreground mt-3">

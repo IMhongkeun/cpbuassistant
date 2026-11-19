@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
+import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 
 type SaturationInputProps = {
   id: string
@@ -167,7 +168,14 @@ export default function QpQsCalculator() {
                 {result.qpQs ? (
                   <>
                     <div className="text-4xl font-extrabold tracking-tight text-foreground">{result.qpQs} : 1</div>
-                    <div className="text-sm font-medium text-muted-foreground">{result.formula}</div>
+                    <CompactEquation label={`Qp/Qs: ${result.formula}`}>
+                       <span>Qp/Qs =</span>
+                       <MathFraction
+                         numerator={<>100 − {formatFormulaOperand(raSvcSat, Number.parseFloat(raSvcSat))}</>}
+                         denominator={<>100 − {formatFormulaOperand(paMpaSat, Number.parseFloat(paMpaSat))}</>}
+                       />
+                       <span>= {result.qpQs}</span>
+                     </CompactEquation>
                     <p className="text-xs text-muted-foreground">{result.interpretation}</p>
                   </>
                 ) : (
@@ -193,9 +201,13 @@ export default function QpQsCalculator() {
 
               <section className="space-y-1">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">공식</h3>
-                <div className="overflow-x-auto rounded-lg border bg-background/60 px-3 py-2 font-mono text-xs text-foreground">
-                  Qp/Qs = (100 − RA/SVC saturation) ÷ (100 − PA/MPA saturation)
-                </div>
+                <CompactEquation label="Qp 나누기 Qs는 100 빼기 RA 또는 SVC 산소포화도를 100 빼기 PA 또는 MPA 산소포화도로 나눈 값">
+                  <span>Qp/Qs =</span>
+                  <MathFraction
+                    numerator="100 − RA/SVC saturation"
+                    denominator="100 − PA/MPA saturation"
+                  />
+                </CompactEquation>
                 <p>
                   RA 또는 SVC 산소포화도는 좌우 단락 혼합 이전의 전신 정맥 산소포화도 추정값으로 사용합니다. PA 또는 MPA
                   산소포화도는 단락 혼합 이후의 폐동맥 혈액을 나타냅니다.
