@@ -1,0 +1,29 @@
+name: GDP and formula integration checks
+on:
+  pull_request:
+    paths:
+      - "components/gdp-calculator.tsx"
+      - "components/qp-qs-calculator.tsx"
+      - "components/simple-cpb-calculator.tsx"
+      - "components/ui/compact-equation.tsx"
+      - "components/echo-zscore-*.tsx"
+      - "tests/o2er.test.mjs"
+      - ".github/workflows/gdp-formula-check.yml"
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: O2ER, log, Echo and Workspace regression tests
+        run: node --experimental-strip-types --test tests/o2er.test.mjs tests/o2er-log.test.mjs tests/echo-zscore.test.mjs tests/patient-workspace.test.mjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm run build

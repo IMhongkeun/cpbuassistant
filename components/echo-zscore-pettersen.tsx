@@ -9,6 +9,8 @@ import { useWorkspaceSync } from "@/components/workspace/workspace-provider"
 import { Separator } from "@/components/ui/separator"
 import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 import { Info } from "lucide-react"
+import { EchoBsaDisplay } from "./echo-bsa-display"
+import { ECHO_Z_LEVELS as Z_LEVELS, PETTERSEN_COEFF, pettersenSize, resolveEchoBsa } from "@/lib/echo-zscore"
 
 // ──────────────────────────────────────────────────────────────────────────
 // Pettersen 2008 (Detroit Data) Echo Z-Score Calculator
@@ -18,164 +20,32 @@ import { Info } from "lucide-react"
 // J Am Soc Echocardiogr. 2008 Aug;21(8):922-34.
 // ──────────────────────────────────────────────────────────────────────────
 
-// Z-score levels to display
-const Z_LEVELS = [-3, -2, -1, 0, 1, 2, 3] as const
+const primaryStructures = ["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const
+const extraGroups = [
+  { title: "Aorta · 대동맥", keys: ["SOV", "STJ", "ARCH", "ISTH", "ARCH_DIST", "AOD"] },
+  { title: "Ventricle / atrium · 심실·심방", keys: ["RVDd", "IVSd", "IVSs", "LVIDd", "LVIDs", "LVPWd", "LVPWs", "LA"] },
+]
+const structures = [...primaryStructures, ...extraGroups.flatMap(g => g.keys)]
 
-// ──────────────────────────────────────────────────────────────────────────
-// Pettersen 2008 Regression Coefficients (Detroit Data)
-// Model: ln(Y) = β₀ + β₁×BSA + β₂×BSA² + β₃×BSA³
-// Where Y is the measurement in cm
-// The coefficients are from Table 3 of the original paper
-// ──────────────────────────────────────────────────────────────────────────
-
-interface PettersenCoeff {
-  name: string           // Structure name
-  beta0: number          // Intercept (β₀)
-  beta1: number          // Linear coefficient (β₁)
-  beta2: number          // Quadratic coefficient (β₂)
-  beta3: number          // Cubic coefficient (β₃)
-  mse: number            // Mean Squared Error
-  description: string    // Measurement description
+interface Props {
+  height: number | string
+  weight: number | string
+  onHeightChange: (value: string) => void
+  onWeightChange: (value: string) => void
 }
 
-// Coefficients from Pettersen 2008, Table 2
-// Reference: J Am Soc Echocardiogr 2008;21:922-34
-// Original paper uses Haycock BSA formula
-const PETTERSEN_COEFF: Record<string, PettersenCoeff> = {
-  // Pulmonary Arteries
-  MPA: {
-    name: "MPA",
-    beta0: -0.707,
-    beta1: 2.746,
-    beta2: -1.807,
-    beta3: 0.424,
-    mse: 0.024,
-    description: "주폐동맥 (Main Pulmonary Artery)"
-  },
-  RPA: {
-    name: "RPA",
-    beta0: -1.360,
-    beta1: 3.394,
-    beta2: -2.508,
-    beta3: 0.660,
-    mse: 0.027,
-    description: "우폐동맥 (Right Pulmonary Artery)"
-  },
-  LPA: {
-    name: "LPA",
-    beta0: -1.348,
-    beta1: 2.884,
-    beta2: -1.954,
-    beta3: 0.466,
-    mse: 0.028,
-    description: "좌폐동맥 (Left Pulmonary Artery)"
-  },
-  // Valve Annuli
-  PV: {
-    name: "PV",
-    beta0: -0.761,
-    beta1: 2.774,
-    beta2: -1.808,
-    beta3: 0.436,
-    mse: 0.023,
-    description: "폐동맥판륜 (Pulmonary Valve Annulus)"
-  },
-  AoV: {
-    name: "AoV",
-    beta0: -0.874,
-    beta1: 2.708,
-    beta2: -1.841,
-    beta3: 0.452,
-    mse: 0.010,
-    description: "대동맥판륜 (Aortic Valve Annulus)"
-  },
-  MV: {
-    name: "MV",
-    beta0: -0.271,
-    beta1: 2.446,
-    beta2: -1.700,
-    beta3: 0.425,
-    mse: 0.022,
-    description: "승모판륜 (Mitral Valve Annulus)"
-  },
-  TV: {
-    name: "TV",
-    beta0: -0.164,
-    beta1: 2.341,
-    beta2: -1.596,
-    beta3: 0.387,
-    mse: 0.036,
-    description: "삼첨판륜 (Tricuspid Valve Annulus)"
-  },
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ──────────────────────────────────────────────────────────────────────────
-
-// Mosteller BSA formula: BSA (m²) = √((height(cm) × weight(kg)) / 3600)
-const calcBSA = (heightCm: number, weightKg: number): number => {
-  if (!(heightCm > 0 && weightKg > 0)) return 0
-  return Math.sqrt((heightCm * weightKg) / 3600)
-}
-
-// Pettersen Model: ln(Y) = β₀ + β₁×BSA + β₂×BSA² + β₃×BSA³
-// Returns ln(Y) in cm
-const calcLnMean = (bsa: number, coeff: PettersenCoeff): number => {
-  return coeff.beta0 + 
-         coeff.beta1 * bsa + 
-         coeff.beta2 * Math.pow(bsa, 2) + 
-         coeff.beta3 * Math.pow(bsa, 3)
-}
-
-// Get predicted mean value in mm
-const calcMean = (bsa: number, coeff: PettersenCoeff): number => {
-  const lnY = calcLnMean(bsa, coeff)
-  return Math.exp(lnY) * 10 // Convert cm to mm
-}
-
-// Get RMSE (standard deviation in log space)
-const calcRMSE = (coeff: PettersenCoeff): number => {
-  return Math.sqrt(coeff.mse)
-}
-
-// Calculate size at a given Z-score (in mm)
-const calcSizeAtZ = (bsa: number, z: number, coeff: PettersenCoeff): number => {
-  const lnMean = calcLnMean(bsa, coeff)
-  const rmse = calcRMSE(coeff)
-  const lnSize = lnMean + z * rmse
-  return Math.exp(lnSize) * 10 // Convert cm to mm
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Component
-// ──────────────────────────────────────────────────────────────────────────
-
-export default function EchoZScorePettersen() {
-  const [height, setHeight] = useState<number | string>("")
-  const [weight, setWeight] = useState<number | string>("")
-  const [bsaValue, setBsaValue] = useState("")
+export default function EchoZScorePettersen({height,weight,onHeightChange,onWeightChange}: Props) {
+  const [manualBsa, setManualBsa] = useState("")
   const [showFormulaGuide, setShowFormulaGuide] = useState(false)
 
-  // Patient Workspace only: height and weight follow the active case. The BSA
-  // field here stays calculator-specific (this tool's own formula notes apply).
+  // Height/weight are shared by both tabs via the parent's patient binding.
+  // Only an explicitly entered Du Bois BSA is stored for this model.
   useWorkspaceSync("echo-pettersen", {
-    height: { value: height, set: setHeight, patient: "heightCm" },
-    weight: { value: weight, set: setWeight, patient: "weightKg" },
-    bsaValue: { value: bsaValue, set: setBsaValue },
+    manualDuBoisBsa: { value: manualBsa, set: setManualBsa },
   })
 
-  // Parse inputs
-  const h = typeof height === "number" ? height : Number.parseFloat(height as string) || 0
-  const w = typeof weight === "number" ? weight : Number.parseFloat(weight as string) || 0
-  const bsaCalc = calcBSA(h, w)
-  const bsa = (Number.parseFloat(bsaValue) || 0) > 0 ? Number.parseFloat(bsaValue) : bsaCalc
-
-  // BSA limits for Pettersen 2008
-  const BSA_LIMIT = 2.0
-  const isBlocked = bsa > BSA_LIMIT
-
-  const structures = ["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const
+  const { bsa } = resolveEchoBsa(height, weight, manualBsa, "dubois")
+  const isBlocked = bsa > 2.0 || (bsa > 0 && bsa < 0.1)
 
   // Compute results for a structure
   const compute = (s: string) => {
@@ -184,7 +54,7 @@ export default function EchoZScorePettersen() {
         mean: 0,
         range: null as number[] | null,
         rmse: 0,
-        ref: "BSA > 2.0: 범위 초과",
+        ref: "BSA 범위 초과",
       }
     }
     if (!(bsa > 0)) {
@@ -197,112 +67,37 @@ export default function EchoZScorePettersen() {
     }
 
     const coeff = PETTERSEN_COEFF[s]
-    const mean = calcMean(bsa, coeff)
-    const rmse = calcRMSE(coeff)
-    const range = Z_LEVELS.map((z) => calcSizeAtZ(bsa, z, coeff))
+    const mean = pettersenSize(bsa, 0, coeff)
+    const rmse = Math.sqrt(coeff.mse)
+    const range = Z_LEVELS.map((z) => pettersenSize(bsa, z, coeff))
 
     return { mean, range, rmse, ref: "Pettersen 2008" }
   }
 
   const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    if (val === "") {
-      setHeight("")
-      setBsaValue("")
-      return
-    }
-    const nh = Number.parseFloat(val) || 0
-    setHeight(nh)
-    const currentWeight = typeof weight === "number" ? weight : Number.parseFloat(weight as string) || 0
-    if (nh > 0 && currentWeight > 0) setBsaValue(calcBSA(nh, currentWeight).toFixed(2))
+    onHeightChange(e.target.value)
+    setManualBsa("")
   }
 
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    if (val === "") {
-      setWeight("")
-      setBsaValue("")
-      return
-    }
-    const nw = Number.parseFloat(val) || 0
-    setWeight(nw)
-    const currentHeight = typeof height === "number" ? height : Number.parseFloat(height as string) || 0
-    if (currentHeight > 0 && nw > 0) setBsaValue(calcBSA(currentHeight, nw).toFixed(2))
+    onWeightChange(e.target.value)
+    setManualBsa("")
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Input Card */}
-      <Card className="w-full max-w-md mx-auto">
-        <CardHeader>
-          <CardTitle>환자 정보 입력</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-3">
-            <div className="flex-1 flex flex-col">
-              <label htmlFor="h-pettersen" className="text-xs text-muted-foreground mb-1">
-                키 (cm)
-              </label>
-              <Input 
-                id="h-pettersen" 
-                type="number" 
-                min="30" 
-                value={height} 
-                onChange={handleHeightChange} 
-                placeholder="" 
-              />
-            </div>
-            <div className="flex-1 flex flex-col">
-              <label htmlFor="w-pettersen" className="text-xs text-muted-foreground mb-1">
-                체중 (kg)
-              </label>
-              <Input 
-                id="w-pettersen" 
-                type="number" 
-                min="1" 
-                value={weight} 
-                onChange={handleWeightChange} 
-                placeholder="" 
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col">
-            <label htmlFor="bsa-pettersen" className="text-xs text-muted-foreground mb-1">
-              BSA (m²) — Mosteller
-            </label>
-            <Input
-              id="bsa-pettersen"
-              type="number"
-              step="0.001"
-              min="0.1"
-              value={bsaValue}
-              onChange={(e) => setBsaValue(e.target.value)}
-            />
-          </div>
-
-          {isBlocked && (
-            <div className="mt-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
-              BSA 2.0 m² 초과: Pettersen 2008 소아 기준 범위를 벗어났습니다. 성인 기준(WASE 등)을 사용해야 합니다.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Result Cards Grid */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        {structures.map((s) => {
+  const renderStructures = (items: readonly string[]) => (
+    <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+      {items.map((s) => {
           const info = compute(s)
           const coeff = PETTERSEN_COEFF[s]
           return (
             <Card key={s} className="relative overflow-hidden">
               <CardHeader>
-                <CardTitle>{s}</CardTitle>
+                <CardTitle className="text-lg break-words">{coeff.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 {isBlocked ? (
                   <p className="text-sm text-destructive">
-                    BSA &gt; 2.0 m²: Pettersen 2008 소아 기준 범위를 벗어났습니다.
+                    BSA 0.1–2.0 m² 밖: 결과를 표시하지 않습니다.
                   </p>
                 ) : (
                   <>
@@ -347,7 +142,67 @@ export default function EchoZScorePettersen() {
             </Card>
           )
         })}
-      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* Input Card */}
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>환자 정보 입력</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-3">
+            <div className="flex-1 flex flex-col">
+              <label htmlFor="h-pettersen" className="text-xs text-muted-foreground mb-1">
+                키 (cm)
+              </label>
+              <Input 
+                id="h-pettersen" 
+                type="number" 
+                min="30" 
+                value={height} 
+                onChange={handleHeightChange} 
+                placeholder="" 
+              />
+            </div>
+            <div className="flex-1 flex flex-col">
+              <label htmlFor="w-pettersen" className="text-xs text-muted-foreground mb-1">
+                체중 (kg)
+              </label>
+              <Input 
+                id="w-pettersen" 
+                type="number" 
+                min="1" 
+                value={weight} 
+                onChange={handleWeightChange} 
+                placeholder="" 
+              />
+            </div>
+          </div>
+
+          <EchoBsaDisplay formula="dubois" id="bsa-pettersen" height={height} weight={weight} manual={manualBsa} onManualChange={setManualBsa} />
+
+          {isBlocked && (
+            <div className="mt-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
+              BSA 0.1–2.0 m² 밖: 본 계산기의 소아 적용 범위를 벗어났습니다. 결과를 표시하지 않습니다.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {renderStructures(primaryStructures)}
+      <details className="rounded-xl border bg-card p-4">
+        <summary className="cursor-pointer font-semibold">추가 심장 구조물 · 14개 (Aorta, 심실·심방)</summary>
+        <p className="mt-2 text-xs text-muted-foreground">원문 Table 1 측정 위치·시점에 맞춰 비교하세요. 동맥은 inner edge–inner edge, 심실 M-mode 치수는 leading edge–leading edge입니다.</p>
+        {extraGroups.map(group => (
+          <section key={group.title} className="mt-5 space-y-3">
+            <h3 className="font-semibold text-sm">{group.title}</h3>
+            {renderStructures(group.keys)}
+          </section>
+        ))}
+      </details>
 
       {/* Formula Guide Card */}
       <Card className="w-full max-w-5xl mx-auto">
@@ -373,18 +228,15 @@ export default function EchoZScorePettersen() {
                   <span className="font-semibold">모델 형태:</span> 3차 다항식 회귀 (log-transformed)
                 </p>
                 <div className="space-y-1.5">
-                  <CompactEquation label="엘엔 와이는 베타 0 더하기 베타 1 곱하기 BSA 더하기 베타 2 곱하기 BSA 제곱 더하기 베타 3 곱하기 BSA 세제곱">
+                  <CompactEquation label="ln(Y) = β₀ + β₁ × BSA + β₂ × BSA² + β₃ × BSA³">
                     <span>ln(Y) = β₀ + β₁ × BSA + β₂ × BSA² + β₃ × BSA³</span>
                   </CompactEquation>
-                  <CompactEquation label="예측값 밀리미터는 엑스피 엘엔 와이 곱하기 10">
+                  <CompactEquation label="예측값 밀리미터 = exp(ln(Y)) × 10">
                     <span>예측값(mm) = exp(ln(Y)) × 10</span>
                   </CompactEquation>
                   <CompactEquation label="Z-score는 로그 변환한 측정값 센티미터 빼기 로그 변환한 예측값 센티미터 나누기 루트 MSE">
                     <span>Z-score =</span>
-                    <MathFraction
-                      numerator={<>ln(측정값<sub>cm</sub>) − ln(예측값<sub>cm</sub>)</>}
-                      denominator="√MSE"
-                    />
+                    <MathFraction numerator={<>ln(측정값<sub>cm</sub>) − ln(예측값<sub>cm</sub>)</>} denominator="√MSE" />
                   </CompactEquation>
                 </div>
               </div>
@@ -438,13 +290,13 @@ export default function EchoZScorePettersen() {
                 <li className="flex gap-2">
                   <span className="text-chart-1 font-bold">•</span>
                   <span>
-                    <span className="font-semibold">유효 범위:</span> BSA ≤ 2.0 m² (소아 전용)
+                    <span className="font-semibold">유효 범위:</span> BSA 0.1–2.0 m² (본 계산기 적용 범위, 소아 전용)
                   </span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-chart-1 font-bold">•</span>
                   <span>
-                    <span className="font-semibold">원본 BSA 공식:</span> Haycock (본 계산기는 Mosteller 사용)
+                    <span className="font-semibold">BSA 공식:</span> Du Bois = 0.007184 × 키(cm)^0.725 × 체중(kg)^0.425. 원문에는 미명시, 2014년 저자 확인 보고 기준. Mosteller는 참고용입니다.
                   </span>
                 </li>
                 <li className="flex gap-2">
@@ -456,13 +308,13 @@ export default function EchoZScorePettersen() {
                 <li className="flex gap-2">
                   <span className="text-chart-1 font-bold">•</span>
                   <span>
-                    <span className="font-semibold">정상 범위:</span> Z-score -2 ~ +2 (95% 신뢰구간)
+                    <span className="font-semibold">정상 범위:</span> Z-score −2 ~ +2 (약 95% 참고구간)
                   </span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-destructive font-bold">•</span>
                   <span>
-                    <span className="font-semibold">BSA &gt; 2.0 m²:</span> 성인 기준 사용 필요 (예: WASE guideline)
+                    <span className="font-semibold">BSA 0.1–2.0 m² 밖:</span> 결과 차단. 해당 연령·체격에 적합한 참고모형을 확인하세요.
                   </span>
                 </li>
               </ul>
@@ -486,6 +338,7 @@ export default function EchoZScorePettersen() {
               >
                 → PubMed 보기
               </a>
+              <p className="mt-2"><a href="https://thoracickey.com/authors-reply-37/" target="_blank" rel="noopener noreferrer" className="underline">BSA 산식 확인: Authors’ Reply (2014년 저자 교신 인용)</a></p>
             </div>
           </CardContent>
         )}

@@ -10,20 +10,11 @@ import { Separator } from "@/components/ui/separator"
 import { CompactEquation, MathFraction } from "@/components/ui/compact-equation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import EchoZScorePettersen from "./echo-zscore-pettersen"
+import { EchoBsaDisplay } from "./echo-bsa-display"
+import { PHN_COEFF as COEFF, ECHO_Z_LEVELS as Z_LEVELS, phnBand, resolveEchoBsa } from "@/lib/echo-zscore"
 
-// ──────────────────────────────────────────────────────────────────────────
-// ✅ Pediatric‑only Echo Z‑Score Calculator (PHN Table 2 aligned)
-//  - Only pediatric model (PHN, Lopez 2017). If BSA > 2.3 m² → results suppressed with warning.
-//  - Linear dimensions use alpha = 0.5 (BSA^0.5).
-//  - indexed_mean, sd are μ and σ in indexed space (X / BSA^α), units: cm.
-//  - display (mm): mean = μ·BSA^α·10, Z-band(−3..+3) = (μ ± k·σ)·BSA^α·10.
-//  - AoV: PLAX hinge‑to‑hinge; MV/TV: LAT (Apical 4C) only.
-//  - BSA formula: Mosteller = sqrt((height(cm) × weight(kg)) / 3600).
-
-// Z levels to show
-const Z_LEVELS = [-3, -2, -1, 0, 1, 2, 3] as const
-
-// ──────────────────────────────────────────────────────────────────────────
+// PHN 2017 Table 2; model BSA is Haycock. Department lookup is separate.
+// All calculations use the original units and alpha; display conversions are per parameter.
 // 1) Lookup table for small BSA (MPA/RPA/LPA, BSA ≤ 0.70) — mean in mm
 const LOOKUP_PEDS: Record<"MPA" | "RPA" | "LPA", [number, number][]> = {
   MPA: [
@@ -218,36 +209,14 @@ const LOOKUP_PEDS: Record<"MPA" | "RPA" | "LPA", [number, number][]> = {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// 2) PHN Table 2 constants (indexed μ & σ in cm; α=0.5 for linear). MV/TV = LAT only
-
-type ModelType = "power"
-interface Coeff {
-  type: ModelType
-  indexed_mean: number // cm in indexed space
-  alpha: number
-  sd: number // cm in indexed space
-  ref: string
-}
-
-const COEFF: Record<"MPA" | "RPA" | "LPA" | "PV" | "AoV" | "MV" | "TV", Coeff> = {
-  // PA branches
-  MPA: { type: "power", indexed_mean: 1.82, alpha: 0.5, sd: 0.24, ref: "Lopez 2017 PHN (Table 2)" },
-  RPA: { type: "power", indexed_mean: 1.07, alpha: 0.5, sd: 0.18, ref: "Lopez 2017 PHN (Table 2)" },
-  LPA: { type: "power", indexed_mean: 1.1, alpha: 0.5, sd: 0.18, ref: "Lopez 2017 PHN (Table 2)" },
-  PV: { type: "power", indexed_mean: 1.91, alpha: 0.5, sd: 0.24, ref: "Lopez 2017 PHN (Table 2, PV SAX)" },
-  // Annuli (LAT for MV/TV)
-  AoV: { type: "power", indexed_mean: 1.48, alpha: 0.5, sd: 0.14, ref: "Lopez 2017 PHN (Table 2)" },
-  MV: { type: "power", indexed_mean: 2.23, alpha: 0.5, sd: 0.22, ref: "Lopez 2017 PHN (Table 2, MV LAT)" },
-  TV: { type: "power", indexed_mean: 2.36, alpha: 0.5, sd: 0.29, ref: "Lopez 2017 PHN (Table 2, TV LAT)" },
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// 3) Helpers
-const calcBSA = (heightCm: number, weightKg: number) => {
-  // Mosteller BSA (m²): sqrt((height(cm) × weight(kg)) / 3600)
-  if (!(heightCm > 0 && weightKg > 0)) return 0
-  return Math.sqrt((heightCm * weightKg) / 3600)
-}
+const primaryStructures = ["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const
+const extraGroups = [
+  { title: "Aorta · 대동맥", keys: ["ROOT", "STJ", "AAO", "ARCH_PROX", "ARCH_DIST", "ISTH"] },
+  { title: "Coronary arteries · 관상동맥", keys: ["LMCA", "LAD", "RCA"] },
+  { title: "Valve / ventricle · 판막·심실 치수", keys: ["MV_AP", "TV_AP", "PV_LAX", "LVEDD", "LVPWT", "LVST", "LVEDL", "LVEDL_EPI"] },
+  { title: "Area / volume / mass / ratio · 면적·용적·질량·비율", keys: ["MVA", "TVA", "LVEDA", "LVEDA_EPI", "LVEDV", "LVEDV_EPI", "LVM", "LVMTV", "LVTTD", "LVSI"] },
+]
+const structures = [...primaryStructures, ...extraGroups.flatMap(g=>g.keys)]
 
 const interpLookup = (table: [number, number][], bsa: number) => {
   if (bsa <= table[0][0]) return table[0][1]
@@ -263,21 +232,10 @@ const interpLookup = (table: [number, number][], bsa: number) => {
   return Number.NaN
 }
 
-// PHN(power): mean(mm) = μ·BSA^α·10, band(mm) = (μ ± kσ)·BSA^α·10
-const computePower = (bsa: number, c: Coeff) => {
-  const pow = Math.pow(bsa, c.alpha)
-  const mean = c.indexed_mean * pow * 10 // cm→mm
-  const sdScaled = c.sd * pow * 10 // cm→mm with BSA^α scaling
-  const range = Z_LEVELS.map((k) => mean + k * sdScaled)
-  return { mean, sd: sdScaled, range }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// 4) Component
 export default function EchoZScoreTool() {
   const [height, setHeight] = useState<number | string>("")
   const [weight, setWeight] = useState<number | string>("")
-  const [bsaValue, setBsaValue] = useState("")
+  const [manualBsa, setManualBsa] = useState("")
   const [showFormulaGuide, setShowFormulaGuide] = useState(false)
 
   // Patient Workspace only: height and weight follow the active case. The BSA
@@ -285,83 +243,64 @@ export default function EchoZScoreTool() {
   useWorkspaceSync("echo-lopez", {
     height: { value: height, set: setHeight, patient: "heightCm" },
     weight: { value: weight, set: setWeight, patient: "weightKg" },
-    bsaValue: { value: bsaValue, set: setBsaValue },
+    manualHaycockBsa: { value: manualBsa, set: setManualBsa },
   })
 
-  const h = typeof height === "number" ? height : Number.parseFloat(height as string) || 0
-  const w = typeof weight === "number" ? weight : Number.parseFloat(weight as string) || 0
-  const bsaCalc = calcBSA(h, w)
-  const bsa = (Number.parseFloat(bsaValue) || 0) > 0 ? Number.parseFloat(bsaValue) : bsaCalc
-
+  const { bsa, mosteller } = resolveEchoBsa(height, weight, manualBsa, "haycock")
   const BSA_LIMIT = 2.3
   const BSA_WARN = 2.0
-  const isBlocked = bsa > BSA_LIMIT
+  const isBlocked = bsa > BSA_LIMIT || (bsa > 0 && bsa < 0.1)
   const isHighBSA = !isBlocked && bsa >= BSA_WARN
 
-  const structures = ["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const
-  type Structure = (typeof structures)[number]
-
-  const compute = (s: Structure) => {
-    if (isBlocked) {
-      return {
-        mean: 0,
-        sd: null as number | null,
-        range: null as number[] | null,
-        src: "차단",
-        ref: "BSA>2.3: 성인 표준 필요",
-      }
-    }
-    if (!(bsa > 0)) {
-      return {
-        mean: 0,
-        sd: null as number | null,
-        range: null as number[] | null,
-        src: "데이터 없음",
-        ref: "입력 필요",
-      }
-    }
-
-    // BSA ≤ 0.70: PA mean from lookup(mm) + PHN SD scaled by BSA^α
-    if (bsa <= 0.7 && (s === "MPA" || s === "RPA" || s === "LPA")) {
-      const mean = interpLookup(LOOKUP_PEDS[s], bsa)
-      const c = COEFF[s]
-      const pow = Math.pow(bsa, c.alpha)
-      const sd = c.sd * pow * 10
-      const range = Z_LEVELS.map((k) => mean + k * sd)
-      return { mean, sd, range, src: "LOOKUP + PHN SD(BSA^α)", ref: c.ref }
-    }
-
-    // Otherwise: PHN power model
-    const c = COEFF[s]
-    const result = computePower(bsa, c)
-    return { ...result, src: "PHN 회귀식", ref: c.ref }
+  // Single anthropometric input state, shared across both nomogram tabs.
+  const updateHeight = (value: string) => {
+    setHeight(value)
+    setManualBsa("")
   }
-
-  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    if (val === "") {
-      setHeight("")
-      setBsaValue("")
-      return
-    }
-    const nh = Number.parseFloat(val) || 0
-    setHeight(nh)
-    const w = typeof weight === "number" ? weight : Number.parseFloat(weight as string) || 0
-    if (nh > 0 && w > 0) setBsaValue(calcBSA(nh, w).toFixed(2))
+  const updateWeight = (value: string) => {
+    setWeight(value)
+    setManualBsa("")
   }
+  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => updateHeight(e.target.value)
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => updateWeight(e.target.value)
 
-  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    if (val === "") {
-      setWeight("")
-      setBsaValue("")
-      return
-    }
-    const nw = Number.parseFloat(val) || 0
-    setWeight(nw)
-    const h = typeof height === "number" ? height : Number.parseFloat(height as string) || 0
-    if (h > 0 && nw > 0) setBsaValue(calcBSA(h, nw).toFixed(2))
-  }
+  // Preserve legacy department lookup values separately; old automatic BSA used two-decimal Mosteller.
+  const departmentBsa = Number(mosteller.toFixed(2))
+  const hasDepartment = departmentBsa >= 0.1 && departmentBsa <= 0.7
+  const renderStructures = (items: readonly string[]) => (
+    <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+      {items.map(s => {
+        const c = COEFF[s]
+        const info = !isBlocked && bsa > 0 ? phnBand(bsa, c) : null
+        const digits = c.unit === "ratio" || c.unit === "g/mL" ? 2 : 1
+        const unit = c.unit === "ratio" ? "" : c.unit
+        return (
+          <Card key={s} className="relative overflow-hidden">
+            <CardHeader><CardTitle className="text-lg break-words">{s}</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xs mb-1 text-muted-foreground">{c.description}</p>
+              <p className="text-xs mb-2 text-muted-foreground">Source: {c.ref}{c.alpha === 0 ? " · BSA 보정 없음" : ""}</p>
+              {isBlocked ? <p className="text-sm text-destructive">BSA 0.1–2.3 m² 밖: 결과 미표시</p> : info ? (
+                <>
+                  <p className="text-sm mb-2 font-semibold">Mean: <span className="text-chart-1 font-bold">{info.mean.toFixed(digits)} {unit}</span></p>
+                  <Separator className="mb-2" />
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-semibold text-muted-foreground border-b pb-1"><span>Z-Score</span><span>Value {unit ? "(" + unit + ")" : ""}</span></div>
+                    {info.range.map((v,i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span className={Z_LEVELS[i] === 0 ? "font-bold text-chart-1 font-mono" : "font-mono"}>{Z_LEVELS[i] > 0 ? "+" : ""}{Z_LEVELS[i]}</span>
+                        <span className={Z_LEVELS[i] === 0 ? "font-bold text-chart-1" : ""}>{v.toFixed(digits)} {unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : <p className="text-sm text-muted-foreground italic">키·체중 또는 Haycock BSA를 입력하세요</p>}
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
 
   return (
     <div className="rounded-xl bg-background p-3 shadow-lg sm:p-6">
@@ -376,14 +315,14 @@ export default function EchoZScoreTool() {
           <TabsTrigger value="phn" className="h-auto min-w-0 flex-col gap-0.5 py-2 whitespace-normal">
             <span>PHN (Lopez 2017)</span>
             <span className="text-center text-[10px] leading-tight text-muted-foreground sm:text-xs">
-              부서 참고표 포함: MPA·RPA·LPA (BSA ≤ 0.7 m²)
+              Haycock · 부서 참고표 별도
             </span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="phn" className="space-y-6">
           <p className="text-center text-sm text-muted-foreground mb-4">
-            PHN Table 2 • MV/TV = LAT(4C) • Z-range −3…+3 • BSA ≤ 2.3 m²
+            PHN Table 2 • 기본 MV/TV = LAT(4C) • Z-range −3…+3 • BSA 0.1–2.3 m²
           </p>
 
           {/* 입력 카드 */}
@@ -407,24 +346,11 @@ export default function EchoZScoreTool() {
             </div>
           </div>
 
-          <div className="flex flex-col">
-            <label htmlFor="bsa" className="text-xs text-muted-foreground mb-1">
-              BSA (m²) — Mosteller
-            </label>
-            <Input
-              id="bsa"
-              type="number"
-              step="0.001"
-              min="0.1"
-              value={bsaValue}
-              onChange={(e) => setBsaValue(e.target.value)}
-            />
-          </div>
+          <EchoBsaDisplay formula="haycock" id="bsa" height={height} weight={weight} manual={manualBsa} onManualChange={setManualBsa} />
 
           {isBlocked && (
             <div className="mt-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
-              BSA가 {BSA_LIMIT.toFixed(1)} m²를 초과했습니다. PHN 소아 nomogram의 유효 범위를 벗어나{" "}
-              <b>결과가 표시되지 않습니다</b>. 성인 기준(WASE 등)을 사용해야 합니다.
+              BSA 0.1–2.3 m² 밖: 본 계산기 적용 범위를 벗어나 <b>결과가 표시되지 않습니다</b>.
             </div>
           )}
 
@@ -436,69 +362,37 @@ export default function EchoZScoreTool() {
 
           {!isBlocked && bsa > 0 && bsa <= 0.7 && (
             <div className="mt-2 text-xs text-chart-4 bg-chart-4/10 border border-chart-4/20 rounded p-2">
-              BSA ≤ 0.7 m²: 저체중 영아/신생아 영역입니다. 측정 오차가 Z-score에 크게 반영될 수 있습니다.
+              BSA ≤ 0.7 m²: 체격이 작은 소아 영역입니다. 측정 오차가 Z-score에 크게 반영될 수 있습니다.
             </div>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        {(["MPA", "RPA", "LPA", "PV", "AoV", "MV", "TV"] as const).map((s) => {
-          const info = compute(s)
-          return (
-            <Card key={s} className="relative overflow-hidden">
-              <CardHeader>
-                <CardTitle>{s}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isBlocked ? (
-                  <p className="text-sm text-destructive">
-                    BSA &gt; {BSA_LIMIT.toFixed(1)} m²: 소아 nomogram 범위 밖입니다. 결과 제공되지 않습니다.
-                  </p>
-                ) : (
-                  <>
-                    <p className="text-xs mb-1 text-muted-foreground">근거: {info.ref}</p>
-                    <p className="text-xs mb-2 text-muted-foreground">Source: {info.src}</p>
-                    {bsa > 0 ? (
-                      <>
-                        <p className="text-sm mb-2 font-semibold">
-                          Mean: <span className="text-chart-1 font-bold">{info.mean.toFixed(1)} mm</span>
-                        </p>
-                        {info.range && (
-                          <>
-                            <Separator className="mb-2" />
-                            <div className="space-y-1">
-                              <div className="flex justify-between text-xs font-semibold text-muted-foreground border-b pb-1">
-                                <span>Z-Score</span>
-                                <span>Size (mm)</span>
-                              </div>
-                              {info.range.map((v: number, i: number) => (
-                                <div
-                                  key={i}
-                                  className={`flex justify-between text-xs ${Z_LEVELS[i] === 0 ? "font-bold" : ""}`}
-                                >
-                                  <span className={`font-mono ${Z_LEVELS[i] === 0 ? "text-chart-1 font-bold" : ""}`}>
-                                    {Z_LEVELS[i] > 0 ? `+${Z_LEVELS[i]}` : `${Z_LEVELS[i]}`}
-                                  </span>
-                                  <span className={Z_LEVELS[i] === 0 ? "text-chart-1 font-bold" : ""}>
-                                    {v.toFixed(1)} mm
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">키, 체중 또는 BSA를 입력하세요</p>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+      {renderStructures(primaryStructures)}
+      <details className="rounded-xl border bg-card p-4">
+        <summary className="cursor-pointer font-semibold">추가 심장 구조물 · 27개 (Aorta, 관상동맥, 판막·심실 등)</summary>
+        <p className="mt-2 text-xs text-muted-foreground">PHN Table 2 기준. 관상동맥은 원문부터 mm, 면적은 cm², 용적은 mL, 질량은 g입니다. 대동맥궁의 측정 위치를 다른 모델과 혼동하지 마세요.</p>
+        {extraGroups.map(group => (
+          <section key={group.title} className="mt-5 space-y-3">
+            <h3 className="font-semibold text-sm">{group.title}</h3>
+            {renderStructures(group.keys)}
+          </section>
+        ))}
+      </details>
+
+      <details className="rounded-xl border bg-muted/30 p-4">
+        <summary className="cursor-pointer font-semibold">부서 참고표 · MPA / RPA / LPA (기존 방식)</summary>
+        <p className="mt-2 text-xs text-muted-foreground">논문 PHN 순수 회귀식과 별도입니다. 기존 부서 보간 평균 + PHN SD 혼합 방식이며, 기존 두 자리 반올림 Mosteller BSA(0.10–0.70 m²)를 사용합니다. 검증된 PHN Z-score로 해석하지 마세요.</p>
+        {hasDepartment && !isBlocked ? (
+          <div className="mt-3 overflow-x-auto">
+            <p className="text-xs mb-2">부서 참고표 BSA (Mosteller): {departmentBsa.toFixed(2)} m²</p>
+            <table className="w-full text-xs border-collapse">
+              <thead><tr className="border-b"><th className="text-left p-2">Z / mm</th>{(["MPA","RPA","LPA"] as const).map(s=><th key={s} className="p-2">{s}</th>)}</tr></thead>
+              <tbody>{Z_LEVELS.map(z=><tr key={z} className={z===0?"border-b font-semibold":"border-b"}><td className="p-2">{z>0?"+":""}{z}</td>{(["MPA","RPA","LPA"] as const).map(s=><td key={s} className="p-2 text-center">{(interpLookup(LOOKUP_PEDS[s],departmentBsa)+z*COEFF[s].sd*Math.sqrt(departmentBsa)*10).toFixed(1)}</td>)}</tr>)}</tbody>
+            </table>
+          </div>
+        ) : <p className="mt-2 text-sm text-muted-foreground">키·체중 입력 및 Mosteller BSA 0.10–0.70 m² 범위에서만 표시됩니다.</p>}
+      </details>
 
       <Card className="w-full max-w-5xl mx-auto mt-6">
         <CardHeader className="cursor-pointer px-3 sm:px-6" onClick={() => setShowFormulaGuide(!showFormulaGuide)}>
@@ -516,19 +410,19 @@ export default function EchoZScoreTool() {
             <div>
               <h3 className="font-semibold text-base mb-3">기본 계산 공식 (Power Law Model)</h3>
               <div className="space-y-1.5 rounded-lg bg-muted p-3">
-                <CompactEquation label="예측값 밀리미터는 뮤 곱하기 BSA의 알파 제곱 곱하기 10">
-                  <span>예측값(mm) = μ × BSA<sup>α</sup> × 10</span>
+                <CompactEquation label="예측값 원문 단위는 뮤 곱하기 BSA의 알파 제곱">
+                  <span>예측값 (원문 단위) = μ × BSA<sup>α</sup></span>
                 </CompactEquation>
-                <CompactEquation label="표준편차 밀리미터는 시그마 곱하기 BSA의 알파 제곱 곱하기 10">
-                  <span>표준편차(mm) = σ × BSA<sup>α</sup> × 10</span>
+                <CompactEquation label="표준편차 원문 단위는 시그마 곱하기 BSA의 알파 제곱">
+                  <span>표준편차 (원문 단위) = σ × BSA<sup>α</sup></span>
                 </CompactEquation>
-                <CompactEquation label="Z-score는 측정값 빼기 예측값 나누기 표준편차">
+                <CompactEquation label="Z-score는 동일 단위의 측정값 빼기 예측값 나누기 표준편차">
                   <span>Z-score =</span>
                   <MathFraction numerator="측정값 − 예측값" denominator="표준편차" />
                 </CompactEquation>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                * μ, σ는 indexed space의 값 (cm 단위), α는 power exponent
+                * 원문 cm 치수만 mm로 변환(×10). 관상동맥 mm, 면적 cm², 용적 mL, 질량 g 및 비율은 원문 단위 그대로 표시. α=0은 BSA 보정 없음.
               </p>
             </div>
 
@@ -543,66 +437,27 @@ export default function EchoZScoreTool() {
                     <tr className="border-b-2">
                       <th className="text-left p-2">구조물</th>
                       <th className="text-left p-2">측정 부위</th>
-                      <th className="text-center p-2">μ (cm)</th>
-                      <th className="text-center p-2">σ (cm)</th>
+                      <th className="text-center p-2">μ</th>
+                      <th className="text-center p-2">σ</th>
                       <th className="text-center p-2">α</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">MPA</td>
-                      <td className="p-2 text-muted-foreground">주폐동맥</td>
-                      <td className="text-center p-2 font-mono">1.82</td>
-                      <td className="text-center p-2 font-mono">0.24</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">RPA</td>
-                      <td className="p-2 text-muted-foreground">우폐동맥</td>
-                      <td className="text-center p-2 font-mono">1.07</td>
-                      <td className="text-center p-2 font-mono">0.18</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">LPA</td>
-                      <td className="p-2 text-muted-foreground">좌폐동맥</td>
-                      <td className="text-center p-2 font-mono">1.10</td>
-                      <td className="text-center p-2 font-mono">0.18</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">PV</td>
-                      <td className="p-2 text-muted-foreground">폐동맥판륜 (SAX)</td>
-                      <td className="text-center p-2 font-mono">1.91</td>
-                      <td className="text-center p-2 font-mono">0.24</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">AoV</td>
-                      <td className="p-2 text-muted-foreground">대동맥판 (PLAX, hinge-to-hinge)</td>
-                      <td className="text-center p-2 font-mono">1.48</td>
-                      <td className="text-center p-2 font-mono">0.14</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">MV</td>
-                      <td className="p-2 text-muted-foreground">승모판 (A4C, LAT)</td>
-                      <td className="text-center p-2 font-mono">2.23</td>
-                      <td className="text-center p-2 font-mono">0.22</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="p-2 font-semibold">TV</td>
-                      <td className="p-2 text-muted-foreground">삼첨판 (A4C, LAT)</td>
-                      <td className="text-center p-2 font-mono">2.36</td>
-                      <td className="text-center p-2 font-mono">0.29</td>
-                      <td className="text-center p-2 font-mono">0.5</td>
-                    </tr>
+                    {structures.map(s => {
+                      const c = COEFF[s]
+                      return <tr key={s} className="border-b">
+                        <td className="p-2 font-semibold">{s}</td>
+                        <td className="p-2 text-muted-foreground">{c.description} ({c.sourceUnit})</td>
+                        <td className="text-center p-2 font-mono">{c.indexed_mean.toFixed(2)}</td>
+                        <td className="text-center p-2 font-mono">{c.sd.toFixed(2)}</td>
+                        <td className="text-center p-2 font-mono">{c.alpha.toFixed(2)}</td>
+                      </tr>
+                    })}
                   </tbody>
                 </table>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                * α = 0.5: 선형 치수(linear dimension)에 대한 표준 scaling exponent
+                * α는 구조물별로 다릅니다. Table 2의 해당 계수와 원문 단위를 사용합니다.
               </p>
             </div>
 
@@ -629,11 +484,12 @@ export default function EchoZScoreTool() {
                   </p>
                   <p className="font-mono ml-4">3. 표준편차 = 0.24 × 0.7071 × 10 = 1.7 mm</p>
                   <div className="ml-4">
-                    <CompactEquation label="4단계: Z-score는 15.0 빼기 12.9 나누기 1.7, 약 플러스 1.24">
+                    <CompactEquation label="4단계: Z-score는 반올림 전 예측값과 표준편차 적용 시 약 플러스 1.26">
                       <span>4. Z-score =</span>
-                      <MathFraction numerator="15.0 − 12.9" denominator="1.7" />
-                      <span className="font-semibold text-chart-1">= +1.24</span>
+                      <MathFraction numerator={<>15.0 − 1.82 × √0.5 × 10</>} denominator={<>0.24 × √0.5 × 10</>} />
+                      <span className="font-semibold text-chart-1">≈ +1.26</span>
                     </CompactEquation>
+                    <p className="mt-1 text-xs text-muted-foreground">반올림 전 값 적용</p>
                   </div>
                 </div>
 
@@ -658,13 +514,13 @@ export default function EchoZScoreTool() {
                 <li className="flex gap-2">
                   <span className="text-chart-1 font-bold">•</span>
                   <span>
-                    <span className="font-semibold">BSA 계산:</span> Mosteller 공식 = √(키(cm) × 체중(kg) / 3600)
+                    <span className="font-semibold">BSA 계산:</span> Haycock = 0.024265 × 키(cm)^0.3964 × 체중(kg)^0.5378 (원문 명시). Mosteller는 병원 참고값으로만 표시합니다.
                   </span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-chart-1 font-bold">•</span>
                   <span>
-                    <span className="font-semibold">정상 범위:</span> Z-score -2 ~ +2 (95% 신뢰구간)
+                    <span className="font-semibold">정상 범위:</span> Z-score −2 ~ +2 (약 95% 참고구간)
                   </span>
                 </li>
                 <li className="flex gap-2">
@@ -676,14 +532,13 @@ export default function EchoZScoreTool() {
                 <li className="flex gap-2">
                   <span className="text-destructive font-bold">•</span>
                   <span>
-                    <span className="font-semibold">BSA &gt; 2.3 m²:</span> 성인 기준 사용 필요 (예: WASE guideline)
+                    <span className="font-semibold">BSA 0.1–2.3 m² 밖:</span> 결과 차단. 해당 연령·체격에 적합한 참고모형을 확인하세요.
                   </span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-chart-2 font-bold">•</span>
                   <span>
-                    <span className="font-semibold">MV/TV:</span> 반드시 Apical 4-chamber view, LAT (lateral annulus)
-                    측정
+                    <span className="font-semibold">기본 MV/TV:</span> Apical 4-chamber LAT 측정. AP는 추가 구조물에 별도 표시합니다.
                   </span>
                 </li>
               </ul>
@@ -714,7 +569,7 @@ export default function EchoZScoreTool() {
         </TabsContent>
 
         <TabsContent value="pettersen">
-          <EchoZScorePettersen />
+          <EchoZScorePettersen height={height} weight={weight} onHeightChange={updateHeight} onWeightChange={updateWeight} />
         </TabsContent>
       </Tabs>
     </div>
