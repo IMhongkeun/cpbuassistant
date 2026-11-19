@@ -1,0 +1,26 @@
+name: Echo nomogram regression
+
+on:
+  pull_request:
+    paths:
+      - "components/echo-zscore-*.tsx"
+      - "components/echo-bsa-display.tsx"
+      - "lib/echo-zscore.ts"
+      - "tests/echo-zscore.test.mjs"
+      - "tests/patient-workspace.test.mjs"
+      - ".github/workflows/echo-zscore-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Echo nomogram regression
+        run: node --experimental-strip-types --test tests/echo-zscore.test.mjs
