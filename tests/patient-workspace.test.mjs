@@ -174,7 +174,7 @@ test("calculators bind shared patient values through useWorkspaceSync", () => {
     "components/simple-cpb-calculator.tsx": ['useWorkspaceSync("lbm"', 'patient: "sex"', 'patient: "heightCm"', 'patient: "weightKg"'],
     "components/scmp-flow-calculator.tsx": ['useWorkspaceSync("scmp"', 'patient: "weightKg"'],
     "components/echo-zscore-tool.tsx": ['useWorkspaceSync("echo-lopez"', 'patient: "heightCm"'],
-    "components/echo-zscore-pettersen.tsx": ['useWorkspaceSync("echo-pettersen"', 'patient: "heightCm"'],
+    "components/echo-zscore-pettersen.tsx": ['useWorkspaceSync("echo-pettersen"', 'manualDuBoisBsa:', 'height: number | string'],
     "components/qp-qs-calculator.tsx": ['useWorkspaceSync("qpqs"'],
     "components/cannula-browser.tsx": ['useWorkspaceSync("cannula"', "selectedIds"],
   }
