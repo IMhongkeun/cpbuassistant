@@ -251,14 +251,17 @@ export default function EchoZScoreTool() {
   const isBlocked = bsa > BSA_LIMIT || (bsa > 0 && bsa < 0.1)
   const isHighBSA = !isBlocked && bsa >= BSA_WARN
 
-  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setHeight(e.target.value)
+  // Single anthropometric input state, shared across both nomogram tabs.
+  const updateHeight = (value: string) => {
+    setHeight(value)
     setManualBsa("")
   }
-  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setWeight(e.target.value)
+  const updateWeight = (value: string) => {
+    setWeight(value)
     setManualBsa("")
   }
+  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => updateHeight(e.target.value)
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => updateWeight(e.target.value)
 
   // Preserve legacy department lookup values separately; old automatic BSA used two-decimal Mosteller.
   const departmentBsa = Number(mosteller.toFixed(2))
@@ -318,7 +321,7 @@ export default function EchoZScoreTool() {
 
         <TabsContent value="phn" className="space-y-6">
           <p className="text-center text-sm text-muted-foreground mb-4">
-            PHN Table 2 • MV/TV = LAT(4C) • Z-range −3…+3 • BSA ≤ 2.3 m²
+            PHN Table 2 • 기본 MV/TV = LAT(4C) • Z-range −3…+3 • BSA 0.1–2.3 m²
           </p>
 
           {/* 입력 카드 */}
@@ -358,7 +361,7 @@ export default function EchoZScoreTool() {
 
           {!isBlocked && bsa > 0 && bsa <= 0.7 && (
             <div className="mt-2 text-xs text-chart-4 bg-chart-4/10 border border-chart-4/20 rounded p-2">
-              BSA ≤ 0.7 m²: 저체중 영아/신생아 영역입니다. 측정 오차가 Z-score에 크게 반영될 수 있습니다.
+              BSA ≤ 0.7 m²: 체격이 작은 소아 영역입니다. 측정 오차가 Z-score에 크게 반영될 수 있습니다.
             </div>
           )}
         </CardContent>
@@ -479,7 +482,7 @@ export default function EchoZScoreTool() {
                   </p>
                   <p className="font-mono ml-4">3. 표준편차 = 0.24 × 0.7071 × 10 = 1.7 mm</p>
                   <p className="font-mono ml-4">
-                    4. Z-score = (15.0 - 12.9) / 1.7 = <span className="font-bold text-chart-1">+1.24</span>
+                    4. Z-score (반올림 전 값 적용) = <span className="font-bold text-chart-1">+1.26</span>
                   </p>
                 </div>
 
@@ -559,7 +562,7 @@ export default function EchoZScoreTool() {
         </TabsContent>
 
         <TabsContent value="pettersen">
-          <EchoZScorePettersen />
+          <EchoZScorePettersen height={height} weight={weight} onHeightChange={updateHeight} onWeightChange={updateWeight} />
         </TabsContent>
       </Tabs>
     </div>
