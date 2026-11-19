@@ -26,17 +26,20 @@ const extraGroups = [
 ]
 const structures = [...primaryStructures, ...extraGroups.flatMap(g => g.keys)]
 
-export default function EchoZScorePettersen() {
-  const [height, setHeight] = useState<number | string>("")
-  const [weight, setWeight] = useState<number | string>("")
+interface Props {
+  height: number | string
+  weight: number | string
+  onHeightChange: (value: string) => void
+  onWeightChange: (value: string) => void
+}
+
+export default function EchoZScorePettersen({height,weight,onHeightChange,onWeightChange}: Props) {
   const [manualBsa, setManualBsa] = useState("")
   const [showFormulaGuide, setShowFormulaGuide] = useState(false)
 
-  // Patient Workspace only: height and weight follow the active case. The BSA
-  // field here stays calculator-specific (this tool's own formula notes apply).
+  // Height/weight are shared by both tabs via the parent's patient binding.
+  // Only an explicitly entered Du Bois BSA is stored for this model.
   useWorkspaceSync("echo-pettersen", {
-    height: { value: height, set: setHeight, patient: "heightCm" },
-    weight: { value: weight, set: setWeight, patient: "weightKg" },
     manualDuBoisBsa: { value: manualBsa, set: setManualBsa },
   })
 
@@ -71,12 +74,12 @@ export default function EchoZScorePettersen() {
   }
 
   const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setHeight(e.target.value)
+    onHeightChange(e.target.value)
     setManualBsa("")
   }
 
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setWeight(e.target.value)
+    onWeightChange(e.target.value)
     setManualBsa("")
   }
 
